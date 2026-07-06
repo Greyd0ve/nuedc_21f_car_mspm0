@@ -1,4 +1,5 @@
 #include "app_e_car.h"
+#include "app_config.h"
 #include "app_control.h"
 #include "app_line.h"
 #include "BeepLed.h"
@@ -10,7 +11,7 @@
 #include "cmsis_compiler.h"
 #include <stdint.h>
 
-#define E_CAR_CONTROL_PERIOD_MS      10U
+#define E_CAR_CONTROL_PERIOD_MS      ECAR_CONTROL_PERIOD_MS
 #define E_CAR_TARGET_LAP_MIN         1U
 #define E_CAR_TARGET_LAP_MAX         5U
 #define E_CAR_TURN_SIGN              1.0f
@@ -22,34 +23,34 @@
 
 ECarParam_t g_eCarParam =
 {
-    30.0f,
-    18.0f,
-    12.0f,
-    35.0f,
+    ECAR_DEFAULT_BASE_SPEED_CMPS,
+    ECAR_DEFAULT_RECOVER_SPEED_CMPS,
+    ECAR_DEFAULT_CORNER_FORWARD_CMPS,
+    ECAR_DEFAULT_CORNER_TURN_CMPS,
 
-    0.25f,
-    0.50f,
-    80.0f,
+    0.10f,
+    0.18f,
+    ECAR_DEFAULT_TURN_LIMIT_CMPS,
 
-    300U,
-    150U,
-    250U,
-    1200U,
+    500U,
+    120U,
+    220U,
+    1400U,
 
-    4500,
-    28120,
+    ECAR_DEFAULT_MIN_CORNER_INTERVAL_PULSE,
+    ECAR_DEFAULT_LAP_PULSE,
 
     5U
 };
 
-volatile float g_forwardKp = 14.0f;
-volatile float g_forwardKi = 0.55f;
-volatile float g_forwardKd = 1.8f;
-volatile float g_turnKp = 10.0f;
-volatile float g_turnKi = 0.04f;
-volatile float g_turnKd = 1.0f;
+volatile float g_forwardKp = 10.0f;
+volatile float g_forwardKi = 0.35f;
+volatile float g_forwardKd = 0.8f;
+volatile float g_turnKp = 8.0f;
+volatile float g_turnKi = 0.02f;
+volatile float g_turnKd = 0.5f;
 
-volatile float g_pwmLimit = (float)PWM_MAX_DUTY * 0.65f;
+volatile float g_pwmLimit = (float)PWM_MAX_DUTY * 0.55f;
 volatile float g_targetForwardSpeed = 0.0f;
 volatile float g_targetTurnSpeed = 0.0f;
 volatile uint8_t g_carEnable = 0U;
@@ -61,6 +62,8 @@ volatile float g_turnSpeed = 0.0f;
 volatile float g_speedPwm = 0.0f;
 volatile float g_diffPwm = 0.0f;
 volatile float g_forwardSpeedError = 0.0f;
+volatile int16_t g_leftEncoderDelta = 0;
+volatile int16_t g_rightEncoderDelta = 0;
 volatile int16_t g_leftPwm = 0;
 volatile int16_t g_rightPwm = 0;
 
@@ -80,6 +83,10 @@ volatile int16_t g_lineError = 0;
 volatile uint8_t g_lineValid = 0U;
 volatile uint8_t g_lineMask = 0U;
 volatile uint8_t g_lineRawMask = 0U;
+volatile uint8_t g_lineBlackCount = 0U;
+volatile uint8_t g_lineBadMaskCount = 0U;
+volatile uint8_t g_lineZeroMaskCount = 0U;
+volatile uint8_t g_lineCornerMaskStableCount = 0U;
 volatile int8_t g_lastLineDir = 1;
 volatile uint16_t g_lineLostMs = 0U;
 
@@ -98,6 +105,7 @@ static volatile int32_t s_currentLapPulse = 0;
 static volatile float s_lapProgress = 0.0f;
 static volatile uint8_t s_faultCode = E_CAR_FAULT_NONE;
 static volatile uint16_t s_promptMs = 0U;
+static volatile uint8_t s_cornerCandidateCount = 0U;
 
 static float s_lastLineError = 0.0f;
 
@@ -114,22 +122,6 @@ static uint8_t ECar_IsMotionState(ECarState_t state)
                      state == E_CAR_CORNER_ENTER ||
                      state == E_CAR_CORNER_TURN ||
                      state == E_CAR_LINE_RECOVER);
-}
-
-static uint8_t ECar_CountBlack(uint8_t mask)
-{
-    uint8_t count = 0U;
-    uint8_t i;
-
-    for (i = 0U; i < 8U; i++)
-    {
-        if ((mask & (uint8_t)(1U << i)) != 0U)
-        {
-            count++;
-        }
-    }
-
-    return count;
 }
 
 static int32_t ECar_GetForwardPulse(void)
@@ -189,6 +181,8 @@ static void ECar_ClearEncoderTotals(void)
     g_rightEncoderTotal = 0;
     g_forwardEncoderTotal = 0;
     g_turnEncoderTotal = 0;
+    g_leftEncoderDelta = 0;
+    g_rightEncoderDelta = 0;
     Encoder_ClearAll();
     __enable_irq();
 }
@@ -207,9 +201,14 @@ static void ECar_ResetLineState(void)
     g_lineValid = 0U;
     g_lineMask = 0U;
     g_lineRawMask = 0U;
+    g_lineBlackCount = 0U;
+    g_lineBadMaskCount = 0U;
+    g_lineZeroMaskCount = 0U;
+    g_lineCornerMaskStableCount = 0U;
     g_lastLineDir = 1;
     g_lineLostMs = 0U;
     s_lastLineError = 0.0f;
+    s_cornerCandidateCount = 0U;
 }
 
 static void ECar_ResetRunData(void)
@@ -229,6 +228,7 @@ static void ECar_ResetRunData(void)
     s_currentLapPulse = 0;
     s_lapProgress = 0.0f;
     s_faultCode = E_CAR_FAULT_NONE;
+    s_cornerCandidateCount = 0U;
 }
 
 static void ECar_UpdateLapProgress(void)
@@ -290,15 +290,18 @@ static uint8_t ECar_IsCornerDetected(void)
     int32_t pulse;
     int32_t interval;
     uint8_t blackCount;
+    uint8_t cornerBlackCountTh;
 
-    if (!g_lineValid)
+    cornerBlackCountTh = g_eCarParam.corner_black_count_th;
+    if (cornerBlackCountTh == 0U || cornerBlackCountTh > 8U)
     {
-        return 0U;
+        cornerBlackCountTh = 5U;
     }
 
-    blackCount = ECar_CountBlack(g_lineMask);
-    if (blackCount < g_eCarParam.corner_black_count_th)
+    blackCount = g_lineBlackCount;
+    if (blackCount < cornerBlackCountTh)
     {
+        s_cornerCandidateCount = 0U;
         return 0U;
     }
 
@@ -306,10 +309,16 @@ static uint8_t ECar_IsCornerDetected(void)
     interval = pulse - s_lastCornerForwardPulse;
     if (interval < g_eCarParam.min_corner_interval_pulse)
     {
+        s_cornerCandidateCount = 0U;
         return 0U;
     }
 
-    return 1U;
+    if (s_cornerCandidateCount < 255U)
+    {
+        s_cornerCandidateCount++;
+    }
+
+    return (uint8_t)((s_cornerCandidateCount >= ECAR_CORNER_CONFIRM_COUNT) ? 1U : 0U);
 }
 
 static uint8_t ECar_IsStableLineAfterCorner(void)
@@ -321,7 +330,7 @@ static uint8_t ECar_IsStableLineAfterCorner(void)
         return 0U;
     }
 
-    blackCount = ECar_CountBlack(g_lineMask);
+    blackCount = g_lineBlackCount;
     if (blackCount == 0U)
     {
         return 0U;
@@ -366,6 +375,11 @@ static void ECar_HandleLineRun(void)
         s_lostMs = 0U;
         turnCmd = ECar_CalcLineTurnCmd();
     }
+    else if (g_lineBlackCount >= g_eCarParam.corner_black_count_th)
+    {
+        s_lostMs = 0U;
+        turnCmd = ECar_CalcLineTurnCmd();
+    }
     else
     {
         if (s_lostMs < 60000U)
@@ -396,6 +410,7 @@ static void ECar_HandleCornerEnter(void)
 
     pulse = ECar_GetForwardPulse();
     s_lastCornerForwardPulse = pulse;
+    s_cornerCandidateCount = 0U;
 
     if (s_cornerCount < 250U)
     {
@@ -534,6 +549,15 @@ void ECar_Start(void)
         s_targetLap = E_CAR_TARGET_LAP_MAX;
     }
 
+#if ECAR_BOARD_TEST_MODE
+    ECar_SyncLineParams();
+    ECar_SafeStop();
+    ECar_ResetRunData();
+    ECar_SetState(E_CAR_READY);
+    ECar_PromptStart(120U);
+    return;
+#endif
+
     ECar_SyncLineParams();
     ECar_SafeStop();
     ECar_ResetRunData();
@@ -557,7 +581,6 @@ void ECar_Stop(void)
 void ECar_Control10ms(void)
 {
     ECar_SyncLineParams();
-    App_Control_UpdateEncoderSpeed();
     App_Line_Update();
 
     if (ECar_IsMotionState(s_state))

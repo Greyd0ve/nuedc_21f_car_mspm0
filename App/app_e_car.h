@@ -17,11 +17,13 @@ typedef enum
 
 typedef struct
 {
+    /* Motion speeds are cm/s. Turn speed is differential wheel speed command. */
     float base_speed;
     float recover_speed;
     float corner_forward_speed;
     float corner_turn_speed;
 
+    /* Line error uses app_line weights; output is clamped as cm/s turn command. */
     float line_kp;
     float line_kd;
     float turn_limit;
@@ -31,6 +33,7 @@ typedef struct
     uint16_t corner_min_turn_ms;
     uint16_t corner_max_turn_ms;
 
+    /* Encoder distances are stored in raw pulses for tuning and telemetry. */
     int32_t min_corner_interval_pulse;
     int32_t lap_pulse_default;
 

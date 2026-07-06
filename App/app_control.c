@@ -1,4 +1,5 @@
 #include "app_control.h"
+#include "app_config.h"
 #include "Encoder.h"
 #include "Motor.h"
 #include "PWM.h"
@@ -27,6 +28,8 @@ extern volatile float g_speedPwm;
 extern volatile float g_diffPwm;
 extern volatile float g_forwardSpeedError;
 
+extern volatile int16_t g_leftEncoderDelta;
+extern volatile int16_t g_rightEncoderDelta;
 extern volatile int16_t g_leftPwm;
 extern volatile int16_t g_rightPwm;
 extern volatile uint8_t g_carEnable;
@@ -88,17 +91,21 @@ void App_Control_UpdateEncoderSpeed(void)
 {
     int16_t leftDelta;
     int16_t rightDelta;
+    float speedScale;
 
     leftDelta = Encoder_GetLeftDelta();
     rightDelta = Encoder_GetRightDelta();
+    speedScale = ECAR_CM_PER_PULSE * 1000.0f / (float)ECAR_ENCODER_SPEED_PERIOD_MS;
 
+    g_leftEncoderDelta = leftDelta;
+    g_rightEncoderDelta = rightDelta;
     g_leftEncoderTotal += leftDelta;
     g_rightEncoderTotal += rightDelta;
     g_forwardEncoderTotal = (g_leftEncoderTotal + g_rightEncoderTotal) / 2;
     g_turnEncoderTotal = (g_rightEncoderTotal - g_leftEncoderTotal) / 2;
 
-    g_leftSpeed = (float)leftDelta;
-    g_rightSpeed = (float)rightDelta;
+    g_leftSpeed = (float)leftDelta * speedScale;
+    g_rightSpeed = (float)rightDelta * speedScale;
     g_forwardSpeed = (g_leftSpeed + g_rightSpeed) * 0.5f;
     g_turnSpeed = (g_rightSpeed - g_leftSpeed) * 0.5f;
 }

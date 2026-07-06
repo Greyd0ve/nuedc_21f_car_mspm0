@@ -5,6 +5,7 @@
 
 void ECar_Serial_Init(void);
 void ECar_SerialProcess(void);
+void ECar_SerialPlot100ms(void);
 void ECar_SerialPlot10ms(void);
 
 #endif
