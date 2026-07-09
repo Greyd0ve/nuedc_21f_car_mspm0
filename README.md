@@ -64,12 +64,10 @@ STBY 当前直接接 5V，软件不能依赖 STBY 关断电机，只能通过 PW
 | KEY2/SW2 | B11，输入上拉，按下为 0 |
 | KEY3/SW3 | B27，输入上拉，按下为 0 |
 | KEY4/SW4 | B26，输入上拉，按下为 0 |
-| SERVO1_PWM | TIMA0-C0，当前可生成映射 PB8；PA20 在当前芯片包中不是 TIMA0-C0 |
-| SERVO2_PWM | TIMA0-C1，当前代码映射 PA22 |
-| SERVO3_PWM | TIMA0-C2，当前代码映射 PA15 |
-| SERVO4_PWM | TIMA0-C3，当前代码映射 PA17 |
-
-注意：当前 MSPM0G3507 LQFP-64(PM) SysConfig 数据中，PA20 只有 GPIOA_DIO20/SWCLK 功能，不能生成 TIMA0-C0；如天猛星 IO 图标注为 PA20，需要先确认该标注是否为板卡接口编号而非 MCU 的 PA20。
+| SERVO1_PWM | PA21 / TIMA0-C0 |
+| SERVO2_PWM | PA22 / TIMA0-C1 |
+| SERVO3_PWM | PA15 / TIMA0-C2 |
+| SERVO4_PWM | PA17 / TIMA0-C3 |
 | UART0 | USB 调试 / printf / board test 日志，当前 115200 |
 | UART1 | 预留 K230 / 瞄准模块 |
 | UART2/UART3 | 备用 |
