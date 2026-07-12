@@ -11,10 +11,14 @@
 #define OLED_I2C_TIMEOUT              (100000U)
 #define OLED_CONTROL_COMMAND          (0x00U)
 #define OLED_CONTROL_DATA             (0x40U)
+#define OLED_SPI_DELAY_CYCLES         (4U)
 
 static uint8_t s_oledBuffer[OLED_WIDTH * OLED_PAGE_COUNT];
 static uint8_t s_oledReady = 0U;
+
+#if !BOARD_OLED_USE_H8_SPI
 static uint32_t s_i2cErrataDelayCycles = 3U;
+#endif
 
 static const uint8_t s_font5x7[95][5] = {
     {0x00,0x00,0x00,0x00,0x00},{0x00,0x00,0x5F,0x00,0x00},{0x00,0x07,0x00,0x07,0x00},
@@ -51,6 +55,86 @@ static const uint8_t s_font5x7[95][5] = {
     {0x00,0x41,0x36,0x08,0x00},{0x10,0x08,0x08,0x10,0x08}
 };
 
+#if BOARD_OLED_USE_H8_SPI
+static void OLED_H8_GPIOInit(void)
+{
+    DL_GPIO_initDigitalOutput(OLED_H8_SCL_IOMUX);
+    DL_GPIO_initDigitalOutput(OLED_H8_SDA_IOMUX);
+    DL_GPIO_initDigitalOutput(OLED_H8_RES_IOMUX);
+    DL_GPIO_initDigitalOutput(OLED_H8_DC_IOMUX);
+    DL_GPIO_initDigitalOutput(OLED_H8_CS_IOMUX);
+
+    DL_GPIO_clearPins(OLED_H8_PORT, OLED_H8_SCL_PIN);
+    DL_GPIO_setPins(OLED_H8_PORT, OLED_H8_SDA_PIN |
+                                  OLED_H8_RES_PIN |
+                                  OLED_H8_DC_PIN |
+                                  OLED_H8_CS_PIN);
+    DL_GPIO_enableOutput(OLED_H8_PORT, OLED_H8_PIN_MASK);
+}
+
+static void OLED_H8_Reset(void)
+{
+    DL_GPIO_clearPins(OLED_H8_PORT, OLED_H8_RES_PIN);
+    delay_cycles(320000U);
+    DL_GPIO_setPins(OLED_H8_PORT, OLED_H8_RES_PIN);
+    delay_cycles(320000U);
+}
+
+static void OLED_H8_WriteByte(uint8_t data)
+{
+    uint8_t mask;
+
+    for (mask = 0x80U; mask != 0U; mask >>= 1U)
+    {
+        if ((data & mask) != 0U)
+        {
+            DL_GPIO_setPins(OLED_H8_PORT, OLED_H8_SDA_PIN);
+        }
+        else
+        {
+            DL_GPIO_clearPins(OLED_H8_PORT, OLED_H8_SDA_PIN);
+        }
+
+        delay_cycles(OLED_SPI_DELAY_CYCLES);
+        DL_GPIO_setPins(OLED_H8_PORT, OLED_H8_SCL_PIN);
+        delay_cycles(OLED_SPI_DELAY_CYCLES);
+        DL_GPIO_clearPins(OLED_H8_PORT, OLED_H8_SCL_PIN);
+    }
+}
+
+static uint8_t OLED_WriteControlBytes(uint8_t control, const uint8_t *data, uint16_t len)
+{
+    uint16_t offset;
+
+    if (data == NULL && len != 0U)
+    {
+        return 0U;
+    }
+
+    if (control == OLED_CONTROL_COMMAND)
+    {
+        DL_GPIO_clearPins(OLED_H8_PORT, OLED_H8_DC_PIN);
+    }
+    else
+    {
+        DL_GPIO_setPins(OLED_H8_PORT, OLED_H8_DC_PIN);
+    }
+
+    DL_GPIO_clearPins(OLED_H8_PORT, OLED_H8_CS_PIN);
+    for (offset = 0U; offset < len; offset++)
+    {
+        OLED_H8_WriteByte(data[offset]);
+    }
+    DL_GPIO_setPins(OLED_H8_PORT, OLED_H8_CS_PIN);
+
+    return 1U;
+}
+
+static uint8_t OLED_WriteCommands(const uint8_t *cmds, uint16_t len)
+{
+    return OLED_WriteControlBytes(OLED_CONTROL_COMMAND, cmds, len);
+}
+#else
 static void OLED_CalcI2CDelay(void)
 {
     DL_I2C_ClockConfig clockConfig;
@@ -175,6 +259,7 @@ static uint8_t OLED_WriteCommands(const uint8_t *cmds, uint16_t len)
 {
     return OLED_WriteControlBytes(OLED_CONTROL_COMMAND, cmds, len);
 }
+#endif
 
 static void OLED_DrawPixel(uint8_t x, uint8_t y, uint8_t on)
 {
@@ -257,14 +342,25 @@ void OLED_Init(void)
         0x40, 0x8D, 0x14, 0xAF
     };
 
+#if BOARD_OLED_USE_H8_SPI
+    OLED_H8_GPIOInit();
+    OLED_H8_Reset();
+#else
     OLED_CalcI2CDelay();
+#endif
+
     memset(s_oledBuffer, 0, sizeof(s_oledBuffer));
     s_oledReady = OLED_WriteCommands(initCmds, (uint16_t)sizeof(initCmds));
 
     OLED_Clear();
     OLED_ShowString(0, 0, "E-Car MSPM0", OLED_8X16);
+#if BOARD_OLED_USE_H8_SPI
+    OLED_ShowString(0, 16, "OLED H8 SPI", OLED_8X16);
+    OLED_ShowString(0, 32, "SCL PB9 SDA PB8", OLED_8X16);
+#else
     OLED_ShowString(0, 16, "OLED I2C OK", OLED_8X16);
     OLED_ShowString(0, 32, "SCL PA1 SDA PA0", OLED_8X16);
+#endif
     OLED_ShowString(0, 48, "Motor OFF", OLED_8X16);
     OLED_Update();
 }

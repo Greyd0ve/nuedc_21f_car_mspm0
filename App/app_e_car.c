@@ -2,6 +2,7 @@
 #include "app_config.h"
 #include "app_control.h"
 #include "app_line.h"
+#include "Board_Config.h"
 #include "BeepLed.h"
 #include "Encoder.h"
 #include "Key.h"
@@ -745,8 +746,13 @@ void ECar_ShowStatus(void)
     {
         OLED_Clear();
         OLED_ShowString(0, 0, "E-Car MSPM0", OLED_8X16);
+#if BOARD_OLED_USE_H8_SPI
+        OLED_ShowString(0, 16, "OLED H8 SPI", OLED_8X16);
+        OLED_ShowString(0, 32, "SCL PB9 SDA PB8", OLED_8X16);
+#else
         OLED_ShowString(0, 16, "OLED I2C OK", OLED_8X16);
         OLED_ShowString(0, 32, "SCL PA1 SDA PA0", OLED_8X16);
+#endif
         OLED_ShowString(0, 48, "Motor OFF", OLED_8X16);
         OLED_Update();
         return;

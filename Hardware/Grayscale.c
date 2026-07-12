@@ -39,19 +39,32 @@ static void Grayscale_SetAddress(uint8_t channel)
 
 void Grayscale_Init(void)
 {
+#if BOARD_OLED_H8_SPI_OWNS_GRAY_AD1
+    /* H8 SPI OLED uses PB10 as OLED_RES, which conflicts with GRAY_AD1. */
+    return;
+#else
     /* 默认选择通道 0，等待第一次显式读取。 */
     DL_GPIO_clearPins(GRAYSCALE_AD0_PORT, GRAYSCALE_AD0_PIN);
     DL_GPIO_clearPins(GRAYSCALE_AD1_PORT, GRAYSCALE_AD1_PIN);
     DL_GPIO_clearPins(GRAYSCALE_AD2_PORT, GRAYSCALE_AD2_PIN);
+#endif
 }
 
 uint8_t Grayscale_RawOUT(void)
 {
+#if BOARD_OLED_H8_SPI_OWNS_GRAY_AD1
+    return 0U;
+#else
     return (DL_GPIO_readPins(GRAYSCALE_OUT_PORT, GRAYSCALE_OUT_PIN) != 0U) ? 1U : 0U;
+#endif
 }
 
 uint8_t Grayscale_ReadChannel(uint8_t channel)
 {
+#if BOARD_OLED_H8_SPI_OWNS_GRAY_AD1
+    (void)channel;
+    return 0U;
+#else
     uint8_t a;
     uint8_t b;
     uint8_t c;
@@ -65,6 +78,7 @@ uint8_t Grayscale_ReadChannel(uint8_t channel)
     c = Grayscale_RawOUT();
 
     return (uint8_t)(((uint16_t)a + (uint16_t)b + (uint16_t)c) >= 2U);
+#endif
 }
 
 void Grayscale_ReadAll(uint8_t raw[GRAYSCALE_CHANNELS])
@@ -76,11 +90,18 @@ void Grayscale_ReadAll(uint8_t raw[GRAYSCALE_CHANNELS])
         return;
     }
 
+#if BOARD_OLED_H8_SPI_OWNS_GRAY_AD1
+    for (i = 0U; i < GRAYSCALE_CHANNELS; i++)
+    {
+        raw[i] = 0U;
+    }
+#else
     /* 按物理通道顺序读取；逻辑顺序反转由 app_line 处理。 */
     for (i = 0U; i < GRAYSCALE_CHANNELS; i++)
     {
         raw[i] = Grayscale_ReadChannel(i);
     }
+#endif
 }
 
 uint8_t Grayscale_ReadOne(uint8_t channel)

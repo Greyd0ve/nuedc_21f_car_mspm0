@@ -20,7 +20,7 @@
 #define ECAR_TEST_BEEP_ENABLE                   1
 #endif
 #ifndef ECAR_TEST_OLED_ENABLE
-#define ECAR_TEST_OLED_ENABLE                   0
+#define ECAR_TEST_OLED_ENABLE                   1
 #endif
 #ifndef ECAR_TEST_IMU_ENABLE
 #define ECAR_TEST_IMU_ENABLE                    0

@@ -24,6 +24,7 @@ uint8_t Key_GetNum(void)
 uint8_t Key_GetState(void)
 {
     /* 按键低电平有效；返回第一个按下的键号，未按下返回 0。 */
+#if !BOARD_OLED_H8_SPI_OWNS_KEY12
     if (DL_GPIO_readPins(KEY_K1_PORT, KEY_K1_PIN) == 0U)
     {
         return 1U;
@@ -32,6 +33,7 @@ uint8_t Key_GetState(void)
     {
         return 2U;
     }
+#endif
     if (DL_GPIO_readPins(KEY_K3_PORT, KEY_K3_PIN) == 0U)
     {
         return 3U;

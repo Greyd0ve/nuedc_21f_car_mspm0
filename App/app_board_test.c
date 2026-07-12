@@ -47,15 +47,24 @@ static int16_t BoardTest_CalcGrayError(const uint8_t raw[GRAYSCALE_CHANNELS])
 
 static void BoardTest_PrintKey(void)
 {
+#if BOARD_OLED_H8_SPI_OWNS_KEY12
+    Serial_Printf("[key] k1=H8 k2=H8 k3=%u k4=%u\r\n",
+        (unsigned int)BoardTest_ReadKeyLevel(KEY3_PORT, KEY3_PIN),
+        (unsigned int)BoardTest_ReadKeyLevel(KEY4_PORT, KEY4_PIN));
+#else
     Serial_Printf("[key] k1=%u k2=%u k3=%u k4=%u\r\n",
         (unsigned int)BoardTest_ReadKeyLevel(KEY1_PORT, KEY1_PIN),
         (unsigned int)BoardTest_ReadKeyLevel(KEY2_PORT, KEY2_PIN),
         (unsigned int)BoardTest_ReadKeyLevel(KEY3_PORT, KEY3_PIN),
         (unsigned int)BoardTest_ReadKeyLevel(KEY4_PORT, KEY4_PIN));
+#endif
 }
 
 static void BoardTest_PrintGray(void)
 {
+#if BOARD_OLED_H8_SPI_OWNS_GRAY_AD1
+    Serial_SendString("[gray] skipped: H8 OLED uses PB10/GRAY_AD1\r\n");
+#else
     uint8_t raw[GRAYSCALE_CHANNELS];
     int16_t error;
 
@@ -72,6 +81,7 @@ static void BoardTest_PrintGray(void)
         (unsigned int)raw[6],
         (unsigned int)raw[7],
         (int)error);
+#endif
 }
 
 static void BoardTest_PrintEncoder(void)
@@ -112,7 +122,11 @@ static void BoardTest_PrintOptionalStatus(void)
 #endif
 
 #if ECAR_TEST_OLED_ENABLE
+#if BOARD_OLED_USE_H8_SPI
+    Serial_SendString("[oled] h8-spi enabled\r\n");
+#else
     Serial_SendString("[oled] ok\r\n");
+#endif
 #else
     Serial_SendString("[oled] disabled\r\n");
 #endif
