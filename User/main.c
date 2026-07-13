@@ -83,9 +83,17 @@ int main(void)
             if (printMs >= 1000U)
             {
                 printMs = 0U;
-                Encoder_DebugPrintDirectNoPrintf("[enc-direct-loop]");
-                Encoder_DebugPrintGetterNoPrintf("[enc-getter-loop]");
-                Main_PrintfSingleFieldTest();
+                Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-getdelta]");
+
+								{
+										int16_t rd = Encoder_GetRightDelta();
+										Serial_Printf("[getdelta-test]\r\n");
+										Serial_Printf("rd=%d\r\n", (int)rd);
+								}
+
+								Encoder_DebugPrintDirectNoPrintf("[enc-direct-after-getdelta]");
+								Encoder_DebugPrintGetterNoPrintf("[enc-getter-after-getdelta]");
+								Main_PrintfSingleFieldTest();
             }
         }
     }

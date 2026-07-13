@@ -25,7 +25,7 @@ static volatile int32_t s_rightMaxRawDelta = 0;
 #endif
 
 #ifndef ENCODER_DEBUG_DISABLE_GPIO_IRQ
-#define ENCODER_DEBUG_DISABLE_GPIO_IRQ 1U
+#define ENCODER_DEBUG_DISABLE_GPIO_IRQ 0U
 #endif
 
 static uint8_t Encoder_ReadLevel(GPIO_Regs *port, uint32_t pin)

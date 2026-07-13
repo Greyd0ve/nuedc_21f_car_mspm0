@@ -1,9 +1,8 @@
-#include "Serial.h"
-#include "Board_Config.h"
+#ifndef __SERIAL_H
+#define __SERIAL_H
 
-
-#include <stdarg.h>
-#include <stdio.h>
+#include "ti_msp_dl_config.h"
+#include <stdint.h>
 
 /* 初始化 UART RX 中断，并清空软件接收环形缓冲区。 */
 void Serial_Init(void);
@@ -26,3 +25,4 @@ uint8_t Serial_ReadByte(uint8_t *byte);
 uint32_t Serial_GetRxOverflowCount(void);
 
 #endif
+
