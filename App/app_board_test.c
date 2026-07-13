@@ -16,6 +16,9 @@ extern volatile int32_t g_leftEncoderTotal;
 extern volatile int32_t g_rightEncoderTotal;
 extern volatile int16_t g_leftEncoderDelta;
 extern volatile int16_t g_rightEncoderDelta;
+extern volatile int16_t g_rightLastNonZeroDelta;
+extern volatile uint32_t g_rightNonZeroDeltaCount;
+extern volatile uint32_t g_rightLimitDeltaCount;
 
 static uint16_t s_ledBlinkMs = 0U;
 
@@ -89,7 +92,7 @@ static void BoardTest_PrintGray(void)
 
 static void BoardTest_PrintEncoder(void)
 {
-    Serial_Printf("[enc] left=%ld right=%ld ld=%d rd=%d LA=%u LB=%u RA=%u RB=%u risr=%lu rign=%lu\r\n",
+    Serial_Printf("[enc] left=%ld right=%ld ld=%d rd=%d LA=%u LB=%u RA=%u RB=%u risr=%lu rign=%lu",
         (long)g_leftEncoderTotal,
         (long)g_rightEncoderTotal,
         (int)g_leftEncoderDelta,
@@ -100,6 +103,16 @@ static void BoardTest_PrintEncoder(void)
         (unsigned int)BoardTest_ReadKeyLevel(ENC_R_B_PORT, ENC_R_B_PIN),
         (unsigned long)Encoder_GetRightIsrCount(),
         (unsigned long)Encoder_GetRightSameAIgnored());
+    Serial_Printf(" rstat=%lu rraw=%ld rlim=%lu rget=%lu rnz=%lu rmax=%ld rnzd=%lu rlmd=%lu rlast=%d\r\n",
+        (unsigned long)Encoder_GetRightStatusCount(),
+        (long)Encoder_GetRightLastRawDeltaBeforeLimit(),
+        (unsigned long)Encoder_GetRightLimitHitCount(),
+        (unsigned long)Encoder_GetRightGetDeltaCount(),
+        (unsigned long)Encoder_GetRightNonZeroGetCount(),
+        (long)Encoder_GetRightMaxRawDelta(),
+        (unsigned long)g_rightNonZeroDeltaCount,
+        (unsigned long)g_rightLimitDeltaCount,
+        (int)g_rightLastNonZeroDelta);
 }
 
 static void BoardTest_PrintOptionalStatus(void)

@@ -111,7 +111,7 @@ void Serial_SendNumber(uint32_t number, uint8_t length)
 void Serial_Printf(const char *format, ...)
 {
     /* 使用固定栈缓冲区，避免嵌入式运行时动态分配。 */
-    char buffer[128];
+    char buffer[256];
     va_list args;
     int len;
 

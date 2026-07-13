@@ -16,5 +16,10 @@ void Encoder_ClearAll(void);
 uint32_t Encoder_GetRightIsrCount(void);
 uint32_t Encoder_GetRightSameAIgnored(void);
 uint32_t Encoder_GetRightStatusCount(void);
+int32_t Encoder_GetRightLastRawDeltaBeforeLimit(void);
+uint32_t Encoder_GetRightLimitHitCount(void);
+uint32_t Encoder_GetRightGetDeltaCount(void);
+uint32_t Encoder_GetRightNonZeroGetCount(void);
+int32_t Encoder_GetRightMaxRawDelta(void);
 
 #endif

@@ -47,6 +47,10 @@ extern volatile int32_t g_turnEncoderTotal;
 static PID_TypeDef ForwardPID;
 static PID_TypeDef TurnPID;
 
+volatile int16_t g_rightLastNonZeroDelta = 0;
+volatile uint32_t g_rightNonZeroDeltaCount = 0U;
+volatile uint32_t g_rightLimitDeltaCount = 0U;
+
 /* 本地限幅函数：让 PID/PWM 限幅在调用处保持清晰。 */
 static float App_Control_LimitFloat(float value, float minVal, float maxVal)
 {
@@ -111,6 +115,15 @@ void App_Control_UpdateEncoderSpeed(uint16_t periodMs)
     /* Encoder_Get*Delta() 会原子读取并清零累计脉冲。 */
     leftDelta = Encoder_GetLeftDelta();
     rightDelta = Encoder_GetRightDelta();
+    if (rightDelta != 0)
+    {
+        g_rightLastNonZeroDelta = rightDelta;
+        g_rightNonZeroDeltaCount++;
+        if ((rightDelta == 32767) || (rightDelta == -32768))
+        {
+            g_rightLimitDeltaCount++;
+        }
+    }
     speedScale = ECAR_CM_PER_PULSE * 1000.0f / (float)periodMs;
 
     /* 总里程保持原始脉冲单位，方便角点/圈数阈值直接调参。 */
