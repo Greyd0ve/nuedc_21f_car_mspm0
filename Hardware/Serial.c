@@ -72,6 +72,88 @@ void Serial_SendArray(const uint8_t *array, uint16_t length)
     }
 }
 
+static uint8_t Serial_IsDigit(char ch)
+{
+    return (uint8_t)((ch >= '0') && (ch <= '9'));
+}
+
+static void Serial_SendRepeat(char ch, uint8_t count)
+{
+    while (count > 0U)
+    {
+        Serial_SendByte((uint8_t)ch);
+        count--;
+    }
+}
+
+static void Serial_SendUnsignedBase(uint32_t value,
+                                    uint32_t base,
+                                    uint8_t width,
+                                    uint8_t zeroPad,
+                                    uint8_t upperCase)
+{
+    char buf[11];
+    uint8_t len = 0U;
+    char padChar = zeroPad ? '0' : ' ';
+
+    if ((base != 10U) && (base != 16U))
+    {
+        base = 10U;
+    }
+
+    do
+    {
+        uint32_t digit = value % base;
+        value /= base;
+
+        if (digit < 10U)
+        {
+            buf[len] = (char)('0' + digit);
+        }
+        else
+        {
+            buf[len] = (char)((upperCase ? 'A' : 'a') + (digit - 10U));
+        }
+
+        len++;
+    } while ((value != 0U) && (len < sizeof(buf)));
+
+    if (width > len)
+    {
+        Serial_SendRepeat(padChar, (uint8_t)(width - len));
+    }
+
+    while (len > 0U)
+    {
+        len--;
+        Serial_SendByte((uint8_t)buf[len]);
+    }
+}
+
+static void Serial_SendSignedDecimal(int32_t value, uint8_t width, uint8_t zeroPad)
+{
+    uint32_t absValue;
+
+    if (value < 0)
+    {
+        Serial_SendByte((uint8_t)'-');
+
+        if (width > 0U)
+        {
+            width--;
+        }
+
+        absValue = (uint32_t)(-(value + 1)) + 1U;
+    }
+    else
+    {
+        absValue = (uint32_t)value;
+    }
+
+    Serial_SendUnsignedBase(absValue, 10U, width, zeroPad, 0U);
+}
+
+
 void Serial_SendString(const char *string)
 {
     if (string == 0)
@@ -111,25 +193,194 @@ void Serial_SendNumber(uint32_t number, uint8_t length)
 
 void Serial_Printf(const char *format, ...)
 {
-    /* 使用固定栈缓冲区，避免嵌入式运行时动态分配。 */
-    char buffer[256];
     va_list args;
-    int len;
 
-    va_start(args, format);
-    len = vsnprintf(buffer, sizeof(buffer), format, args);
-    va_end(args);
-
-    if (len <= 0)
+    if (format == 0)
     {
         return;
     }
-    if ((uint32_t)len >= sizeof(buffer))
+
+    va_start(args, format);
+
+    while (*format != '\0')
     {
-        len = (int)sizeof(buffer) - 1;
+        uint8_t zeroPad = 0U;
+        uint8_t width = 0U;
+        uint8_t longFlag = 0U;
+        char spec;
+
+        if (*format != '%')
+        {
+            Serial_SendByte((uint8_t)*format);
+            format++;
+            continue;
+        }
+
+        format++;
+
+        if (*format == '\0')
+        {
+            break;
+        }
+
+        if (*format == '%')
+        {
+            Serial_SendByte((uint8_t)'%');
+            format++;
+            continue;
+        }
+
+        if (*format == '0')
+        {
+            zeroPad = 1U;
+            format++;
+        }
+
+        while (Serial_IsDigit(*format))
+        {
+            uint16_t nextWidth = (uint16_t)width * 10U + (uint16_t)(*format - '0');
+
+            if (nextWidth > 255U)
+            {
+                width = 255U;
+            }
+            else
+            {
+                width = (uint8_t)nextWidth;
+            }
+
+            format++;
+        }
+
+        if (*format == 'l')
+        {
+            longFlag = 1U;
+            format++;
+        }
+
+        spec = *format;
+        if (spec == '\0')
+        {
+            break;
+        }
+        format++;
+
+        switch (spec)
+        {
+            case 'd':
+            {
+                int32_t value;
+
+                if (longFlag)
+                {
+                    value = (int32_t)va_arg(args, long);
+                }
+                else
+                {
+                    value = (int32_t)va_arg(args, int);
+                }
+
+                Serial_SendSignedDecimal(value, width, zeroPad);
+                break;
+            }
+
+            case 'u':
+            {
+                uint32_t value;
+
+                if (longFlag)
+                {
+                    value = (uint32_t)va_arg(args, unsigned long);
+                }
+                else
+                {
+                    value = (uint32_t)va_arg(args, unsigned int);
+                }
+
+                Serial_SendUnsignedBase(value, 10U, width, zeroPad, 0U);
+                break;
+            }
+
+            case 'x':
+            {
+                uint32_t value;
+
+                if (longFlag)
+                {
+                    value = (uint32_t)va_arg(args, unsigned long);
+                }
+                else
+                {
+                    value = (uint32_t)va_arg(args, unsigned int);
+                }
+
+                Serial_SendUnsignedBase(value, 16U, width, zeroPad, 0U);
+                break;
+            }
+
+            case 'X':
+            {
+                uint32_t value;
+
+                if (longFlag)
+                {
+                    value = (uint32_t)va_arg(args, unsigned long);
+                }
+                else
+                {
+                    value = (uint32_t)va_arg(args, unsigned int);
+                }
+
+                Serial_SendUnsignedBase(value, 16U, width, zeroPad, 1U);
+                break;
+            }
+
+            case 'c':
+            {
+                int value = va_arg(args, int);
+                Serial_SendByte((uint8_t)value);
+                break;
+            }
+
+            case 's':
+            {
+                const char *str = va_arg(args, const char *);
+
+                if (str == 0)
+                {
+                    str = "(null)";
+                }
+
+                Serial_SendString(str);
+                break;
+            }
+
+            default:
+            {
+                Serial_SendByte((uint8_t)'%');
+
+                if (zeroPad)
+                {
+                    Serial_SendByte((uint8_t)'0');
+                }
+
+                if (width > 0U)
+                {
+                    Serial_SendUnsignedBase(width, 10U, 0U, 0U, 0U);
+                }
+
+                if (longFlag)
+                {
+                    Serial_SendByte((uint8_t)'l');
+                }
+
+                Serial_SendByte((uint8_t)spec);
+                break;
+            }
+        }
     }
 
-    Serial_SendArray((const uint8_t *)buffer, (uint16_t)len);
+    va_end(args);
 }
 
 uint8_t Serial_GetRxFlag(void)
