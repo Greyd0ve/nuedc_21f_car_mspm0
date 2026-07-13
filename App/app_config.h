@@ -5,7 +5,7 @@
 
 /* Temporary encoder-only memory corruption diagnostic mode. */
 #ifndef ECAR_ENCODER_MINIMAL_DEBUG
-#define ECAR_ENCODER_MINIMAL_DEBUG              1
+#define ECAR_ENCODER_MINIMAL_DEBUG              0
 #endif
 
 /* Safety switches. Keep remote start disabled unless deliberately enabled. */
