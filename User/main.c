@@ -24,6 +24,11 @@ volatile uint8_t g_task_10ms_count = 0U;
 volatile uint8_t g_task_100ms_count = 0U;
 volatile uint8_t g_task_200ms_count = 0U;
 
+#if ECAR_ENCODER_MINIMAL_DEBUG
+__attribute__((used, section(".rodata.flash_tail_pad")))
+static const uint8_t s_flashTailPadForKeilFlm[0x978] = { 0U };
+#endif
+
 static uint8_t Main_TakeTaskCounterAll(volatile uint8_t *counter)
 {
     uint8_t count;
@@ -40,10 +45,51 @@ static uint8_t Main_TakeTaskCounterAll(volatile uint8_t *counter)
     return count;
 }
 
+#if ECAR_ENCODER_MINIMAL_DEBUG
+static void Main_PrintfSingleFieldTest(void)
+{
+    Serial_Printf("[printf-test]\r\n");
+    Serial_Printf("risr=%lu\r\n", (unsigned long)Encoder_GetRightIsrCount());
+    Serial_Printf("rign=%lu\r\n", (unsigned long)Encoder_GetRightSameAIgnored());
+    Serial_Printf("rstat=%lu\r\n", (unsigned long)Encoder_GetRightStatusCount());
+    Serial_Printf("rraw=%ld\r\n", (long)Encoder_GetRightLastRawDeltaBeforeLimit());
+    Serial_Printf("rlim=%lu\r\n", (unsigned long)Encoder_GetRightLimitHitCount());
+    Serial_Printf("rget=%lu\r\n", (unsigned long)Encoder_GetRightGetDeltaCount());
+    Serial_Printf("rnz=%lu\r\n", (unsigned long)Encoder_GetRightNonZeroGetCount());
+    Serial_Printf("rmax=%ld\r\n", (long)Encoder_GetRightMaxRawDelta());
+}
+#endif
+
 int main(void)
 {
     SYSCFG_DL_init();
 
+#if ECAR_ENCODER_MINIMAL_DEBUG
+    Serial_Init();
+    Encoder_Init();
+    Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-timer]");
+    Timer_Init();
+    Encoder_DebugPrintDirectNoPrintf("[enc-direct-after-timer]");
+
+    while (1)
+    {
+        static uint16_t printMs = 0U;
+        uint8_t taskCount = Main_TakeTaskCounterAll(&g_task_1ms_count);
+
+        while (taskCount > 0U)
+        {
+            taskCount--;
+            printMs++;
+            if (printMs >= 1000U)
+            {
+                printMs = 0U;
+                Encoder_DebugPrintDirectNoPrintf("[enc-direct-loop]");
+                Encoder_DebugPrintGetterNoPrintf("[enc-getter-loop]");
+                Main_PrintfSingleFieldTest();
+            }
+        }
+    }
+#else
     Key_Init();
     Grayscale_Init();
     Motor_Init();
@@ -124,4 +170,5 @@ int main(void)
 #endif
         }
     }
+#endif
 }

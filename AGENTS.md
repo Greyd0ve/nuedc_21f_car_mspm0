@@ -265,6 +265,81 @@ OLED / MPU6050 的 I2C 上拉
 
 如果灰度模块使用 5V 供电，OUT 可能输出 5V，需要确认模块输出电平，或改 3.3V 供电 / 加分压 / 加电平转换。
 
+### Keil Flash Download failed 排查记录
+
+若 Keil 下载阶段出现：
+
+```text
+Error: Flash Download failed  -  "Cortex-M0+"
+```
+
+并且硬件连接、供电、下载器都确认正常，应优先检查软件侧 Keil/J-Link/FLM 下载过程。
+
+本项目 2026-07-13 已定位过一次同类问题：
+
+```text
+Keil：D:\Keil_v5_38a
+J-Link DLL：V6.98e
+Device 日志：Device "CORTEX-M0+" selected
+Target info：Device: MSPM0G3507，VTarget = 3.300V
+失败阶段：Erase Done 后 Programming Failed
+JLinkLog 关键特征：Flash 算法在最后一个 program 调用返回 R0=1
+```
+
+当时 AXF 主 Flash 装载区为：
+
+```text
+LR_IROM1 Base = 0x00000000
+LR_IROM1 Size = 0x00002A44
+```
+
+J-Link/Keil 调用 TI 的 `MSPM0G1X0X_G3X0X_MAIN_128KB.FLM` 时，最后一段为：
+
+```text
+addr = 0x00002800
+size = 0x00000244
+```
+
+这个非 `0x400` 页对齐的尾块会导致当前旧版 J-Link + TI FLM 组合返回失败。把镜像补齐到 `0x400` 页边界后，下载通过：
+
+```text
+LR_IROM1 Size = 0x00002C00
+Erase Done.
+Programming Done.
+Verify OK.
+```
+
+当前工程中的临时修复方式：
+
+```text
+User/main.c：
+  ECAR_ENCODER_MINIMAL_DEBUG=1 时定义 .rodata.flash_tail_pad 填充块
+
+keil/mspm0g3507.sct：
+  main.o (.rodata.flash_tail_pad, +Last)
+```
+
+下次遇到相同报错时，优先按以下顺序排查：
+
+```text
+1. 看 Keil 输出是否已经连接成功并进入 Erase Done。
+2. 看 keil/JLinkLog.txt，确认是否是 Flash 算法 program 阶段 R0=1。
+3. 用 fromelf 或 map 文件检查 LR_IROM1 Size 是否不是 0x400 对齐。
+4. 若确认为非整页尾块失败，保持/调整 flash_tail_pad，使 LR_IROM1 Size 对齐到 0x400。
+5. 再次下载，必须看到 Programming Done 和 Verify OK。
+```
+
+注意：日志中的
+
+```text
+Include "
+
+          "
+*** error 6: missing string terminator
+```
+
+在本次排查中不是根因；即使该提示仍存在，只要镜像页对齐，最终可以 `Programming Done.Verify OK`。
+
 ## 项目一句话总结
 
 当前开发环境是：以立创·天猛星 MSPM0G3507 为主控，使用 Keil MDK V5.39 + ArmClang V6.21 + MSPM0 SDK 2.02.00.05 + SysConfig 1.21.1 + DriverLib 进行开发，通过 J-Link / LINK-OB 下载调试，目标是完成电赛 E 题自动寻迹小车底盘控制部分。

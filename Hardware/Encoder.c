@@ -1,5 +1,7 @@
 #include "Encoder.h"
+#include "app_config.h"
 #include "Board_Config.h"
+#include "Serial.h"
 #include "cmsis_compiler.h"
 
 static volatile int32_t s_leftDelta = 0;
@@ -51,6 +53,100 @@ static int16_t Encoder_LimitDelta(int32_t value)
         return -32768;
     }
     return (int16_t)value;
+}
+
+static void Encoder_DebugSendUInt32(uint32_t value)
+{
+    char buffer[11];
+    uint8_t index = 10U;
+
+    buffer[index] = '\0';
+    do
+    {
+        index--;
+        buffer[index] = (char)('0' + (value % 10U));
+        value /= 10U;
+    } while ((value != 0U) && (index > 0U));
+
+    Serial_SendString(&buffer[index]);
+}
+
+static void Encoder_DebugSendInt32(int32_t value)
+{
+    uint32_t magnitude;
+
+    if (value < 0)
+    {
+        Serial_SendString("-");
+        magnitude = (uint32_t)(-(value + 1)) + 1U;
+    }
+    else
+    {
+        magnitude = (uint32_t)value;
+    }
+
+    Encoder_DebugSendUInt32(magnitude);
+}
+
+static void Encoder_DebugSendUInt32Field(const char *name, uint32_t value)
+{
+    Serial_SendString(name);
+    Serial_SendString("=");
+    Encoder_DebugSendUInt32(value);
+    Serial_SendString("\r\n");
+}
+
+static void Encoder_DebugSendInt32Field(const char *name, int32_t value)
+{
+    Serial_SendString(name);
+    Serial_SendString("=");
+    Encoder_DebugSendInt32(value);
+    Serial_SendString("\r\n");
+}
+
+void Encoder_DebugPrintDirectNoPrintf(const char *tag)
+{
+    if (tag != 0)
+    {
+        Serial_SendString(tag);
+        Serial_SendString("\r\n");
+    }
+
+    Encoder_DebugSendUInt32Field("risr", s_rightIsrCount);
+    Encoder_DebugSendUInt32Field("rign", s_rightSameAIgnored);
+    Encoder_DebugSendUInt32Field("rstat", s_rightStatusCount);
+    Encoder_DebugSendInt32Field("rraw", s_rightLastRawDeltaBeforeLimit);
+    Encoder_DebugSendUInt32Field("rlim", s_rightLimitHitCount);
+    Encoder_DebugSendUInt32Field("rget", s_rightGetDeltaCount);
+    Encoder_DebugSendUInt32Field("rnz", s_rightNonZeroGetCount);
+    Encoder_DebugSendInt32Field("rmax", s_rightMaxRawDelta);
+}
+
+void Encoder_DebugPrintGetterNoPrintf(const char *tag)
+{
+    uint32_t risr = Encoder_GetRightIsrCount();
+    uint32_t rign = Encoder_GetRightSameAIgnored();
+    uint32_t rstat = Encoder_GetRightStatusCount();
+    int32_t rraw = Encoder_GetRightLastRawDeltaBeforeLimit();
+    uint32_t rlim = Encoder_GetRightLimitHitCount();
+    uint32_t rget = Encoder_GetRightGetDeltaCount();
+    uint32_t rnz = Encoder_GetRightNonZeroGetCount();
+    int32_t rmax = Encoder_GetRightMaxRawDelta();
+
+    if (tag != 0)
+    {
+        Serial_SendString(tag);
+        Serial_SendString("\r\n");
+    }
+
+    Encoder_DebugSendUInt32Field("risr", risr);
+    Encoder_DebugSendUInt32Field("rign", rign);
+    Encoder_DebugSendUInt32Field("rstat", rstat);
+    Encoder_DebugSendInt32Field("rraw", rraw);
+    Encoder_DebugSendUInt32Field("rlim", rlim);
+    Encoder_DebugSendUInt32Field("rget", rget);
+    Encoder_DebugSendUInt32Field("rnz", rnz);
+    Encoder_DebugSendInt32Field("rmax", rmax);
 }
 
 void Encoder_Init(void)

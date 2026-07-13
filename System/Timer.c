@@ -33,14 +33,19 @@ void Timer_Init(void)
 void TIMG6_IRQHandler(void)
 {
     /* 分频计数器由 1ms tick 派生出各前台任务周期。 */
+#if !ECAR_ENCODER_MINIMAL_DEBUG
     static uint8_t div5ms = 0U;
     static uint8_t div10ms = 0U;
     static uint8_t div100ms = 0U;
     static uint8_t div200ms = 0U;
+#endif
 
     switch (DL_TimerG_getPendingInterrupt(SYSTEM_TIMER_INST))
     {
         case DL_TIMER_IIDX_ZERO:
+#if ECAR_ENCODER_MINIMAL_DEBUG
+            Timer_SaturatingInc(&g_task_1ms_count);
+#else
             /* ISR 保持短小：只做按键消抖、提示 tick 和任务计数。 */
             Key_Tick();
             BeepLed_Tick1ms();
@@ -75,6 +80,7 @@ void TIMG6_IRQHandler(void)
                 div200ms = 0U;
                 Timer_SaturatingInc(&g_task_200ms_count);
             }
+#endif
             break;
 
         default:

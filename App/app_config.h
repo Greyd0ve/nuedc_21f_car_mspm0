@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/* Temporary encoder-only memory corruption diagnostic mode. */
+#ifndef ECAR_ENCODER_MINIMAL_DEBUG
+#define ECAR_ENCODER_MINIMAL_DEBUG              1
+#endif
+
 /* Safety switches. Keep remote start disabled unless deliberately enabled. */
 #ifndef ECAR_ENABLE_REMOTE_START
 #define ECAR_ENABLE_REMOTE_START                0

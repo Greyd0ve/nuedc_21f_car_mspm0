@@ -1,6 +1,7 @@
 #include "Serial.h"
 #include "Board_Config.h"
 #include <stdarg.h>
+#include <stdio.h>
 
 #define SERIAL_RX_BUF_SIZE 128U /* 串口接收环形缓冲区大小，单位字节 */
 

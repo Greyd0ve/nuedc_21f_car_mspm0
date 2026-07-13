@@ -22,4 +22,7 @@ uint32_t Encoder_GetRightGetDeltaCount(void);
 uint32_t Encoder_GetRightNonZeroGetCount(void);
 int32_t Encoder_GetRightMaxRawDelta(void);
 
+void Encoder_DebugPrintDirectNoPrintf(const char *tag);
+void Encoder_DebugPrintGetterNoPrintf(const char *tag);
+
 #endif
