@@ -173,12 +173,12 @@ void App_Line_Update(void)
         if (s_cornerMaskStableCount < 255U) s_cornerMaskStableCount++;
         s_zeroMaskCount = 0U;
     }
-    else if ((uint8_t)count <= 3U && continuous)
+    else if (((uint8_t)count < cornerBlackCountTh) && continuous)
     {
         float rawError;
         float alpha;
 
-        /* 普通黑线：对激活通道权重求平均，再做一阶滤波。 */
+        /* 普通黑线：1 到 cornerBlackCountTh-1 路连续黑线视为有效循迹线。 */
         rawError = (float)sum / (float)count;
         alpha = App_Line_LimitFloat(g_lineFilterAlpha, 0.0f, 1.0f);
 
