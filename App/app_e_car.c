@@ -26,6 +26,14 @@
 #define E_CAR_FAULT_RECOVER_TIMEOUT  2U /* 角点后恢复循迹超时 */
 #define E_CAR_FAULT_CORNER_TIMEOUT   3U /* 角点转向阶段超时 */
 
+#define ECAR_LINE_ERROR_NORM          350.0f
+#define ECAR_LINE_MIN_SPEED_CMPS      8.0f
+#define ECAR_LINE_ERR_SLOW_GAIN       7.0f
+#define ECAR_LINE_DERR_SLOW_GAIN      3.0f
+
+#define ECAR_CORNER_TURN_PULSE_DEFAULT  420
+
+
 ECarParam_t g_eCarParam =
 {
     /* 运动默认值偏保守，实际比赛速度建议通过串口逐步调高。 */
@@ -34,9 +42,9 @@ ECarParam_t g_eCarParam =
     ECAR_DEFAULT_CORNER_FORWARD_CMPS,
     ECAR_DEFAULT_CORNER_TURN_CMPS,
 
-    0.10f,
-    0.18f,
-    ECAR_DEFAULT_TURN_LIMIT_CMPS,
+    0.035f,
+		0.080f,
+		ECAR_DEFAULT_TURN_LIMIT_CMPS,
 
     500U,
     120U,
@@ -82,9 +90,9 @@ volatile int32_t g_turnEncoderTotal = 0;
 volatile float g_lineBlackLevelF = 1.0f;
 volatile float g_lineReverseOrderF = 0.0f;
 volatile float g_lineTurnSign = 1.0f;
-volatile float g_lineKp = 0.25f;
-volatile float g_lineKd = 0.50f;
-volatile float g_lineTurnLimit = 80.0f;
+volatile float g_lineKp = 0.035f;
+volatile float g_lineKd = 0.080f;
+volatile float g_lineTurnLimit = 12.0f;
 volatile float g_lineFilterAlpha = 0.58f;
 volatile int16_t g_lineError = 0;
 volatile uint8_t g_lineValid = 0U;
@@ -117,6 +125,10 @@ static volatile uint8_t s_faultCode = E_CAR_FAULT_NONE;
 static volatile uint16_t s_promptMs = 0U;
 static volatile uint8_t s_cornerCandidateCount = 0U;
 
+static volatile int32_t s_cornerTurnStartPulse = 0;
+
+
+static float s_lineDError = 0.0f;
 static float s_lastLineError = 0.0f;
 
 static float ECar_LimitFloat(float value, float minVal, float maxVal)
@@ -133,6 +145,34 @@ static uint8_t ECar_IsMotionState(ECarState_t state)
                      state == E_CAR_CORNER_ENTER ||
                      state == E_CAR_CORNER_TURN ||
                      state == E_CAR_LINE_RECOVER);
+}
+
+static float ECar_CalcAdaptiveBaseSpeed(float error, float dError)
+{
+    float eAbs;
+    float deAbs;
+    float speed;
+
+    eAbs = (error >= 0.0f) ? error : -error;
+    deAbs = (dError >= 0.0f) ? dError : -dError;
+
+    /*
+     * error 原始范围大约 -350~350。
+     * 先归一化，再根据偏差和误差变化率降速。
+     */
+    eAbs = eAbs / ECAR_LINE_ERROR_NORM;
+    deAbs = deAbs / ECAR_LINE_ERROR_NORM;
+
+    if (eAbs > 1.0f) eAbs = 1.0f;
+    if (deAbs > 1.0f) deAbs = 1.0f;
+
+    speed = g_eCarParam.base_speed
+            - ECAR_LINE_ERR_SLOW_GAIN * eAbs
+            - ECAR_LINE_DERR_SLOW_GAIN * deAbs;
+
+    return ECar_LimitFloat(speed,
+                           ECAR_LINE_MIN_SPEED_CMPS,
+                           g_eCarParam.base_speed);
 }
 
 static int32_t ECar_GetForwardPulse(void)
@@ -283,10 +323,18 @@ static float ECar_CalcLineTurnCmd(void)
     error = (float)g_lineError;
     dError = error - s_lastLineError;
     s_lastLineError = error;
+    s_lineDError = dError;
 
-    /* PD 循迹转向，正负方向由 g_lineTurnSign 统一校正。 */
-    turn = (-g_lineTurnSign) * (error * g_eCarParam.line_kp + dError * g_eCarParam.line_kd);
-    return ECar_LimitFloat(turn, -g_eCarParam.turn_limit, g_eCarParam.turn_limit);
+    /*
+     * 原始 error 是 -350~350。
+     * line_kp / line_kd 建议按 cm/s 差速来调。
+     */
+    turn = (-g_lineTurnSign) *
+           (error * g_eCarParam.line_kp + dError * g_eCarParam.line_kd);
+
+    return ECar_LimitFloat(turn,
+                           -g_eCarParam.turn_limit,
+                           g_eCarParam.turn_limit);
 }
 
 static float ECar_CalcSearchTurnCmd(void)
@@ -400,22 +448,22 @@ static void ECar_EnterRecover(void)
 static void ECar_HandleLineRun(void)
 {
     float turnCmd;
+    float speedCmd;
 
     if (g_lineValid)
     {
-        /* 正常循迹路径。 */
         s_lostMs = 0U;
         turnCmd = ECar_CalcLineTurnCmd();
+        speedCmd = ECar_CalcAdaptiveBaseSpeed((float)g_lineError, s_lineDError);
     }
     else if (g_lineBlackCount >= g_eCarParam.corner_black_count_th)
     {
-        /* 角点候选黑块不计入丢线。 */
         s_lostMs = 0U;
-        turnCmd = ECar_CalcLineTurnCmd();
+        turnCmd = 0.0f;
+        speedCmd = g_eCarParam.corner_forward_speed;
     }
     else
     {
-        /* 无效或噪声 mask 会开始丢线计时，并进入搜索转向。 */
         if (s_lostMs < 60000U)
         {
             s_lostMs += E_CAR_CONTROL_PERIOD_MS;
@@ -428,9 +476,10 @@ static void ECar_HandleLineRun(void)
         }
 
         turnCmd = ECar_CalcSearchTurnCmd();
+        speedCmd = g_eCarParam.recover_speed;
     }
 
-    ECar_SetSpeedCmd(g_eCarParam.base_speed, turnCmd);
+    ECar_SetSpeedCmd(speedCmd, turnCmd);
 
     if (ECar_IsCornerDetected())
     {
@@ -447,7 +496,7 @@ static void ECar_HandleCornerEnter(void)
     pulse = ECar_GetForwardPulse();
     s_lastCornerForwardPulse = pulse;
     s_cornerCandidateCount = 0U;
-
+		s_cornerTurnStartPulse = g_turnEncoderTotal;
     if (s_cornerCount < 250U)
     {
         s_cornerCount++;
@@ -479,6 +528,31 @@ static void ECar_HandleCornerEnter(void)
 
 static void ECar_HandleCornerTurn(void)
 {
+	
+	
+		
+			int32_t turnPulse;
+			int32_t turnDelta;
+
+			turnPulse = g_turnEncoderTotal - s_cornerTurnStartPulse;
+			if (turnPulse < 0)
+			{
+					turnDelta = -turnPulse;
+			}
+			else
+			{
+					turnDelta = turnPulse;
+			}
+
+			ECar_SetSpeedCmd(0.0f,
+											 g_eCarParam.corner_turn_speed * E_CAR_TURN_SIGN);
+
+			if (turnDelta >= ECAR_CORNER_TURN_PULSE_DEFAULT)
+			{
+					ECar_EnterRecover();
+					return;
+			}
+	
     /* 角点黑块区域采用开环转弯，保证动作可预测。 */
     ECar_SetSpeedCmd(g_eCarParam.corner_forward_speed,
                      g_eCarParam.corner_turn_speed * E_CAR_TURN_SIGN);

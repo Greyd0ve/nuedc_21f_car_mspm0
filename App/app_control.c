@@ -52,6 +52,12 @@
  */
 #define APP_PWM_SLEW_STEP          3
 
+#define APP_SPEED_PI_KP          1.2f
+#define APP_SPEED_PI_KI          0.08f
+#define APP_SPEED_I_LIMIT        45.0f
+#define APP_WHEEL_TARGET_LIMIT   28.0f
+
+
 /*
  * PID 调参量和运行遥测变量由 app_e_car.c 定义。
  */
@@ -86,6 +92,9 @@ extern volatile int32_t g_turnEncoderTotal;
 
 static PID_TypeDef ForwardPID;
 static PID_TypeDef TurnPID;
+
+static float s_leftSpeedI = 0.0f;
+static float s_rightSpeedI = 0.0f;
 
 volatile int16_t g_rightLastNonZeroDelta = 0;
 volatile uint32_t g_rightNonZeroDeltaCount = 0U;
@@ -153,7 +162,20 @@ static float App_Control_SpeedFeedForward(float targetSpeed)
 
     absSpeed = (targetSpeed >= 0.0f) ? targetSpeed : -targetSpeed;
 
-    pwm = APP_MOTOR_START_PWM + APP_SPEED_TO_PWM_K * absSpeed;
+    /*
+     * 根据你目前实测：
+     * 15cm/s 左右需要 PWM 160 左右；
+     * 18cm/s 左右需要 PWM 168 左右；
+     * 高速段暂时不作为重点。
+     */
+    if (absSpeed <= 15.0f)
+    {
+        pwm = 135.0f + 1.7f * absSpeed;
+    }
+    else
+    {
+        pwm = 160.5f + 2.2f * (absSpeed - 15.0f);
+    }
 
     if (targetSpeed < 0.0f)
     {
@@ -256,16 +278,22 @@ void App_Control_UpdateEncoderSpeed(uint16_t periodMs)
 void App_Control_ApplyMotorOutput(void)
 {
     float pwmLimit;
-    float ffPwm;
-    float corrPwm;
-    float speedError;
+    int16_t pwmLimitI16;
 
-    int32_t leftPwmTemp;
-    int32_t rightPwmTemp;
+    float leftTarget;
+    float rightTarget;
+
+    float leftErr;
+    float rightErr;
+
+    float leftFF;
+    float rightFF;
+
+    float leftPwmF;
+    float rightPwmF;
 
     int16_t targetLeftPwm;
     int16_t targetRightPwm;
-    int16_t pwmLimitI16;
 
     if (!g_carEnable || g_pwmLimit <= 0.5f)
     {
@@ -277,6 +305,9 @@ void App_Control_ApplyMotorOutput(void)
         g_leftPwm = 0;
         g_rightPwm = 0;
 
+        s_leftSpeedI = 0.0f;
+        s_rightSpeedI = 0.0f;
+
         Motor_StopAll();
         App_Control_ResetPID();
         return;
@@ -285,49 +316,60 @@ void App_Control_ApplyMotorOutput(void)
     pwmLimit = App_Control_LimitFloat(g_pwmLimit,
                                       APP_PWM_LIMIT_MIN,
                                       (float)PWM_MAX_DUTY);
-
     pwmLimitI16 = (int16_t)pwmLimit;
 
     /*
-     * 当前阶段不用 PID_Calc，先用：
-     * 前馈基础 PWM + 手写小 P 修正。
+     * g_targetForwardSpeed：车体前进速度，cm/s
+     * g_targetTurnSpeed：左右轮差速修正，cm/s
      *
-     * 这样可以避免 PID 内部积分/微分/历史项把 PWM 拉回电机死区。
+     * turn 为正时：右轮目标速度更高，左轮更低。
      */
-    g_forwardSpeedError = g_targetForwardSpeed - g_forwardSpeed;
-    speedError = g_forwardSpeedError;
+    leftTarget = g_targetForwardSpeed - g_targetTurnSpeed;
+    rightTarget = g_targetForwardSpeed + g_targetTurnSpeed;
 
-    ffPwm = App_Control_SpeedFeedForward(g_targetForwardSpeed);
+    leftTarget = App_Control_LimitFloat(leftTarget,
+                                        -APP_WHEEL_TARGET_LIMIT,
+                                        APP_WHEEL_TARGET_LIMIT);
+    rightTarget = App_Control_LimitFloat(rightTarget,
+                                         -APP_WHEEL_TARGET_LIMIT,
+                                         APP_WHEEL_TARGET_LIMIT);
 
-    corrPwm = APP_SPEED_P_GAIN * speedError;
-    corrPwm = App_Control_LimitFloat(corrPwm,
-                                     -APP_SPEED_CORR_LIMIT,
-                                     APP_SPEED_CORR_LIMIT);
+    leftErr = leftTarget - g_leftSpeed;
+    rightErr = rightTarget - g_rightSpeed;
 
-    g_speedPwm = ffPwm + corrPwm;
+    s_leftSpeedI += leftErr;
+    s_rightSpeedI += rightErr;
 
-    /*
-     * 第一阶段先关闭差速修正。
-     * 等直行速度连续平顺后，再恢复左右差速控制。
-     */
-    g_diffPwm = 0.0f;
+    s_leftSpeedI = App_Control_LimitFloat(s_leftSpeedI,
+                                          -APP_SPEED_I_LIMIT,
+                                          APP_SPEED_I_LIMIT);
+    s_rightSpeedI = App_Control_LimitFloat(s_rightSpeedI,
+                                           -APP_SPEED_I_LIMIT,
+                                           APP_SPEED_I_LIMIT);
 
-    leftPwmTemp = (int32_t)(g_speedPwm - g_diffPwm);
-    rightPwmTemp = (int32_t)(g_speedPwm + g_diffPwm);
+    leftFF = App_Control_SpeedFeedForward(leftTarget);
+    rightFF = App_Control_SpeedFeedForward(rightTarget);
 
-    targetLeftPwm = App_Control_LimitI16(leftPwmTemp,
+    leftPwmF = leftFF + APP_SPEED_PI_KP * leftErr + APP_SPEED_PI_KI * s_leftSpeedI;
+    rightPwmF = rightFF + APP_SPEED_PI_KP * rightErr + APP_SPEED_PI_KI * s_rightSpeedI;
+
+    targetLeftPwm = App_Control_LimitI16((int32_t)leftPwmF,
                                          (int16_t)(-pwmLimitI16),
                                          pwmLimitI16);
-
-    targetRightPwm = App_Control_LimitI16(rightPwmTemp,
+    targetRightPwm = App_Control_LimitI16((int32_t)rightPwmF,
                                           (int16_t)(-pwmLimitI16),
                                           pwmLimitI16);
 
-    /*
-     * PWM 斜坡限制，减少突然冲一下。
-     */
-    g_leftPwm = App_Control_SlewI16(g_leftPwm, targetLeftPwm, APP_PWM_SLEW_STEP);
-    g_rightPwm = App_Control_SlewI16(g_rightPwm, targetRightPwm, APP_PWM_SLEW_STEP);
+    g_leftPwm = App_Control_SlewI16(g_leftPwm,
+                                    targetLeftPwm,
+                                    APP_PWM_SLEW_STEP);
+    g_rightPwm = App_Control_SlewI16(g_rightPwm,
+                                     targetRightPwm,
+                                     APP_PWM_SLEW_STEP);
+
+    g_speedPwm = (float)(g_leftPwm + g_rightPwm) * 0.5f;
+    g_diffPwm = (float)(g_rightPwm - g_leftPwm) * 0.5f;
+    g_forwardSpeedError = g_targetForwardSpeed - g_forwardSpeed;
 
     Motor_SetPWM(g_leftPwm, g_rightPwm);
 }

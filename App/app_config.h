@@ -60,11 +60,11 @@
 #define ECAR_DEFAULT_MIN_CORNER_INTERVAL_PULSE  ((int32_t)((ECAR_MIN_CORNER_INTERVAL_CM / ECAR_CM_PER_PULSE) + 0.5f))
 
 /* Conservative first-run speed defaults, in cm/s. */
-#define ECAR_DEFAULT_BASE_SPEED_CMPS            24.0f
-#define ECAR_DEFAULT_RECOVER_SPEED_CMPS         14.0f
-#define ECAR_DEFAULT_CORNER_FORWARD_CMPS        10.0f
-#define ECAR_DEFAULT_CORNER_TURN_CMPS           28.0f
-#define ECAR_DEFAULT_TURN_LIMIT_CMPS            35.0f
+#define ECAR_DEFAULT_BASE_SPEED_CMPS            16.0f
+#define ECAR_DEFAULT_RECOVER_SPEED_CMPS         10.0f
+#define ECAR_DEFAULT_CORNER_FORWARD_CMPS        8.0f
+#define ECAR_DEFAULT_CORNER_TURN_CMPS           12.0f
+#define ECAR_DEFAULT_TURN_LIMIT_CMPS            12.0f
 
 #ifndef ECAR_CORNER_CONFIRM_COUNT
 #define ECAR_CORNER_CONFIRM_COUNT               2U
