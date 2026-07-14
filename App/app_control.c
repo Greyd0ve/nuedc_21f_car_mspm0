@@ -36,7 +36,7 @@
  * ffPwm = 135 + 1.0 * 15 = 150
  */
 #define APP_MOTOR_START_PWM        135.0f
-#define APP_SPEED_TO_PWM_K         1.2f
+#define APP_SPEED_TO_PWM_K         1.8f
 
 /*
  * 手写 P 修正限幅。

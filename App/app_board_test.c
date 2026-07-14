@@ -252,9 +252,9 @@ void BoardTest_Task200ms(void)
     }
     div = 0U;
 
-    BoardTest_PrintKey();
-    BoardTest_PrintGray();
-    BoardTest_PrintEncoder();
+    //BoardTest_PrintKey();
+    //BoardTest_PrintGray();
+    //BoardTest_PrintEncoder();
 		BoardTest_PrintSpeedLoop();
   
 }
