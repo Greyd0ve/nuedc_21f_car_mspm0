@@ -15,14 +15,15 @@
 
 #define MPU6050_DLPF_CFG         2U
 
-#define IMU_ERROR_NONE              0U
-#define IMU_ERROR_WAIT_IDLE         1U
-#define IMU_ERROR_TX_FIFO_FILL      2U
-#define IMU_ERROR_TX_DONE           3U
-#define IMU_ERROR_RX_DONE           4U
-#define IMU_ERROR_RX_FIFO_EMPTY     5U
-#define IMU_ERROR_WHO_MISMATCH      6U
-#define IMU_ERROR_WRITE_REG         7U
+#define IMU_ERROR_NONE                 0U
+#define IMU_ERROR_WAIT_IDLE            1U
+#define IMU_ERROR_TX_FIFO_FILL         2U
+#define IMU_ERROR_TX_DONE              3U
+#define IMU_ERROR_RX_DONE              4U
+#define IMU_ERROR_RX_FIFO_EMPTY        5U
+#define IMU_ERROR_WHO_MISMATCH         6U
+#define IMU_ERROR_WRITE_REG            7U
+#define IMU_ERROR_IDLE_AFTER_RECOVER   8U
 
 static uint8_t  s_imuReady       = 0U;
 static uint8_t  s_imuHealthy     = 0U;
@@ -36,7 +37,29 @@ static uint8_t  s_lastErrorStage = IMU_ERROR_NONE;
 
 static void IMU_I2CRecover(void)
 {
+    uint32_t timeout = MPU6050_I2C_TIMEOUT;
+
     DL_I2C_resetControllerTransfer(MPU6050_I2C_INST);
+    DL_I2C_flushControllerTXFIFO(MPU6050_I2C_INST);
+    DL_I2C_flushControllerRXFIFO(MPU6050_I2C_INST);
+
+    DL_I2C_clearInterruptStatus(MPU6050_I2C_INST,
+        DL_I2C_INTERRUPT_CONTROLLER_RX_DONE |
+        DL_I2C_INTERRUPT_CONTROLLER_TX_DONE |
+        DL_I2C_INTERRUPT_CONTROLLER_NACK |
+        DL_I2C_INTERRUPT_CONTROLLER_ARBITRATION_LOST |
+        DL_I2C_INTERRUPT_CONTROLLER_START |
+        DL_I2C_INTERRUPT_CONTROLLER_STOP);
+
+    while (timeout > 0U)
+    {
+        s_lastI2CStatus = DL_I2C_getControllerStatus(MPU6050_I2C_INST);
+        if ((s_lastI2CStatus & DL_I2C_CONTROLLER_STATUS_IDLE) != 0U)
+        {
+            break;
+        }
+        timeout--;
+    }
 }
 
 static uint8_t IMU_WaitIdle(void)
@@ -79,18 +102,37 @@ static uint8_t IMU_WaitDone(void)
     return 0U;
 }
 
+static uint8_t IMU_EnsureIdle(void)
+{
+    if (IMU_WaitIdle())
+    {
+        return 1U;
+    }
+
+    IMU_I2CRecover();
+
+    if (!IMU_WaitIdle())
+    {
+        s_lastErrorStage = IMU_ERROR_IDLE_AFTER_RECOVER;
+        return 0U;
+    }
+
+    return 1U;
+}
+
 static uint8_t IMU_WriteReg(uint8_t reg, uint8_t value)
 {
     uint8_t buf[2];
     uint16_t written;
 
+    if (!IMU_EnsureIdle())
+    {
+        return 0U;
+    }
+
     buf[0] = reg;
     buf[1] = value;
 
-    if (!IMU_WaitIdle())
-    {
-        IMU_I2CRecover();
-    }
     DL_I2C_resetControllerTransfer(MPU6050_I2C_INST);
     written = DL_I2C_fillControllerTXFIFO(MPU6050_I2C_INST, buf, 2U);
     if (written != 2U)
@@ -119,10 +161,11 @@ static uint8_t IMU_ReadRegs(uint8_t reg, uint8_t *data, uint8_t len)
         return 0U;
     }
 
-    if (!IMU_WaitIdle())
+    if (!IMU_EnsureIdle())
     {
-        IMU_I2CRecover();
+        return 0U;
     }
+
     DL_I2C_resetControllerTransfer(MPU6050_I2C_INST);
     written = DL_I2C_fillControllerTXFIFO(MPU6050_I2C_INST, &reg, 1U);
     if (written != 1U)
@@ -158,6 +201,48 @@ static uint8_t IMU_ReadRegs(uint8_t reg, uint8_t *data, uint8_t len)
             return 0U;
         }
         data[i] = DL_I2C_receiveControllerData(MPU6050_I2C_INST);
+    }
+
+    return 1U;
+}
+
+uint8_t IMU_ProbeAddressAck(uint8_t addr)
+{
+    uint32_t timeout = MPU6050_I2C_TIMEOUT;
+    uint32_t status;
+
+    if (!IMU_EnsureIdle())
+    {
+        return 0U;
+    }
+
+    DL_I2C_resetControllerTransfer(MPU6050_I2C_INST);
+    DL_I2C_flushControllerRXFIFO(MPU6050_I2C_INST);
+
+    DL_I2C_startControllerTransfer(MPU6050_I2C_INST, addr,
+        DL_I2C_CONTROLLER_DIRECTION_RX, 1U);
+
+    while (timeout > 0U)
+    {
+        status = DL_I2C_getControllerStatus(MPU6050_I2C_INST);
+        if ((status & DL_I2C_CONTROLLER_STATUS_BUSY) == 0U)
+        {
+            break;
+        }
+        timeout--;
+    }
+
+    s_lastI2CStatus = status;
+
+    if ((status & DL_I2C_CONTROLLER_STATUS_ERROR) != 0U)
+    {
+        IMU_I2CRecover();
+        return 0U;
+    }
+
+    if (!DL_I2C_isControllerRXFIFOEmpty(MPU6050_I2C_INST))
+    {
+        (void)DL_I2C_receiveControllerData(MPU6050_I2C_INST);
     }
 
     return 1U;

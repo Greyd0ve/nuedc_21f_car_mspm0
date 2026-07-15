@@ -164,7 +164,13 @@ static void BoardTest_PrintIMU(void)
     {
         uint32_t status = IMU_GetLastI2CStatus();
         uint8_t stage = IMU_GetLastErrorStage();
+        uint8_t ack68 = IMU_ProbeAddressAck(0x68U);
+        uint8_t ack69 = IMU_ProbeAddressAck(0x69U);
         uint8_t foundAddr = 0U;
+
+        Serial_Printf("[imu-ack] 68=%u 69=%u status=0x%08lX stage=%u\r\n",
+                      (unsigned int)ack68, (unsigned int)ack69,
+                      (unsigned long)status, (unsigned int)stage);
 
         if (IMU_Scan(&foundAddr))
         {

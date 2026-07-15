@@ -19,6 +19,7 @@ uint8_t IMU_IsHealthy(void);
 uint8_t IMU_GetGyroRawZ_x10(int16_t *rawZ_x10, int16_t *dps_x10);
 
 uint8_t IMU_ProbeAddress(uint8_t addr);
+uint8_t IMU_ProbeAddressAck(uint8_t addr);
 uint8_t IMU_Scan(uint8_t *foundAddr);
 uint32_t IMU_GetLastI2CStatus(void);
 uint8_t IMU_GetLastErrorStage(void);
