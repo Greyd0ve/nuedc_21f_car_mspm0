@@ -36,10 +36,10 @@
 #define ECAR_CORNER_CENTER_MASK              0x7EU
 #define ECAR_CORNER_CENTER_MIN_BLACK_COUNT    2U
 #define ECAR_CORNER_CENTER_CONFIRM_COUNT    3U
-#define ECAR_CORNER_ANY_LINE_MIN_TURN_PULSE     80
-#define ECAR_CORNER_ANY_LINE_CONFIRM_COUNT      3U
-#define ECAR_RECOVER_LOST_TIMEOUT_MS      2000U
-#define ECAR_RECOVER_TOTAL_TIMEOUT_MS     2600U
+#define ECAR_CORNER_LOOSE_MIN_TURN_PULSE       40
+#define ECAR_CORNER_LOOSE_CONFIRM_COUNT        2U
+#define ECAR_RECOVER_LOST_TIMEOUT_MS           2500U
+#define ECAR_RECOVER_TOTAL_TIMEOUT_MS          3000U
 
 
 ECarParam_t g_eCarParam =
@@ -603,37 +603,21 @@ static void ECar_HandleCornerTurn(void)
     ECar_SetSpeedCmd(0.0f,
                      g_eCarParam.corner_turn_speed * E_CAR_TURN_SIGN);
 
+    if (turnDelta >= ECAR_CORNER_LOOSE_MIN_TURN_PULSE)
     {
-        uint8_t lineCaught = 0U;
-        uint8_t confirmNeed = ECAR_CORNER_CENTER_CONFIRM_COUNT;
-
-        if (turnDelta >= g_eCarParam.corner_center_min_turn_pulse &&
-            ECar_IsCenterLineCaught())
-        {
-            lineCaught = 1U;
-            confirmNeed = ECAR_CORNER_CENTER_CONFIRM_COUNT;
-        }
-
-        if (!lineCaught &&
-            turnDelta >= ECAR_CORNER_ANY_LINE_MIN_TURN_PULSE &&
-            ECar_IsStableLineAfterCorner())
-        {
-            lineCaught = 1U;
-            confirmNeed = ECAR_CORNER_ANY_LINE_CONFIRM_COUNT;
-        }
-
-        if (lineCaught)
+        if (ECar_IsStableLineAfterCorner())
         {
             if (s_cornerCenterLineCount < 255U)
             {
                 s_cornerCenterLineCount++;
             }
-            if (s_cornerCenterLineCount >= confirmNeed)
+            if (s_cornerCenterLineCount >= ECAR_CORNER_LOOSE_CONFIRM_COUNT)
             {
                 App_Control_ResetPID();
                 s_lineDerivResetPending = 1U;
                 s_cornerCenterLineCount = 0U;
                 s_lostMs = 0U;
+                s_recoverStableMsCount = 0U;
                 ECar_SetState(E_CAR_LINE_RUN);
                 return;
             }
@@ -664,16 +648,31 @@ static void ECar_HandleCornerTurn(void)
 static void ECar_HandleRecover(void)
 {
     float turnCmd;
-    uint32_t recoverTimeoutMs;
 
-    if (g_lineValid)
+    if (ECar_IsStableLineAfterCorner())
     {
         s_lostMs = 0U;
         turnCmd = ECar_CalcLineTurnCmd();
         ECar_SetSpeedCmd(g_eCarParam.recover_speed, turnCmd);
+
+        if (s_recoverStableMsCount < 60000U)
+        {
+            s_recoverStableMsCount += E_CAR_CONTROL_PERIOD_MS;
+        }
+
+        if (s_recoverStableMsCount >= g_eCarParam.recover_stable_ms)
+        {
+            App_Control_ResetPID();
+            s_lineDerivResetPending = 1U;
+            s_recoverStableMsCount = 0U;
+            ECar_SetState(E_CAR_LINE_RUN);
+            return;
+        }
     }
     else
     {
+        s_recoverStableMsCount = 0U;
+
         if (s_lostMs < 60000U)
         {
             s_lostMs += E_CAR_CONTROL_PERIOD_MS;
@@ -689,26 +688,7 @@ static void ECar_HandleRecover(void)
         ECar_SetSpeedCmd(0.0f, turnCmd);
     }
 
-    if (ECar_IsStableLineAfterCorner())
-    {
-        if (s_recoverStableMsCount < 60000U)
-        {
-            s_recoverStableMsCount += E_CAR_CONTROL_PERIOD_MS;
-        }
-
-        if (s_recoverStableMsCount >= g_eCarParam.recover_stable_ms)
-        {
-            ECar_SetState(E_CAR_LINE_RUN);
-            return;
-        }
-    }
-    else
-    {
-        s_recoverStableMsCount = 0U;
-    }
-
-    recoverTimeoutMs = ECAR_RECOVER_TOTAL_TIMEOUT_MS;
-    if (s_stateMs >= recoverTimeoutMs)
+    if (s_stateMs >= ECAR_RECOVER_TOTAL_TIMEOUT_MS)
     {
         ECar_EnterFault(E_CAR_FAULT_RECOVER_TIMEOUT);
     }
