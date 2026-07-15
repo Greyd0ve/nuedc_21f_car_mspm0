@@ -45,6 +45,8 @@
 #define ECAR_CORNER_ARC_CONFIRM_COUNT          2U
 #define ECAR_CORNER_ARC_TIMEOUT_MS             1400U
 #define ECAR_CORNER_ARC_NO_REVERSE_MARGIN      1.0f
+#define ECAR_CORNER_ARC_INNER_MIN_CMPS         4.0f
+#define ECAR_CORNER_ARC_MAX_TURN_PULSE         120
 #define ECAR_CORNER_ARC_MIN_FORWARD_CMPS       8.0f
 
 
@@ -284,7 +286,7 @@ static void ECar_ResetLineState(void)
     g_lineLostMs = 0U;
     s_lastLineError = 0.0f;
     s_lineDError = 0.0f;
-    s_lineDerivResetPending = 0U;
+    s_lineDerivResetPending = 1U;
     s_cornerCandidateCount = 0U;
     s_cornerCenterLineCount = 0U;
 }
@@ -602,12 +604,17 @@ static void ECar_HandleCornerTurn(void)
 {
     int32_t forwardPulse;
     int32_t forwardDelta;
+    int32_t turnPulse;
+    int32_t turnDelta;
     float forwardCmd;
     float turnCmd;
 
     forwardPulse = ECar_GetForwardPulse();
     forwardDelta = forwardPulse - s_cornerPassStartPulse;
     if (forwardDelta < 0) { forwardDelta = -forwardDelta; }
+
+    turnPulse = g_turnEncoderTotal - s_cornerTurnStartPulse;
+    turnDelta = (turnPulse >= 0) ? turnPulse : -turnPulse;
 
     forwardCmd = g_eCarParam.corner_forward_speed;
     if (forwardCmd < ECAR_CORNER_ARC_MIN_FORWARD_CMPS)
@@ -617,12 +624,23 @@ static void ECar_HandleCornerTurn(void)
 
     turnCmd = g_eCarParam.corner_turn_speed * E_CAR_TURN_SIGN;
     {
-        float turnLimit = forwardCmd - ECAR_CORNER_ARC_NO_REVERSE_MARGIN;
-        if (turnLimit < 1.0f) { turnLimit = 1.0f; }
+        float turnLimit = forwardCmd - ECAR_CORNER_ARC_INNER_MIN_CMPS;
+        if (turnLimit < 2.0f) { turnLimit = 2.0f; }
         turnCmd = ECar_LimitFloat(turnCmd, -turnLimit, turnLimit);
     }
 
     ECar_SetSpeedCmd(forwardCmd, turnCmd);
+
+    if (turnDelta >= ECAR_CORNER_ARC_MAX_TURN_PULSE)
+    {
+        App_Control_ResetPID();
+        s_lineDerivResetPending = 1U;
+        s_cornerCenterLineCount = 0U;
+        s_lostMs = 0U;
+        s_recoverStableMsCount = 0U;
+        ECar_SetState(E_CAR_LINE_RUN);
+        return;
+    }
 
     if (forwardDelta >= ECAR_CORNER_ARC_MIN_FORWARD_PULSE)
     {
@@ -702,7 +720,7 @@ static void ECar_HandleRecover(void)
             return;
         }
 
-        turnCmd = g_eCarParam.corner_turn_speed * E_CAR_TURN_SIGN;
+        turnCmd = ECar_CalcSearchTurnCmd();
         ECar_SetSpeedCmd(0.0f, turnCmd);
     }
 
