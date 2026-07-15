@@ -33,6 +33,10 @@
 
 #define ECAR_CORNER_TURN_PULSE_DEFAULT  180
 
+#define ECAR_CORNER_CENTER_MASK              0x18U
+#define ECAR_CORNER_CENTER_CONFIRM_COUNT    3U
+#define ECAR_CORNER_CENTER_MIN_TURN_PULSE   60
+
 
 ECarParam_t g_eCarParam =
 {
@@ -124,6 +128,7 @@ static volatile float s_lapProgress = 0.0f;
 static volatile uint8_t s_faultCode = E_CAR_FAULT_NONE;
 static volatile uint16_t s_promptMs = 0U;
 static volatile uint8_t s_cornerCandidateCount = 0U;
+static volatile uint8_t s_cornerCenterLineCount = 0U;
 
 static volatile int32_t s_cornerTurnStartPulse = 0;
 
@@ -268,6 +273,7 @@ static void ECar_ResetLineState(void)
     s_lineDError = 0.0f;
     s_lineDerivResetPending = 0U;
     s_cornerCandidateCount = 0U;
+    s_cornerCenterLineCount = 0U;
 }
 
 static void ECar_ResetRunData(void)
@@ -289,6 +295,7 @@ static void ECar_ResetRunData(void)
     s_lapProgress = 0.0f;
     s_faultCode = E_CAR_FAULT_NONE;
     s_cornerCandidateCount = 0U;
+    s_cornerCenterLineCount = 0U;
 }
 
 static void ECar_UpdateLapProgress(void)
@@ -511,6 +518,7 @@ static void ECar_HandleCornerEnter(void)
     pulse = ECar_GetForwardPulse();
     s_lastCornerForwardPulse = pulse;
     s_cornerCandidateCount = 0U;
+    s_cornerCenterLineCount = 0U;
 		s_cornerTurnStartPulse = g_turnEncoderTotal;
     if (s_cornerCount < 250U)
     {
@@ -543,6 +551,34 @@ static void ECar_HandleCornerEnter(void)
     ECar_SetState(E_CAR_CORNER_TURN);
 }
 
+static uint8_t ECar_IsCenterLineCaught(void)
+{
+    uint8_t cornerBlackCountTh;
+
+    cornerBlackCountTh = g_eCarParam.corner_black_count_th;
+    if (cornerBlackCountTh == 0U || cornerBlackCountTh > 8U)
+    {
+        cornerBlackCountTh = 5U;
+    }
+
+    if (!g_lineValid)
+    {
+        return 0U;
+    }
+
+    if (g_lineBlackCount >= cornerBlackCountTh)
+    {
+        return 0U;
+    }
+
+    if ((g_lineMask & ECAR_CORNER_CENTER_MASK) != ECAR_CORNER_CENTER_MASK)
+    {
+        return 0U;
+    }
+
+    return 1U;
+}
+
 static void ECar_HandleCornerTurn(void)
 {
     int32_t turnPulse;
@@ -556,6 +592,29 @@ static void ECar_HandleCornerTurn(void)
      */
     ECar_SetSpeedCmd(0.0f,
                      g_eCarParam.corner_turn_speed * E_CAR_TURN_SIGN);
+
+    if (turnDelta >= ECAR_CORNER_CENTER_MIN_TURN_PULSE)
+    {
+        if (ECar_IsCenterLineCaught())
+        {
+            if (s_cornerCenterLineCount < 255U)
+            {
+                s_cornerCenterLineCount++;
+            }
+            if (s_cornerCenterLineCount >= ECAR_CORNER_CENTER_CONFIRM_COUNT)
+            {
+                App_Control_ResetPID();
+                s_lineDerivResetPending = 1U;
+                s_cornerCenterLineCount = 0U;
+                ECar_SetState(E_CAR_LINE_RUN);
+                return;
+            }
+        }
+        else
+        {
+            s_cornerCenterLineCount = 0U;
+        }
+    }
 
     if (turnDelta >= ECAR_CORNER_TURN_PULSE_DEFAULT)
     {
