@@ -33,7 +33,8 @@
 
 #define ECAR_CORNER_TURN_PULSE_DEFAULT  180
 
-#define ECAR_CORNER_CENTER_MASK              0x18U
+#define ECAR_CORNER_CENTER_MASK              0x7EU
+#define ECAR_CORNER_CENTER_MIN_BLACK_COUNT    2U
 #define ECAR_CORNER_CENTER_CONFIRM_COUNT    3U
 #define ECAR_CORNER_CENTER_MIN_TURN_PULSE   60
 
@@ -551,6 +552,17 @@ static void ECar_HandleCornerEnter(void)
     ECar_SetState(E_CAR_CORNER_TURN);
 }
 
+static uint8_t ECar_CountBits8(uint8_t value)
+{
+    uint8_t count = 0U;
+    while (value != 0U)
+    {
+        count += (uint8_t)(value & 0x01U);
+        value >>= 1U;
+    }
+    return count;
+}
+
 static uint8_t ECar_IsCenterLineCaught(void)
 {
     uint8_t cornerBlackCountTh;
@@ -571,7 +583,7 @@ static uint8_t ECar_IsCenterLineCaught(void)
         return 0U;
     }
 
-    if ((g_lineMask & ECAR_CORNER_CENTER_MASK) != ECAR_CORNER_CENTER_MASK)
+    if (ECar_CountBits8((uint8_t)(g_lineMask & ECAR_CORNER_CENTER_MASK)) < ECAR_CORNER_CENTER_MIN_BLACK_COUNT)
     {
         return 0U;
     }
