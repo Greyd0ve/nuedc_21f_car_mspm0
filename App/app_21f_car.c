@@ -421,6 +421,8 @@ static void F21_StartSelectedRoomTask(const char *source)
     Serial_Printf("[f21,start,room=%u,src=%s]\r\n",
         (unsigned int)s_targetRoom, source);
 }
+
+void F21Car_KeyProcess(void)
 {
     uint8_t key = Key_GetNum();
     if (key == 0U) return;
