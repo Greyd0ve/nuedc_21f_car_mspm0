@@ -15,6 +15,14 @@
 #define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
 #define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
 
+/* CarBase template behaviour switches. */
+#ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
+#define CAR_BASE_SERIAL_MONITOR_ENABLE          1
+#endif
+#ifndef CAR_BASE_BOOT_PROMPT_ENABLE
+#define CAR_BASE_BOOT_PROMPT_ENABLE             0
+#endif
+
 /* Temporary encoder-only memory corruption diagnostic mode. */
 #ifndef ECAR_ENCODER_MINIMAL_DEBUG
 #define ECAR_ENCODER_MINIMAL_DEBUG              0
@@ -82,13 +90,12 @@
 #define ECAR_ENCODER_PULSE_PER_REV             367.0f
 #define ECAR_CM_PER_PULSE                      (ECAR_WHEEL_CIRCUMFERENCE_CM / ECAR_ENCODER_PULSE_PER_REV)
 
-/* Square track nominal distances. Tune with telemetry after hardware tests. */
+/* [legacy] E-topic square track nominal distance. */
 #define ECAR_LAP_DISTANCE_CM                    400.0f
 
 /*
- * Corner detection: all-white (8-channel count == 0) for LOST_CONFIRM_MS
- * triggers corner. From the second corner onward, the current side must
- * exceed MIN_STRAIGHT_CM before all-white is recognized as a corner.
+ * [legacy] E-topic corner detection:
+ * all-white (8-channel count == 0) for LOST_CONFIRM_MS triggers corner.
  */
 #define ECAR_CORNER_ADVANCE_CM                  4.0f
 #define ECAR_CORNER_MIN_STRAIGHT_CM             80.0f

@@ -11,24 +11,6 @@
 #define GRAYSCALE_CHANNELS 8U
 #endif
 
-extern volatile float g_lineBlackLevelF;
-extern volatile float g_lineReverseOrderF;
-extern volatile float g_lineTurnSign;
-extern volatile float g_lineKp;
-extern volatile float g_lineKd;
-extern volatile float g_lineTurnLimit;
-extern volatile float g_lineFilterAlpha;
-
-extern volatile int16_t g_lineError;
-extern volatile uint8_t g_lineValid;
-extern volatile uint8_t g_lineMask;
-extern volatile uint8_t g_lineRawMask;
-extern volatile uint8_t g_lineBlackCount;
-extern volatile uint8_t g_lineBadMaskCount;
-extern volatile uint8_t g_lineZeroMaskCount;
-extern volatile int8_t g_lastLineDir;
-extern volatile uint16_t g_lineLostMs;
-
 static volatile float g_lineErrorFiltered = 0.0f;
 static volatile float g_lineLastCtrlError = 0.0f;
 static int16_t s_lastValidError = 0;
@@ -55,6 +37,11 @@ void App_Line_GPIOForceInit(void)
 
 void App_Line_ResetState(void)
 {
+    g_lineValid = 0U;
+    g_lineMask = 0U;
+    g_lineRawMask = 0U;
+    g_lineError = 0;
+    g_lastLineDir = 1;
     g_lineLostMs = 0;
     g_lineBlackCount = 0U;
     g_lineBadMaskCount = 0U;
