@@ -33,6 +33,10 @@
 #define F21_VISION_START_DELAY_MS        500U
 #define F21_VISION_BUF_SIZE              32U
 
+static void F21_Uart2_Init(void);
+static void F21_Vision_Process(void);
+static void F21_Vision_Tick10ms(void);
+
 /*
  * Route table for rooms 1-8.
  * Rooms 1-4: SIMPLE, one cross + one turn -> final room run.
@@ -405,7 +409,18 @@ static void F21_ResetRunData(void)
     s_farReturnSecondTurnDir = F21_TURN_LEFT;
 }
 
-void F21Car_KeyProcess(void)
+static void F21_StartSelectedRoomTask(const char *source)
+{
+    if (s_targetRoom < 1U || s_targetRoom > 8U) return;
+
+    F21_ApplyRoute(s_targetRoom);
+    F21_ResetRunData();
+    s_stateStartPulse = g_forwardEncoderTotal;
+    s_state = F21_CAR_MAIN_LINE_RUN;
+    s_visionStartPending = 0U;
+    Serial_Printf("[f21,start,room=%u,src=%s]\r\n",
+        (unsigned int)s_targetRoom, source);
+}
 {
     uint8_t key = Key_GetNum();
     if (key == 0U) return;
@@ -413,6 +428,7 @@ void F21Car_KeyProcess(void)
     switch (key)
     {
     case 1U:
+        s_visionStartPending = 0U;
         if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
         {
             s_targetRoom++;
@@ -423,17 +439,14 @@ void F21Car_KeyProcess(void)
         }
         break;
     case 2U:
+        s_visionStartPending = 0U;
         if (s_state == F21_CAR_WAIT_START || s_state == F21_CAR_IDLE)
         {
-            if (s_targetRoom < 1U || s_targetRoom > 8U) break;
-            F21_ApplyRoute(s_targetRoom);
-            F21_ResetRunData();
-            s_stateStartPulse = g_forwardEncoderTotal;
-            s_state = F21_CAR_MAIN_LINE_RUN;
-            Serial_Printf("[f21,start,room=%u]\r\n", (unsigned int)s_targetRoom);
+            F21_StartSelectedRoomTask("key");
         }
         break;
     case 3U:
+        s_visionStartPending = 0U;
         if (s_state != F21_CAR_IDLE && s_state != F21_CAR_WAIT_START &&
             s_state != F21_CAR_FINISH && s_state != F21_CAR_FAULT)
         {
@@ -443,6 +456,7 @@ void F21Car_KeyProcess(void)
         }
         break;
     case 4U:
+        s_visionStartPending = 0U;
         s_targetRoom = 1U;
         F21_ResetRunData();
         s_state = F21_CAR_IDLE;
@@ -1161,6 +1175,12 @@ static void F21_Vision_ParseCommand(const char *buf)
             if (num >= 1 && num <= 8)
             {
                 s_visionRoom = (uint8_t)num;
+                if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
+                {
+                    s_targetRoom = (uint8_t)num;
+                    s_state = F21_CAR_WAIT_START;
+                    F21_StartLedDisplay(s_targetRoom);
+                }
                 F21_Uart2_SendString("[ack,num,");
                 F21_Uart2_SendByte((uint8_t)('0' + num));
                 F21_Uart2_SendString("]\r\n");
@@ -1227,17 +1247,14 @@ static void F21_Vision_Tick10ms(void)
         if (s_visionMs - s_visionStartTick >= F21_VISION_START_DELAY_MS)
         {
             s_visionStartPending = 0U;
+
+            if (s_state != F21_CAR_IDLE && s_state != F21_CAR_WAIT_START)
+                return;
+
             if (s_visionConfirmedRoom >= 1U && s_visionConfirmedRoom <= 8U)
             {
                 s_targetRoom = s_visionConfirmedRoom;
-                s_state = F21_CAR_WAIT_START;
-                F21_StartLedDisplay(s_targetRoom);
-                F21_ApplyRoute(s_targetRoom);
-                F21_ResetRunData();
-                s_stateStartPulse = g_forwardEncoderTotal;
-                s_state = F21_CAR_MAIN_LINE_RUN;
-                Serial_Printf("[f21,vision,start,room=%u]\r\n",
-                    (unsigned int)s_targetRoom);
+                F21_StartSelectedRoomTask("vision");
             }
         }
     }
