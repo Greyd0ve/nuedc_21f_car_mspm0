@@ -9,6 +9,7 @@
 #include "Motor.h"
 #include "OLED.h"
 #include "Serial.h"
+#include "cmsis_compiler.h"
 #include <stdint.h>
 
 #define F21_LED_ON_MS_1                 500U
@@ -19,15 +20,25 @@
 
 #define F21_CROSS_CONFIRM_TICKS         (F21_CROSS_CONFIRM_MS / CAR_CONTROL_PERIOD_MS)
 
+/*
+ * Route table for rooms 1-8.
+ * Rooms 1-4: SIMPLE, one cross + one turn -> final room run.
+ * Rooms 5-8: FAR, first cross at 240cm, second cross after 70cm branch.
+ *   secondTurn for rooms 5-8 are initial placeholders; verify on real track.
+ */
 static const F21Route_t s_routes[8] =
 {
     { F21_ROUTE_SIMPLE,  50.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
     { F21_ROUTE_SIMPLE,  50.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
     { F21_ROUTE_SIMPLE, 150.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
     { F21_ROUTE_SIMPLE, 150.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
+    /* room 5 secondTurn = LEFT  (placeholder, verify on track) */
     { F21_ROUTE_FAR,    240.0f, F21_TURN_LEFT,   70.0f, F21_TURN_LEFT,   50.0f },
+    /* room 6 secondTurn = RIGHT (placeholder, verify on track) */
     { F21_ROUTE_FAR,    240.0f, F21_TURN_RIGHT,  70.0f, F21_TURN_RIGHT,  50.0f },
+    /* room 7 secondTurn = RIGHT (placeholder, verify on track) */
     { F21_ROUTE_FAR,    240.0f, F21_TURN_LEFT,   70.0f, F21_TURN_RIGHT,  50.0f },
+    /* room 8 secondTurn = LEFT  (placeholder, verify on track) */
     { F21_ROUTE_FAR,    240.0f, F21_TURN_RIGHT,  70.0f, F21_TURN_LEFT,   50.0f }
 };
 
@@ -49,7 +60,6 @@ static volatile F21TurnDir_t s_secondTurnDir = F21_TURN_LEFT;
 static volatile F21RouteType_t s_routeType = F21_ROUTE_SIMPLE;
 static volatile uint8_t s_firstTurnDone = 0U;
 
-/* LED non-blocking display state machine */
 typedef enum
 {
     F21_LED_IDLE = 0,
@@ -166,6 +176,40 @@ static void F21_EnterFault(uint8_t code, const char *msg)
     Serial_Printf("[f21,fault,%s]\r\n", msg);
 }
 
+/* ---- encoder total clearing ---- */
+
+static void F21_ClearEncoderTotals(void)
+{
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+
+    g_leftEncoderDelta = 0;
+    g_rightEncoderDelta = 0;
+    g_leftEncoderTotal = 0;
+    g_rightEncoderTotal = 0;
+    g_forwardEncoderTotal = 0;
+    g_turnEncoderTotal = 0;
+
+    g_leftSpeed = 0.0f;
+    g_rightSpeed = 0.0f;
+    g_forwardSpeed = 0.0f;
+    g_turnSpeed = 0.0f;
+
+    g_leftPwm = 0;
+    g_rightPwm = 0;
+    g_speedPwm = 0.0f;
+    g_diffPwm = 0.0f;
+    g_forwardSpeedError = 0.0f;
+
+    Encoder_ClearAll();
+
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+}
+
 /* ---- cross detection ---- */
 
 static uint8_t F21_IsCrossDetected(void)
@@ -189,13 +233,22 @@ static void F21_ApplyRoute(uint8_t room)
     s_firstTurnDone = 0U;
 }
 
-/* ---- turn execution ---- */
+/* ---- speed closed-loop motion command ---- */
 
-static void F21_ExecuteTurn(int16_t leftPwm, int16_t rightPwm)
+static float F21_TurnDirToSign(F21TurnDir_t dir)
 {
-    App_Control_ForcePWMZero();
-    Motor_SetPWM(leftPwm, rightPwm);
+    return (dir == F21_TURN_LEFT) ? 1.0f : -1.0f;
 }
+
+static void F21_SetMotionCmd(float forward, float turn)
+{
+    g_targetForwardSpeed = forward;
+    g_targetTurnSpeed = turn;
+    g_carEnable = 1U;
+    App_Control_ApplyMotorOutput();
+}
+
+/* ---- turn completion ---- */
 
 static uint8_t F21_IsTurnComplete(void)
 {
@@ -214,7 +267,7 @@ void F21Car_Init(void)
     s_faultCode = 0U;
     F21_SafeStop();
     App_Line_ResetState();
-    Encoder_ClearAll();
+    F21_ClearEncoderTotals();
     s_firstTurnDone = 0U;
     s_ledSeq = F21_LED_IDLE;
 }
@@ -222,7 +275,7 @@ void F21Car_Init(void)
 static void F21_ResetRunData(void)
 {
     F21_SafeStop();
-    Encoder_ClearAll();
+    F21_ClearEncoderTotals();
     App_Line_ResetState();
     App_Control_ResetPID();
     s_stateMs = 0U;
@@ -241,7 +294,7 @@ void F21Car_KeyProcess(void)
 
     switch (key)
     {
-    case 1U: /* K1: select room */
+    case 1U:
         if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
         {
             s_targetRoom++;
@@ -251,7 +304,7 @@ void F21Car_KeyProcess(void)
             Serial_Printf("[f21,room,%u]\r\n", (unsigned int)s_targetRoom);
         }
         break;
-    case 2U: /* K2: start delivery */
+    case 2U:
         if (s_state == F21_CAR_WAIT_START || s_state == F21_CAR_IDLE)
         {
             if (s_targetRoom < 1U || s_targetRoom > 8U) break;
@@ -262,7 +315,7 @@ void F21Car_KeyProcess(void)
             Serial_Printf("[f21,start,room=%u]\r\n", (unsigned int)s_targetRoom);
         }
         break;
-    case 3U: /* K3: stop */
+    case 3U:
         if (s_state != F21_CAR_IDLE && s_state != F21_CAR_WAIT_START &&
             s_state != F21_CAR_FINISH && s_state != F21_CAR_FAULT)
         {
@@ -271,7 +324,7 @@ void F21Car_KeyProcess(void)
             Serial_Printf("[f21,stop]\r\n");
         }
         break;
-    case 4U: /* K4: reset */
+    case 4U:
         s_targetRoom = 1U;
         F21_ResetRunData();
         s_state = F21_CAR_IDLE;
@@ -346,7 +399,7 @@ static void F21_HandleFirstCrossAdvance(void)
     App_Line_Update();
     if (g_lineValid)
     {
-        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
         g_targetTurnSpeed = 0.0f;
         g_carEnable = 1U;
         App_Control_ApplyMotorOutput();
@@ -371,14 +424,8 @@ static void F21_HandleFirstTurn(void)
         return;
     }
 
-    if (s_firstTurnDir == F21_TURN_LEFT)
-    {
-        F21_ExecuteTurn(-(int16_t)F21_TURN_PWM, (int16_t)F21_TURN_PWM);
-    }
-    else
-    {
-        F21_ExecuteTurn((int16_t)F21_TURN_PWM, -(int16_t)F21_TURN_PWM);
-    }
+    F21_SetMotionCmd(0.0f,
+        F21_TurnDirToSign(s_firstTurnDir) * F21_TURN_SPEED_CMPS);
 
     if (F21_IsTurnComplete())
     {
@@ -413,7 +460,7 @@ static void F21_HandleSecondCrossAdvance(void)
     App_Line_Update();
     if (g_lineValid)
     {
-        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
         g_targetTurnSpeed = 0.0f;
         g_carEnable = 1U;
         App_Control_ApplyMotorOutput();
@@ -438,14 +485,8 @@ static void F21_HandleSecondTurn(void)
         return;
     }
 
-    if (s_secondTurnDir == F21_TURN_LEFT)
-    {
-        F21_ExecuteTurn(-(int16_t)F21_TURN_PWM, (int16_t)F21_TURN_PWM);
-    }
-    else
-    {
-        F21_ExecuteTurn((int16_t)F21_TURN_PWM, -(int16_t)F21_TURN_PWM);
-    }
+    F21_SetMotionCmd(0.0f,
+        F21_TurnDirToSign(s_secondTurnDir) * F21_TURN_SPEED_CMPS);
 
     if (F21_IsTurnComplete())
     {
@@ -523,10 +564,8 @@ void F21Car_Task10ms(void)
 
     case F21_CAR_ARRIVED_ROOM:
         F21_SafeStop();
-        if (s_stateMs >= F21_UNLOAD_WAIT_MS)
-        {
-            s_state = F21_CAR_FINISH;
-        }
+        s_stateMs = 0U;
+        s_state = F21_CAR_UNLOAD_WAIT;
         break;
 
     case F21_CAR_UNLOAD_WAIT:

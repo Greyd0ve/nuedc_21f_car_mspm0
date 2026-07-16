@@ -8,13 +8,15 @@
 #define F21_UNLOAD_WAIT_MS              3000U
 
 #define F21_LINE_BASE_SPEED_CMPS        10.0f
-#define F21_TURN_PWM                    140
-/*
- * F21_TURN_90_PULSE: must be measured on real hardware.
- * If 0, turn states will enter FAULT immediately.
- */
-#define F21_TURN_90_PULSE               0
+#define F21_CROSS_ADVANCE_SPEED_CMPS    10.0f
+#define F21_TURN_SPEED_CMPS             12.0f
+
+/* F21_TURN_90_PULSE: referenced from E-car corner_turn_pulse = 90U */
+#define F21_TURN_90_PULSE               90U
 #define F21_TURN_180_PULSE              0
+
+/* [legacy] F21_TURN_PWM was raw PWM direct drive; replaced by speed closed-loop. */
+#define F21_TURN_PWM                    140
 
 typedef enum
 {
