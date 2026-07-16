@@ -44,6 +44,10 @@ JLinkLog*.txt
 # Logs
 *.log
 
+# Temporary session and patch files
+*.patch
+session-*.md
+
 # Temporary files
 *.tmp
 *.bak

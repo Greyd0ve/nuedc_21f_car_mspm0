@@ -3,7 +3,7 @@
 #include "Board_Config.h"
 #include "Key.h"
 #include "BeepLed.h"
-#include "app_e_car.h"
+#include "app_f_car.h"
 #include <stdint.h>
 
 extern volatile uint8_t g_task_1ms_count;
@@ -49,7 +49,7 @@ void TIMG6_IRQHandler(void)
             /* ISR 保持短小：只做按键消抖、提示 tick 和任务计数。 */
             Key_Tick();
             BeepLed_Tick1ms();
-            ECar_PromptTick1ms();
+            FCar_PromptTick1ms();
 
             Timer_SaturatingInc(&g_task_1ms_count);
 

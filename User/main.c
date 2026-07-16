@@ -2,8 +2,8 @@
 #include "app_config.h"
 #include "app_board_test.h"
 #include "app_control.h"
-#include "app_e_car.h"
-#include "app_e_serial.h"
+#include "app_f_car.h"
+#include "app_f_serial.h"
 #include "app_line.h"
 #include "BeepLed.h"
 #include "Encoder.h"
@@ -47,7 +47,7 @@ static uint8_t Main_TakeTaskCounterAll(volatile uint8_t *counter)
     return count;
 }
 
-#if ECAR_ENCODER_MINIMAL_DEBUG
+#if FCAR_ENCODER_MINIMAL_DEBUG
 static void Main_PrintfSingleFieldTest(void)
 {
     Serial_Printf("[printf-test]\r\n");
@@ -66,7 +66,7 @@ int main(void)
 {
     SYSCFG_DL_init();
 
-#if ECAR_ENCODER_MINIMAL_DEBUG
+#if FCAR_ENCODER_MINIMAL_DEBUG
     Serial_Init();
     Encoder_Init();
     Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-timer]");
@@ -87,15 +87,15 @@ int main(void)
                 printMs = 0U;
                 Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-getdelta]");
 
-								{
-										int16_t rd = Encoder_GetRightDelta();
-										Serial_Printf("[getdelta-test]\r\n");
-										Serial_Printf("rd=%d\r\n", (int)rd);
-								}
+				{
+					int16_t rd = Encoder_GetRightDelta();
+					Serial_Printf("[getdelta-test]\r\n");
+					Serial_Printf("rd=%d\r\n", (int)rd);
+				}
 
-								Encoder_DebugPrintDirectNoPrintf("[enc-direct-after-getdelta]");
-								Encoder_DebugPrintGetterNoPrintf("[enc-getter-after-getdelta]");
-								Main_PrintfSingleFieldTest();
+				Encoder_DebugPrintDirectNoPrintf("[enc-direct-after-getdelta]");
+				Encoder_DebugPrintGetterNoPrintf("[enc-getter-after-getdelta]");
+				Main_PrintfSingleFieldTest();
             }
         }
     }
@@ -109,24 +109,24 @@ int main(void)
     Serial_Init();
     Servo_Init();
     App_Control_Init();
-    ECar_Init();
-    ECar_Serial_Init();
+    FCar_Init();
+    FCar_Serial_Init();
 
-#if ECAR_OLED_ENABLE
+#if FCAR_OLED_ENABLE
     OLED_Init();
     OLED_Clear();
 #endif
 
-#if ECAR_TEST_IMU_ENABLE
+#if FCAR_TEST_IMU_ENABLE
     IMU_Init();
 #endif
 
-#if ECAR_BOARD_TEST_MODE
+#if FCAR_BOARD_TEST_MODE
     BoardTest_Init();
 #else
     App_Line_GPIOForceInit();
-#if ECAR_OLED_ENABLE
-    ECar_ShowStatus();
+#if FCAR_OLED_ENABLE
+    FCar_ShowStatus();
 #endif
 #endif
 
@@ -141,7 +141,7 @@ int main(void)
         taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
         if (taskCount > 0U)
         {
-            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * ECAR_ENCODER_SPEED_PERIOD_MS);
+            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * FCAR_ENCODER_SPEED_PERIOD_MS);
         }
 
         taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
@@ -151,34 +151,34 @@ int main(void)
         }
         while (taskCount > 0U)
         {
-#if ECAR_BOARD_TEST_MODE
+#if FCAR_BOARD_TEST_MODE
             BoardTest_Task10ms();
 #else
-            ECar_Control10ms();
+            FCar_Task10ms();
 #endif
             taskCount--;
         }
 
-#if !ECAR_BOARD_TEST_MODE
-        ECar_KeyProcess();
+#if !FCAR_BOARD_TEST_MODE
+        FCar_KeyProcess();
 #endif
-        ECar_SerialProcess();
+        FCar_SerialProcess();
 
         if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
         {
-#if ECAR_BOARD_TEST_MODE
+#if FCAR_BOARD_TEST_MODE
             BoardTest_Task100ms();
 #else
-            ECar_SerialPlot100ms();
+            FCar_SerialPlot100ms();
 #endif
         }
 
         if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
         {
-#if ECAR_BOARD_TEST_MODE
+#if FCAR_BOARD_TEST_MODE
             BoardTest_Task200ms();
-#elif ECAR_OLED_ENABLE
-            ECar_ShowStatus();
+#elif FCAR_OLED_ENABLE
+            FCar_ShowStatus();
 #endif
         }
     }
