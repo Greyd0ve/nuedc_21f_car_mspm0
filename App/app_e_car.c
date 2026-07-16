@@ -17,8 +17,12 @@
 #define E_CAR_TARGET_LAP_MIN         1U
 #define E_CAR_TARGET_LAP_MAX         5U
 
+/*
+ * E_CAR_TURN_SIGN only affects the fixed corner turn direction.
+ * Measured: rear mode (-1.0f) turned right; flipped to (+1.0f) for left turn.
+ */
 #if ECAR_REAR_LINE_SENSOR_MODE
-#define E_CAR_TURN_SIGN              (-1.0f)
+#define E_CAR_TURN_SIGN              1.0f
 #else
 #define E_CAR_TURN_SIGN              1.0f
 #endif
