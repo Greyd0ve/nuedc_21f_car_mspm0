@@ -8,6 +8,10 @@
 #define F21_FAR_CROSS_ADVANCE_CM        3.0f
 #define F21_UNLOAD_WAIT_MS              2000U
 
+#define F21_SIDE_CROSS_BLACK_MIN        4U
+#define F21_SIDE_CROSS_LEFT_MASK        0x3FU
+#define F21_SIDE_CROSS_RIGHT_MASK       0xFCU
+
 #define F21_LINE_BASE_SPEED_CMPS        10.0f
 #define F21_FAR_LINE_BASE_SPEED_CMPS    (F21_LINE_BASE_SPEED_CMPS * 1.5f)
 #define F21_CROSS_ADVANCE_SPEED_CMPS    10.0f
@@ -77,6 +81,15 @@ typedef struct
     F21TurnDir_t turnDir;
     float finalRunCm;
 } F21ReturnRoute_t;
+
+typedef struct
+{
+    float firstDetectStartCm;
+    F21TurnDir_t firstTurn;
+    float secondDetectStartCm;
+    F21TurnDir_t secondTurn;
+    float finalRunCm;
+} F21FarReturnRoute_t;
 
 void F21Car_Init(void);
 void F21Car_Tick1ms(void);
