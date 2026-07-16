@@ -432,23 +432,25 @@ static void F21_HandleMainLineRun(void)
 
 static void F21_HandleFirstCrossAdvance(void)
 {
-    App_Line_Update();
-    if (g_lineValid)
+    static uint8_t s_firstAdvanceEntered = 0U;
+
+    g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
+    g_targetTurnSpeed = 0.0f;
+    g_carEnable = 1U;
+    App_Control_ApplyMotorOutput();
+
+    if (s_firstAdvanceEntered == 0U)
     {
-        g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
-        g_targetTurnSpeed = 0.0f;
-        g_carEnable = 1U;
-        App_Control_ApplyMotorOutput();
-    }
-    else
-    {
-        App_Control_ForcePWMZero();
+        s_firstAdvanceEntered = 1U;
+        Serial_Printf("[f21,advance,first]\r\n");
     }
 
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
     {
+        s_firstAdvanceEntered = 0U;
         s_state = F21_CAR_FIRST_TURN;
         s_turnStartPulse = g_turnEncoderTotal;
+        Serial_Printf("[f21,turn,first]\r\n");
     }
 }
 
@@ -494,23 +496,25 @@ static void F21_HandleAfterFirstTurnRun(void)
 
 static void F21_HandleSecondCrossAdvance(void)
 {
-    App_Line_Update();
-    if (g_lineValid)
+    static uint8_t s_secondAdvanceEntered = 0U;
+
+    g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
+    g_targetTurnSpeed = 0.0f;
+    g_carEnable = 1U;
+    App_Control_ApplyMotorOutput();
+
+    if (s_secondAdvanceEntered == 0U)
     {
-        g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
-        g_targetTurnSpeed = 0.0f;
-        g_carEnable = 1U;
-        App_Control_ApplyMotorOutput();
-    }
-    else
-    {
-        App_Control_ForcePWMZero();
+        s_secondAdvanceEntered = 1U;
+        Serial_Printf("[f21,advance,second]\r\n");
     }
 
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
     {
+        s_secondAdvanceEntered = 0U;
         s_state = F21_CAR_SECOND_TURN;
         s_turnStartPulse = g_turnEncoderTotal;
+        Serial_Printf("[f21,turn,second]\r\n");
     }
 }
 
