@@ -10,6 +10,7 @@
 #include "OLED.h"
 #include "Serial.h"
 #include "cmsis_compiler.h"
+#include "ti_msp_dl_config.h"
 #include <stdint.h>
 
 #define F21_LED_BLINK_ON_MS             300U
@@ -25,6 +26,12 @@
 #define F21_RETURN_MODE_NONE            0U
 #define F21_RETURN_MODE_SIMPLE          1U
 #define F21_RETURN_MODE_FAR             2U
+
+#define F21_UART2_RX_BUF_SIZE           128U
+#define F21_UART2_BAUD_115200_IBRD      17U
+#define F21_UART2_BAUD_115200_FBRD      23U
+#define F21_VISION_START_DELAY_MS        500U
+#define F21_VISION_BUF_SIZE              32U
 
 /*
  * Route table for rooms 1-8.
@@ -106,6 +113,17 @@ static volatile uint8_t s_returnStage = 0U;
 static volatile uint8_t s_returnSideConfirmCnt = 0U;
 static volatile int32_t s_farReturnSecondDetectStartPulse = 0;
 static volatile F21TurnDir_t s_farReturnSecondTurnDir = F21_TURN_LEFT;
+
+static volatile uint8_t s_uart2RxBuf[F21_UART2_RX_BUF_SIZE];
+static volatile uint8_t s_uart2RxHead = 0U;
+static volatile uint8_t s_uart2RxTail = 0U;
+static volatile uint32_t s_uart2RxOverflow = 0U;
+
+static volatile uint8_t s_visionRoom = 0U;
+static volatile uint8_t s_visionConfirmedRoom = 0U;
+static volatile uint8_t s_visionStartPending = 0U;
+static volatile uint32_t s_visionStartTick = 0U;
+static volatile uint32_t s_visionMs = 0U;
 
 static volatile uint8_t s_ledBlinkTarget = 0U;
 static volatile uint8_t s_ledBlinkCount  = 0U;
@@ -363,6 +381,7 @@ void F21Car_Init(void)
     s_firstTurnDone = 0U;
     s_ledActive = 0U;
     LED_User_Off();
+    F21_Uart2_Init();
 }
 
 static void F21_ResetRunData(void)
@@ -917,6 +936,9 @@ void F21Car_Task10ms(void)
 {
     s_stateMs += CAR_CONTROL_PERIOD_MS;
 
+    F21_Vision_Process();
+    F21_Vision_Tick10ms();
+
     switch (s_state)
     {
     case F21_CAR_IDLE:
@@ -1024,4 +1046,199 @@ void F21Car_Task200ms(void)
     OLED_ShowSignedNum(0, 16, (int32_t)s_state, 2, OLED_6X8);
     OLED_ShowNum(0, 32, s_targetRoom, 2, OLED_6X8);
 #endif
+}
+
+/* ---- K230 vision UART2 ---- */
+
+static void F21_Uart2_PushRx(uint8_t byte)
+{
+    uint8_t next = (uint8_t)(s_uart2RxHead + 1U);
+    if (next >= F21_UART2_RX_BUF_SIZE) next = 0U;
+    if (next == s_uart2RxTail)
+    {
+        s_uart2RxOverflow++;
+        return;
+    }
+    s_uart2RxBuf[s_uart2RxHead] = byte;
+    s_uart2RxHead = next;
+}
+
+static uint8_t F21_Uart2_ReadByte(uint8_t *byte)
+{
+    if (s_uart2RxHead == s_uart2RxTail) return 0U;
+    *byte = s_uart2RxBuf[s_uart2RxTail];
+    s_uart2RxTail++;
+    if (s_uart2RxTail >= F21_UART2_RX_BUF_SIZE) s_uart2RxTail = 0U;
+    return 1U;
+}
+
+void UART2_IRQHandler(void)
+{
+    switch (DL_UART_Main_getPendingInterrupt(UART2))
+    {
+        case DL_UART_MAIN_IIDX_RX:
+            while (!DL_UART_Main_isRXFIFOEmpty(UART2))
+            {
+                F21_Uart2_PushRx(DL_UART_Main_receiveData(UART2));
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+static void F21_Uart2_Init(void)
+{
+    s_uart2RxHead = 0U;
+    s_uart2RxTail = 0U;
+    s_uart2RxOverflow = 0U;
+
+    DL_UART_Main_reset(UART2);
+    DL_UART_Main_enablePower(UART2);
+
+    DL_GPIO_initPeripheralOutputFunction(IOMUX_PINCM53, IOMUX_PINCM53_PF_UART2_TX);
+    DL_GPIO_initPeripheralInputFunction(IOMUX_PINCM54, IOMUX_PINCM54_PF_UART2_RX);
+
+    {
+        static const DL_UART_Main_ClockConfig clkCfg = {
+            .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
+            .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
+        };
+        DL_UART_Main_setClockConfig(UART2, &clkCfg);
+    }
+
+    {
+        static const DL_UART_Main_Config cfg = {
+            .mode        = DL_UART_MAIN_MODE_NORMAL,
+            .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
+            .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
+            .parity      = DL_UART_MAIN_PARITY_NONE,
+            .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
+            .stopBits    = DL_UART_MAIN_STOP_BITS_ONE
+        };
+        DL_UART_Main_init(UART2, &cfg);
+    }
+
+    DL_UART_Main_setOversampling(UART2, DL_UART_MAIN_OVERSAMPLING_RATE_16X);
+    DL_UART_Main_setBaudRateDivisor(UART2,
+        F21_UART2_BAUD_115200_IBRD, F21_UART2_BAUD_115200_FBRD);
+
+    DL_UART_Main_enableInterrupt(UART2, DL_UART_MAIN_INTERRUPT_RX);
+    NVIC_ClearPendingIRQ(UART2_INT_IRQn);
+    NVIC_EnableIRQ(UART2_INT_IRQn);
+
+    DL_UART_Main_enable(UART2);
+}
+
+static void F21_Uart2_SendByte(uint8_t byte)
+{
+    DL_UART_Main_transmitDataBlocking(UART2, byte);
+}
+
+static void F21_Uart2_SendString(const char *str)
+{
+    while (*str)
+    {
+        F21_Uart2_SendByte((uint8_t)*str);
+        str++;
+    }
+}
+
+static void F21_Vision_ParseCommand(const char *buf)
+{
+    int32_t num = 0;
+    const char *p;
+
+    if (buf[0] != '[') return;
+
+    if (buf[1] == 'n' && buf[2] == 'u' && buf[3] == 'm' && buf[4] == ',')
+    {
+        p = buf + 5;
+        while (*p >= '0' && *p <= '9') { num = num * 10 + (int32_t)(*p - '0'); p++; }
+
+        if (*p == ']')
+        {
+            if (num >= 1 && num <= 8)
+            {
+                s_visionRoom = (uint8_t)num;
+                F21_Uart2_SendString("[ack,num,");
+                F21_Uart2_SendByte((uint8_t)('0' + num));
+                F21_Uart2_SendString("]\r\n");
+            }
+        }
+        else if (p[0] == ',' && p[1] == 'c' && p[2] == 'o' && p[3] == 'n'
+            && p[4] == 'f' && p[5] == 'i' && p[6] == 'r' && p[7] == 'm'
+            && p[8] == 'e' && p[9] == 'd' && p[10] == ',')
+        {
+            p += 11;
+            num = 0;
+            while (*p >= '0' && *p <= '9') { num = num * 10 + (int32_t)(*p - '0'); p++; }
+
+            if (*p == ']' && num >= 1 && num <= 8)
+            {
+                if ((uint8_t)num == s_visionRoom)
+                {
+                    s_visionConfirmedRoom = (uint8_t)num;
+                    if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
+                    {
+                        s_visionStartPending = 1U;
+                        s_visionStartTick = s_visionMs;
+                        Serial_Printf("[f21,vision,confirmed,%u]\r\n",
+                            (unsigned int)num);
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void F21_Vision_Process(void)
+{
+    static char vbuf[F21_VISION_BUF_SIZE];
+    static uint8_t vidx = 0U;
+    uint8_t byte;
+
+    while (F21_Uart2_ReadByte(&byte))
+    {
+        if (byte == '[')
+        {
+            vidx = 0U;
+            if (vidx < sizeof(vbuf) - 1U) vbuf[vidx++] = (char)byte;
+        }
+        else if (vidx > 0U)
+        {
+            if (vidx < sizeof(vbuf) - 1U) vbuf[vidx++] = (char)byte;
+            if (byte == ']')
+            {
+                vbuf[vidx] = '\0';
+                F21_Vision_ParseCommand(vbuf);
+                vidx = 0U;
+            }
+        }
+    }
+}
+
+static void F21_Vision_Tick10ms(void)
+{
+    s_visionMs += 10U;
+
+    if (s_visionStartPending)
+    {
+        if (s_visionMs - s_visionStartTick >= F21_VISION_START_DELAY_MS)
+        {
+            s_visionStartPending = 0U;
+            if (s_visionConfirmedRoom >= 1U && s_visionConfirmedRoom <= 8U)
+            {
+                s_targetRoom = s_visionConfirmedRoom;
+                s_state = F21_CAR_WAIT_START;
+                F21_StartLedDisplay(s_targetRoom);
+                F21_ApplyRoute(s_targetRoom);
+                F21_ResetRunData();
+                s_stateStartPulse = g_forwardEncoderTotal;
+                s_state = F21_CAR_MAIN_LINE_RUN;
+                Serial_Printf("[f21,vision,start,room=%u]\r\n",
+                    (unsigned int)s_targetRoom);
+            }
+        }
+    }
 }
