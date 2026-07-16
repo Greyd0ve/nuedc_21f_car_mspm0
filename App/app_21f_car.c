@@ -19,6 +19,9 @@
 
 #define F21_CROSS_CONFIRM_TICKS         ((F21_CROSS_CONFIRM_MS + CAR_CONTROL_PERIOD_MS - 1U) / CAR_CONTROL_PERIOD_MS)
 
+#define F21_FAR_LOST_CONFIRM_MS          50U
+#define F21_FAR_LOST_CONFIRM_TICKS       ((F21_FAR_LOST_CONFIRM_MS + CAR_CONTROL_PERIOD_MS - 1U) / CAR_CONTROL_PERIOD_MS)
+
 /*
  * Route table for rooms 1-8.
  * Rooms 1-4: SIMPLE, one cross + one turn -> final room run.
@@ -58,6 +61,7 @@ static volatile F21TurnDir_t s_firstTurnDir = F21_TURN_LEFT;
 static volatile F21TurnDir_t s_secondTurnDir = F21_TURN_LEFT;
 static volatile F21RouteType_t s_routeType = F21_ROUTE_SIMPLE;
 static volatile uint8_t s_firstTurnDone = 0U;
+static volatile uint8_t s_farLostConfirmCnt = 0U;
 
 static volatile uint8_t s_ledBlinkTarget = 0U;
 static volatile uint8_t s_ledBlinkCount  = 0U;
@@ -180,6 +184,11 @@ static uint8_t F21_IsCrossDetected(void)
     return (g_lineBlackCount >= F21_CROSS_BLACK_THRESH) ? 1U : 0U;
 }
 
+static float F21_GetCurrentCrossAdvanceCm(void)
+{
+    return (s_routeType == F21_ROUTE_FAR) ? F21_FAR_CROSS_ADVANCE_CM : F21_CROSS_ADVANCE_CM;
+}
+
 /* ---- route config ---- */
 
 static void F21_ApplyRoute(uint8_t room)
@@ -244,6 +253,7 @@ static void F21_ResetRunData(void)
     App_Control_ResetPID();
     s_stateMs = 0U;
     s_crossConfirmCnt = 0U;
+    s_farLostConfirmCnt = 0U;
     s_crossMonitoring = 0U;
     s_stateStartPulse = 0;
     s_crossPulse = 0;
@@ -347,11 +357,73 @@ static uint8_t F21_HandleLineRunCommon(uint8_t enableCross, int32_t detectStartP
     return 0U;
 }
 
+static uint8_t F21_HandleFarLineRunLostCross(int32_t detectStartPulse)
+{
+    App_Line_Update();
+
+    if (!s_crossMonitoring)
+    {
+        if (F21_GetDistanceFromPulse(s_stateStartPulse) >= detectStartPulse)
+        {
+            s_crossMonitoring = 1U;
+            s_farLostConfirmCnt = 0U;
+        }
+
+        if (g_lineValid)
+        {
+            g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+            g_targetTurnSpeed = App_Line_CalcTurnCmd();
+            g_carEnable = 1U;
+            App_Control_ApplyMotorOutput();
+        }
+        else
+        {
+            App_Control_ForcePWMZero();
+        }
+
+        return 0U;
+    }
+
+    if (g_lineValid)
+    {
+        s_farLostConfirmCnt = 0U;
+
+        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        g_targetTurnSpeed = App_Line_CalcTurnCmd();
+        g_carEnable = 1U;
+        App_Control_ApplyMotorOutput();
+        return 0U;
+    }
+
+    App_Control_ForcePWMZero();
+
+    s_farLostConfirmCnt++;
+    if (s_farLostConfirmCnt >= F21_FAR_LOST_CONFIRM_TICKS)
+    {
+        s_crossPulse = g_forwardEncoderTotal;
+        s_farLostConfirmCnt = 0U;
+        return 1U;
+    }
+
+    return 0U;
+}
+
 /* ---- state handlers ---- */
 
 static void F21_HandleMainLineRun(void)
 {
-    if (F21_HandleLineRunCommon(1U, s_detectStartPulse))
+    uint8_t crossed;
+
+    if (s_routeType == F21_ROUTE_FAR)
+    {
+        crossed = F21_HandleFarLineRunLostCross(s_detectStartPulse);
+    }
+    else
+    {
+        crossed = F21_HandleLineRunCommon(1U, s_detectStartPulse);
+    }
+
+    if (crossed)
     {
         s_state = F21_CAR_FIRST_CROSS_ADVANCE;
         Serial_Printf("[f21,cross,first]\r\n");
@@ -373,7 +445,7 @@ static void F21_HandleFirstCrossAdvance(void)
         App_Control_ForcePWMZero();
     }
 
-    if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_CROSS_ADVANCE_CM))
+    if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
     {
         s_state = F21_CAR_FIRST_TURN;
         s_turnStartPulse = g_turnEncoderTotal;
@@ -405,6 +477,7 @@ static void F21_HandleFirstTurn(void)
             s_stateStartPulse = g_forwardEncoderTotal;
             s_crossMonitoring = 0U;
             s_crossConfirmCnt = 0U;
+            s_farLostConfirmCnt = 0U;
             s_state = F21_CAR_AFTER_FIRST_TURN_RUN;
         }
     }
@@ -412,7 +485,7 @@ static void F21_HandleFirstTurn(void)
 
 static void F21_HandleAfterFirstTurnRun(void)
 {
-    if (F21_HandleLineRunCommon(1U, s_secondDetectStartPulse))
+    if (F21_HandleFarLineRunLostCross(s_secondDetectStartPulse))
     {
         s_state = F21_CAR_SECOND_CROSS_ADVANCE;
         Serial_Printf("[f21,cross,second]\r\n");
@@ -434,7 +507,7 @@ static void F21_HandleSecondCrossAdvance(void)
         App_Control_ForcePWMZero();
     }
 
-    if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_CROSS_ADVANCE_CM))
+    if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
     {
         s_state = F21_CAR_SECOND_TURN;
         s_turnStartPulse = g_turnEncoderTotal;

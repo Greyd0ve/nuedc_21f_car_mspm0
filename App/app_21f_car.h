@@ -5,6 +5,7 @@
 
 #define F21_CROSS_CONFIRM_MS            30U
 #define F21_CROSS_ADVANCE_CM            4.0f
+#define F21_FAR_CROSS_ADVANCE_CM        3.0f
 #define F21_UNLOAD_WAIT_MS              3000U
 
 #define F21_LINE_BASE_SPEED_CMPS        10.0f
