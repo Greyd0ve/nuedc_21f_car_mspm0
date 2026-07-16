@@ -5,7 +5,7 @@
  * E-car tuning parameters.
  *
  * Keep frequently changed control parameters here, so competition-time tuning
- * does not require searching app_config.h, app_e_car.c, app_control.c and
+ * does not require searching app_config.h, app_car_state.c, app_control.c and
  * app_line.c at the same time.
  */
 

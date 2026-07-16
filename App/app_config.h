@@ -3,6 +3,18 @@
 
 #include <stdint.h>
 
+/* Neutral CAR_ aliases for template layer use.
+ * ECAR_ macros are kept for backward compatibility with existing drivers. */
+#define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
+#define CAR_TEST_IMU_ENABLE             ECAR_TEST_IMU_ENABLE
+#define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
+#define CAR_ENCODER_MINIMAL_DEBUG       ECAR_ENCODER_MINIMAL_DEBUG
+#define CAR_ENCODER_SPEED_PERIOD_MS     ECAR_ENCODER_SPEED_PERIOD_MS
+#define CAR_CONTROL_PERIOD_MS           ECAR_CONTROL_PERIOD_MS
+#define CAR_SERIAL_PLOT_PERIOD_MS       ECAR_SERIAL_PLOT_PERIOD_MS
+#define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
+#define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
+
 /* Temporary encoder-only memory corruption diagnostic mode. */
 #ifndef ECAR_ENCODER_MINIMAL_DEBUG
 #define ECAR_ENCODER_MINIMAL_DEBUG              0
@@ -34,7 +46,7 @@
 #endif
 
 /* Master OLED switch. Set to 1 only when the display is physically connected.
- * When 0, all OLED_Init / OLED_Clear / ECar_ShowStatus calls are compiled out. */
+ * When 0, all OLED_Init / OLED_Clear / status display calls are compiled out. */
 #ifndef ECAR_OLED_ENABLE
 #define ECAR_OLED_ENABLE                        0
 #endif

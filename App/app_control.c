@@ -1,6 +1,7 @@
 #include "app_control.h"
 #include "app_config.h"
 #include "app_tuning.h"
+#include "app_car_state.h"
 #include "Encoder.h"
 #include "Motor.h"
 #include "PWM.h"
@@ -10,39 +11,6 @@
 #define APP_PWM_LIMIT_MIN          0.0f
 #define APP_FORWARD_I_LIMIT        260.0f
 #define APP_TURN_I_LIMIT           220.0f
-
-
-/*
- * PID 调参量和运行遥测变量由 app_e_car.c 定义。
- */
-extern volatile float g_forwardKp;
-extern volatile float g_forwardKi;
-extern volatile float g_forwardKd;
-extern volatile float g_turnKp;
-extern volatile float g_turnKi;
-extern volatile float g_turnKd;
-
-extern volatile float g_pwmLimit;
-extern volatile float g_targetForwardSpeed;
-extern volatile float g_targetTurnSpeed;
-extern volatile float g_leftSpeed;
-extern volatile float g_rightSpeed;
-extern volatile float g_forwardSpeed;
-extern volatile float g_turnSpeed;
-extern volatile float g_speedPwm;
-extern volatile float g_diffPwm;
-extern volatile float g_forwardSpeedError;
-
-extern volatile int16_t g_leftEncoderDelta;
-extern volatile int16_t g_rightEncoderDelta;
-extern volatile int16_t g_leftPwm;
-extern volatile int16_t g_rightPwm;
-extern volatile uint8_t g_carEnable;
-
-extern volatile int32_t g_leftEncoderTotal;
-extern volatile int32_t g_rightEncoderTotal;
-extern volatile int32_t g_forwardEncoderTotal;
-extern volatile int32_t g_turnEncoderTotal;
 
 static PID_TypeDef ForwardPID;
 static PID_TypeDef TurnPID;

@@ -1,9 +1,8 @@
 #include "ti_msp_dl_config.h"
 #include "app_config.h"
 #include "app_board_test.h"
+#include "app_car_base.h"
 #include "app_control.h"
-#include "app_f_car.h"
-#include "app_f_serial.h"
 #include "app_line.h"
 #include "BeepLed.h"
 #include "Encoder.h"
@@ -47,7 +46,7 @@ static uint8_t Main_TakeTaskCounterAll(volatile uint8_t *counter)
     return count;
 }
 
-#if FCAR_ENCODER_MINIMAL_DEBUG
+#if CAR_ENCODER_MINIMAL_DEBUG
 static void Main_PrintfSingleFieldTest(void)
 {
     Serial_Printf("[printf-test]\r\n");
@@ -66,7 +65,7 @@ int main(void)
 {
     SYSCFG_DL_init();
 
-#if FCAR_ENCODER_MINIMAL_DEBUG
+#if CAR_ENCODER_MINIMAL_DEBUG
     Serial_Init();
     Encoder_Init();
     Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-timer]");
@@ -108,25 +107,23 @@ int main(void)
     BeepLed_Init();
     Serial_Init();
     Servo_Init();
-    App_Control_Init();
-    FCar_Init();
-    FCar_Serial_Init();
+    CarBase_Init();
 
-#if FCAR_OLED_ENABLE
+#if CAR_OLED_ENABLE
     OLED_Init();
     OLED_Clear();
 #endif
 
-#if FCAR_TEST_IMU_ENABLE
+#if CAR_TEST_IMU_ENABLE
     IMU_Init();
 #endif
 
-#if FCAR_BOARD_TEST_MODE
+#if CAR_BOARD_TEST_MODE
     BoardTest_Init();
 #else
     App_Line_GPIOForceInit();
-#if FCAR_OLED_ENABLE
-    FCar_ShowStatus();
+#if CAR_OLED_ENABLE
+    CarBase_ShowStatus();
 #endif
 #endif
 
@@ -141,7 +138,7 @@ int main(void)
         taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
         if (taskCount > 0U)
         {
-            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * FCAR_ENCODER_SPEED_PERIOD_MS);
+            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
         }
 
         taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
@@ -151,34 +148,33 @@ int main(void)
         }
         while (taskCount > 0U)
         {
-#if FCAR_BOARD_TEST_MODE
+#if CAR_BOARD_TEST_MODE
             BoardTest_Task10ms();
 #else
-            FCar_Task10ms();
+            CarBase_Task10ms();
 #endif
             taskCount--;
         }
 
-#if !FCAR_BOARD_TEST_MODE
-        FCar_KeyProcess();
+#if !CAR_BOARD_TEST_MODE
+        CarBase_KeyProcess();
 #endif
-        FCar_SerialProcess();
 
         if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
         {
-#if FCAR_BOARD_TEST_MODE
+#if CAR_BOARD_TEST_MODE
             BoardTest_Task100ms();
 #else
-            FCar_SerialPlot100ms();
+            CarBase_Task100ms();
 #endif
         }
 
         if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
         {
-#if FCAR_BOARD_TEST_MODE
+#if CAR_BOARD_TEST_MODE
             BoardTest_Task200ms();
-#elif FCAR_OLED_ENABLE
-            FCar_ShowStatus();
+#else
+            CarBase_Task200ms();
 #endif
         }
     }

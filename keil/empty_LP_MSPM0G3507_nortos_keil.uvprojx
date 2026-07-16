@@ -413,29 +413,14 @@
           <GroupName>App</GroupName>
           <Files>
             <File>
-              <FileName>app_f_car.c</FileName>
+              <FileName>app_car_base.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\App\app_f_car.c</FilePath>
+              <FilePath>..\App\app_car_base.c</FilePath>
             </File>
             <File>
-              <FileName>app_f_serial.c</FileName>
+              <FileName>app_car_state.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\App\app_f_serial.c</FilePath>
-            </File>
-            <File>
-              <FileName>app_f_route.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\App\app_f_route.c</FilePath>
-            </File>
-            <File>
-              <FileName>app_load_detect.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\App\app_load_detect.c</FilePath>
-            </File>
-            <File>
-              <FileName>app_room_detect.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\App\app_room_detect.c</FilePath>
+              <FilePath>..\App\app_car_state.c</FilePath>
             </File>
             <File>
               <FileName>app_control.c</FileName>
