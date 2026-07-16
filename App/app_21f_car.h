@@ -9,6 +9,7 @@
 #define F21_UNLOAD_WAIT_MS              3000U
 
 #define F21_LINE_BASE_SPEED_CMPS        10.0f
+#define F21_FAR_LINE_BASE_SPEED_CMPS    (F21_LINE_BASE_SPEED_CMPS * 1.5f)
 #define F21_CROSS_ADVANCE_SPEED_CMPS    10.0f
 #define F21_TURN_SPEED_CMPS             12.0f
 

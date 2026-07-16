@@ -189,6 +189,11 @@ static float F21_GetCurrentCrossAdvanceCm(void)
     return (s_routeType == F21_ROUTE_FAR) ? F21_FAR_CROSS_ADVANCE_CM : F21_CROSS_ADVANCE_CM;
 }
 
+static float F21_GetCurrentLineBaseSpeed(void)
+{
+    return (s_routeType == F21_ROUTE_FAR) ? F21_FAR_LINE_BASE_SPEED_CMPS : F21_LINE_BASE_SPEED_CMPS;
+}
+
 /* ---- route config ---- */
 
 static void F21_ApplyRoute(uint8_t room)
@@ -323,7 +328,7 @@ static uint8_t F21_HandleLineRunCommon(uint8_t enableCross, int32_t detectStartP
         return 0U;
     }
 
-    g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+    g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
     g_targetTurnSpeed = App_Line_CalcTurnCmd();
     g_carEnable = 1U;
     App_Control_ApplyMotorOutput();
@@ -371,7 +376,7 @@ static uint8_t F21_HandleFarLineRunLostCross(int32_t detectStartPulse)
 
         if (g_lineValid)
         {
-            g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+            g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
             g_targetTurnSpeed = App_Line_CalcTurnCmd();
             g_carEnable = 1U;
             App_Control_ApplyMotorOutput();
@@ -388,7 +393,7 @@ static uint8_t F21_HandleFarLineRunLostCross(int32_t detectStartPulse)
     {
         s_farLostConfirmCnt = 0U;
 
-        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
         g_targetTurnSpeed = App_Line_CalcTurnCmd();
         g_carEnable = 1U;
         App_Control_ApplyMotorOutput();
@@ -555,7 +560,7 @@ static void F21_HandleFinalRoomRun(void)
     }
     else
     {
-        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
         g_targetTurnSpeed = App_Line_CalcTurnCmd();
         g_carEnable = 1U;
         App_Control_ApplyMotorOutput();
