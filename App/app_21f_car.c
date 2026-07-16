@@ -44,6 +44,21 @@ static const F21Route_t s_routes[8] =
     { F21_ROUTE_FAR,    240.0f, F21_TURN_RIGHT,  70.0f, F21_TURN_LEFT,   50.0f }
 };
 
+static const F21ReturnRoute_t s_returnRoutes[4] =
+{
+    /* room 1: outbound left, return right */
+    { 20.0f, F21_TURN_RIGHT,  60.0f },
+
+    /* room 2: outbound right, return left */
+    { 20.0f, F21_TURN_LEFT,   60.0f },
+
+    /* room 3: outbound left, return right */
+    { 20.0f, F21_TURN_RIGHT, 150.0f },
+
+    /* room 4: outbound right, return left */
+    { 20.0f, F21_TURN_LEFT,  150.0f },
+};
+
 static volatile F21CarState_t s_state = F21_CAR_IDLE;
 static volatile uint8_t s_targetRoom = 1U;
 static volatile uint8_t s_faultCode = 0U;
@@ -62,6 +77,10 @@ static volatile F21TurnDir_t s_secondTurnDir = F21_TURN_LEFT;
 static volatile F21RouteType_t s_routeType = F21_ROUTE_SIMPLE;
 static volatile uint8_t s_firstTurnDone = 0U;
 static volatile uint8_t s_farLostConfirmCnt = 0U;
+
+static volatile int32_t s_returnDetectStartPulse = 0;
+static volatile int32_t s_returnFinalRunPulse = 0;
+static volatile F21TurnDir_t s_returnTurnDir = F21_TURN_LEFT;
 
 static volatile uint8_t s_ledBlinkTarget = 0U;
 static volatile uint8_t s_ledBlinkCount  = 0U;
@@ -208,6 +227,16 @@ static void F21_ApplyRoute(uint8_t room)
     s_secondTurnDir = r->secondTurn;
     s_finalRunPulse = F21_CmToPulse(r->finalRunCm);
     s_firstTurnDone = 0U;
+}
+
+static void F21_ApplyReturnRoute(uint8_t room)
+{
+    if (room < 1U || room > 4U) return;
+
+    const F21ReturnRoute_t *r = &s_returnRoutes[room - 1U];
+    s_returnDetectStartPulse = F21_CmToPulse(r->detectStartCm);
+    s_returnTurnDir = r->turnDir;
+    s_returnFinalRunPulse = F21_CmToPulse(r->finalRunCm);
 }
 
 /* ---- speed closed-loop motion command ---- */
@@ -588,8 +617,96 @@ static void F21_HandleTurnAround(void)
     if (F21_IsTurnPulseComplete(F21_TURN_180_PULSE))
     {
         F21_SafeStop();
+        if (s_targetRoom <= 4U)
+        {
+            F21_ApplyReturnRoute(s_targetRoom);
+            s_crossMonitoring = 0U;
+            s_crossConfirmCnt = 0U;
+            s_stateStartPulse = g_forwardEncoderTotal;
+            s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
+            Serial_Printf("[f21,return,start]\r\n");
+        }
+        else
+        {
+            s_state = F21_CAR_FINISH;
+            Serial_Printf("[f21,turnaround,done]\r\n");
+        }
+    }
+}
+
+static void F21_HandleReturnMainLineRun(void)
+{
+    if (F21_HandleLineRunCommon(1U, s_returnDetectStartPulse))
+    {
+        s_state = F21_CAR_RETURN_CROSS_ADVANCE;
+        Serial_Printf("[f21,cross,return]\r\n");
+    }
+}
+
+static void F21_HandleReturnCrossAdvance(void)
+{
+    static uint8_t s_returnAdvanceEntered = 0U;
+
+    g_targetForwardSpeed = F21_CROSS_ADVANCE_SPEED_CMPS;
+    g_targetTurnSpeed = 0.0f;
+    g_carEnable = 1U;
+    App_Control_ApplyMotorOutput();
+
+    if (s_returnAdvanceEntered == 0U)
+    {
+        s_returnAdvanceEntered = 1U;
+        Serial_Printf("[f21,advance,return]\r\n");
+    }
+
+    if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_CROSS_ADVANCE_CM))
+    {
+        s_returnAdvanceEntered = 0U;
+        s_state = F21_CAR_RETURN_TURN;
+        s_turnStartPulse = g_turnEncoderTotal;
+        Serial_Printf("[f21,turn,return]\r\n");
+    }
+}
+
+static void F21_HandleReturnTurn(void)
+{
+    if (F21_TURN_90_PULSE == 0)
+    {
+        F21_EnterFault(1U, "turn90_not_set");
+        return;
+    }
+
+    F21_SetMotionCmd(0.0f,
+        F21_TurnDirToSign(s_returnTurnDir) * F21_TURN_SPEED_CMPS);
+
+    if (F21_IsTurnComplete())
+    {
+        F21_SafeStop();
+        s_stateStartPulse = g_forwardEncoderTotal;
+        s_state = F21_CAR_RETURN_FINAL_RUN;
+    }
+}
+
+static void F21_HandleReturnFinalRun(void)
+{
+    App_Line_Update();
+    if (!g_lineValid)
+    {
+        App_Control_ForcePWMZero();
+        return;
+    }
+
+    if (F21_GetDistanceFromPulse(s_stateStartPulse) >= s_returnFinalRunPulse)
+    {
+        F21_SafeStop();
         s_state = F21_CAR_FINISH;
-        Serial_Printf("[f21,turnaround,done]\r\n");
+        Serial_Printf("[f21,return,finish]\r\n");
+    }
+    else
+    {
+        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        g_targetTurnSpeed = App_Line_CalcTurnCmd();
+        g_carEnable = 1U;
+        App_Control_ApplyMotorOutput();
     }
 }
 
@@ -652,6 +769,22 @@ void F21Car_Task10ms(void)
 
     case F21_CAR_TURN_AROUND:
         F21_HandleTurnAround();
+        break;
+
+    case F21_CAR_RETURN_MAIN_LINE_RUN:
+        F21_HandleReturnMainLineRun();
+        break;
+
+    case F21_CAR_RETURN_CROSS_ADVANCE:
+        F21_HandleReturnCrossAdvance();
+        break;
+
+    case F21_CAR_RETURN_TURN:
+        F21_HandleReturnTurn();
+        break;
+
+    case F21_CAR_RETURN_FINAL_RUN:
+        F21_HandleReturnFinalRun();
         break;
 
     case F21_CAR_FINISH:

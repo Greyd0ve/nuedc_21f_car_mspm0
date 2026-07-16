@@ -39,6 +39,11 @@ typedef enum
 
     F21_CAR_TURN_AROUND,
 
+    F21_CAR_RETURN_MAIN_LINE_RUN,
+    F21_CAR_RETURN_CROSS_ADVANCE,
+    F21_CAR_RETURN_TURN,
+    F21_CAR_RETURN_FINAL_RUN,
+
     F21_CAR_FINISH,
     F21_CAR_STOP,
     F21_CAR_FAULT
@@ -65,6 +70,13 @@ typedef struct
     F21TurnDir_t secondTurn;
     float finalRunCm;
 } F21Route_t;
+
+typedef struct
+{
+    float detectStartCm;
+    F21TurnDir_t turnDir;
+    float finalRunCm;
+} F21ReturnRoute_t;
 
 void F21Car_Init(void);
 void F21Car_Tick1ms(void);
