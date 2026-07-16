@@ -63,7 +63,7 @@ volatile float g_turnKp = 0.0f;
 volatile float g_turnKi = 0.0f;
 volatile float g_turnKd = 0.0f;
 
-volatile float g_pwmLimit = (float)PWM_MAX_DUTY * 0.55f;
+volatile float g_pwmLimit = (float)PWM_MAX_DUTY;
 volatile float g_targetForwardSpeed = 0.0f;
 volatile float g_targetTurnSpeed = 0.0f;
 volatile uint8_t g_carEnable = 0U;

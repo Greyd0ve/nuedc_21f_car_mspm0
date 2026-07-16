@@ -18,7 +18,7 @@
 #define TUNE_SPEED_PI_KP                    1.2f
 #define TUNE_SPEED_PI_KI                    0.08f
 #define TUNE_SPEED_I_LIMIT                  45.0f
-#define TUNE_WHEEL_TARGET_LIMIT_CMPS        40.0f
+#define TUNE_WHEEL_TARGET_LIMIT_CMPS        80.0f
 
 /*
  * Piecewise speed feed-forward PWM model.

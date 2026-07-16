@@ -91,7 +91,7 @@
 #define ECAR_DEFAULT_LAP_PULSE                  ((int32_t)((ECAR_LAP_DISTANCE_CM / ECAR_CM_PER_PULSE) + 0.5f))
 
 /* Conservative first-run speed defaults, in cm/s. */
-#define ECAR_DEFAULT_BASE_SPEED_CMPS            40.0f
+#define ECAR_DEFAULT_BASE_SPEED_CMPS            55.0f
 #define ECAR_DEFAULT_RECOVER_SPEED_CMPS         6.0f
 #define ECAR_DEFAULT_CORNER_FORWARD_CMPS        10.0f
 #define ECAR_DEFAULT_CORNER_TURN_CMPS           12.0f
