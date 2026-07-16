@@ -6,7 +6,7 @@
 #define F21_CROSS_CONFIRM_MS            30U
 #define F21_CROSS_ADVANCE_CM            4.0f
 #define F21_FAR_CROSS_ADVANCE_CM        3.0f
-#define F21_UNLOAD_WAIT_MS              3000U
+#define F21_UNLOAD_WAIT_MS              2000U
 
 #define F21_LINE_BASE_SPEED_CMPS        10.0f
 #define F21_FAR_LINE_BASE_SPEED_CMPS    (F21_LINE_BASE_SPEED_CMPS * 1.5f)
@@ -15,7 +15,7 @@
 
 /* F21_TURN_90_PULSE: referenced from E-car corner_turn_pulse = 90U */
 #define F21_TURN_90_PULSE               180U
-#define F21_TURN_180_PULSE              0
+#define F21_TURN_180_PULSE              360U
 
 /* [legacy] F21_TURN_PWM was raw PWM direct drive; replaced by speed closed-loop. */
 #define F21_TURN_PWM                    140
@@ -36,6 +36,8 @@ typedef enum
     F21_CAR_FINAL_ROOM_RUN,
     F21_CAR_ARRIVED_ROOM,
     F21_CAR_UNLOAD_WAIT,
+
+    F21_CAR_TURN_AROUND,
 
     F21_CAR_FINISH,
     F21_CAR_STOP,

@@ -227,12 +227,19 @@ static void F21_SetMotionCmd(float forward, float turn)
 
 /* ---- turn completion ---- */
 
-static uint8_t F21_IsTurnComplete(void)
+static uint8_t F21_IsTurnPulseComplete(uint16_t targetPulse)
 {
-    if (F21_TURN_90_PULSE == 0) return 0U;
+    if (targetPulse == 0U) return 0U;
+
     int32_t delta = g_turnEncoderTotal - s_turnStartPulse;
     if (delta < 0) delta = -delta;
-    return (delta >= (int32_t)F21_TURN_90_PULSE) ? 1U : 0U;
+
+    return (delta >= (int32_t)targetPulse) ? 1U : 0U;
+}
+
+static uint8_t F21_IsTurnComplete(void)
+{
+    return F21_IsTurnPulseComplete(F21_TURN_90_PULSE);
 }
 
 /* ---- public API ---- */
@@ -567,6 +574,25 @@ static void F21_HandleFinalRoomRun(void)
     }
 }
 
+static void F21_HandleTurnAround(void)
+{
+    if (F21_TURN_180_PULSE == 0U)
+    {
+        F21_EnterFault(2U, "turn180_not_set");
+        return;
+    }
+
+    F21_SetMotionCmd(0.0f,
+        F21_TurnDirToSign(F21_TURN_RIGHT) * F21_TURN_SPEED_CMPS);
+
+    if (F21_IsTurnPulseComplete(F21_TURN_180_PULSE))
+    {
+        F21_SafeStop();
+        s_state = F21_CAR_FINISH;
+        Serial_Printf("[f21,turnaround,done]\r\n");
+    }
+}
+
 /* ---- main 10ms task ---- */
 
 void F21Car_Task10ms(void)
@@ -618,8 +644,14 @@ void F21Car_Task10ms(void)
         F21_SafeStop();
         if (s_stateMs >= F21_UNLOAD_WAIT_MS)
         {
-            s_state = F21_CAR_FINISH;
+            s_turnStartPulse = g_turnEncoderTotal;
+            s_state = F21_CAR_TURN_AROUND;
+            Serial_Printf("[f21,turnaround,start]\r\n");
         }
+        break;
+
+    case F21_CAR_TURN_AROUND:
+        F21_HandleTurnAround();
         break;
 
     case F21_CAR_FINISH:
