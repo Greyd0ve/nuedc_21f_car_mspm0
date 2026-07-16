@@ -29,8 +29,8 @@ static const F21Route_t s_routes[8] =
 {
     { F21_ROUTE_SIMPLE,  40.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
     { F21_ROUTE_SIMPLE,  40.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
-    { F21_ROUTE_SIMPLE, 150.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
-    { F21_ROUTE_SIMPLE, 150.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
+    { F21_ROUTE_SIMPLE, 120.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
+    { F21_ROUTE_SIMPLE, 120.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
     /* room 5 secondTurn = LEFT  (placeholder, verify on track) */
     { F21_ROUTE_FAR,    240.0f, F21_TURN_LEFT,   70.0f, F21_TURN_LEFT,   50.0f },
     /* room 6 secondTurn = RIGHT (placeholder, verify on track) */
