@@ -32,7 +32,7 @@
 #define TUNE_SPEED_FF_LOW_BASE_PWM          135.0f
 #define TUNE_SPEED_FF_LOW_K                 1.7f
 #define TUNE_SPEED_FF_HIGH_BASE_PWM         160.5f
-#define TUNE_SPEED_FF_HIGH_K                2.2f
+#define TUNE_SPEED_FF_HIGH_K                6.0f
 
 /* Line-following default values. */
 #define TUNE_LINE_KP                        0.040f
