@@ -1179,13 +1179,21 @@ static void F21_Vision_ParseCommand(const char *buf)
                 s_visionRoom = (uint8_t)num;
                 if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
                 {
+                    s_visionConfirmedRoom = (uint8_t)num;
                     s_targetRoom = (uint8_t)num;
                     s_state = F21_CAR_WAIT_START;
                     F21_StartLedDisplay(s_targetRoom);
+
+                    F21_Uart2_SendString("[ack,num,");
+                    F21_Uart2_SendByte((uint8_t)('0' + num));
+                    F21_Uart2_SendString("]\r\n");
+
+                    s_visionStartPending = 1U;
+                    s_visionStartTick = s_visionMs;
+
+                    Serial_Printf("[f21,vision,num,start-pending,%u]\r\n",
+                        (unsigned int)num);
                 }
-                F21_Uart2_SendString("[ack,num,");
-                F21_Uart2_SendByte((uint8_t)('0' + num));
-                F21_Uart2_SendString("]\r\n");
             }
         }
         else if (p[0] == ',' && p[1] == 'c' && p[2] == 'o' && p[3] == 'n'
@@ -1198,17 +1206,8 @@ static void F21_Vision_ParseCommand(const char *buf)
 
             if (*p == ']' && num >= 1 && num <= 8)
             {
-                if ((uint8_t)num == s_visionRoom)
-                {
-                    s_visionConfirmedRoom = (uint8_t)num;
-                    if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
-                    {
-                        s_visionStartPending = 1U;
-                        s_visionStartTick = s_visionMs;
-                        Serial_Printf("[f21,vision,confirmed,%u]\r\n",
-                            (unsigned int)num);
-                    }
-                }
+                Serial_Printf("[f21,vision,confirmed,ignored,%u]\r\n",
+                    (unsigned int)num);
             }
         }
     }
