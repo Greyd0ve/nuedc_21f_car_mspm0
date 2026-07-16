@@ -66,16 +66,16 @@ static const F21ReturnRoute_t s_returnRoutes[4] =
 static const F21FarReturnRoute_t s_farReturnRoutes[4] =
 {
     /* room 5: outbound first LEFT, second LEFT -> return RIGHT, RIGHT */
-    { 20.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_RIGHT, 230.0f },
+    { 10.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_RIGHT, 230.0f },
 
     /* room 6: outbound first RIGHT, second RIGHT -> return LEFT, LEFT */
-    { 20.0f, F21_TURN_LEFT,  60.0f, F21_TURN_LEFT,  230.0f },
+    { 10.0f, F21_TURN_LEFT,  60.0f, F21_TURN_LEFT,  230.0f },
 
     /* room 7: outbound first LEFT, second RIGHT -> return LEFT, RIGHT */
-    { 20.0f, F21_TURN_LEFT,  60.0f, F21_TURN_RIGHT, 230.0f },
+    { 10.0f, F21_TURN_LEFT,  60.0f, F21_TURN_RIGHT, 230.0f },
 
     /* room 8: outbound first RIGHT, second LEFT -> return RIGHT, LEFT */
-    { 20.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_LEFT,  230.0f },
+    { 10.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_LEFT,  230.0f },
 };
 
 static volatile F21CarState_t s_state = F21_CAR_IDLE;
@@ -496,7 +496,7 @@ static uint8_t F21_HandleFarLineRunLostCross(int32_t detectStartPulse)
 
         if (g_lineValid)
         {
-            g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
+            g_targetForwardSpeed = F21_FAR_FAST_LINE_SPEED_CMPS;
             g_targetTurnSpeed = App_Line_CalcTurnCmd();
             g_carEnable = 1U;
             App_Control_ApplyMotorOutput();
@@ -897,7 +897,14 @@ static void F21_HandleReturnFinalRun(void)
     }
     else
     {
-        g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        if (s_returnMode == F21_RETURN_MODE_FAR)
+        {
+            g_targetForwardSpeed = F21_FAR_FAST_LINE_SPEED_CMPS;
+        }
+        else
+        {
+            g_targetForwardSpeed = F21_LINE_BASE_SPEED_CMPS;
+        }
         g_targetTurnSpeed = App_Line_CalcTurnCmd();
         g_carEnable = 1U;
         App_Control_ApplyMotorOutput();
