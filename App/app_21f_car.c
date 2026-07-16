@@ -1116,7 +1116,7 @@ static void F21_Uart2_Init(void)
     DL_GPIO_initPeripheralInputFunction(IOMUX_PINCM54, IOMUX_PINCM54_PF_UART2_RX);
 
     {
-        static const DL_UART_Main_ClockConfig clkCfg = {
+        static DL_UART_Main_ClockConfig clkCfg = {
             .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
             .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
         };
@@ -1124,7 +1124,7 @@ static void F21_Uart2_Init(void)
     }
 
     {
-        static const DL_UART_Main_Config cfg = {
+        static DL_UART_Main_Config cfg = {
             .mode        = DL_UART_MAIN_MODE_NORMAL,
             .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
             .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
