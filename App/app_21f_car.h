@@ -12,7 +12,7 @@
 #define F21_TURN_SPEED_CMPS             12.0f
 
 /* F21_TURN_90_PULSE: referenced from E-car corner_turn_pulse = 90U */
-#define F21_TURN_90_PULSE               90U
+#define F21_TURN_90_PULSE               180U
 #define F21_TURN_180_PULSE              0
 
 /* [legacy] F21_TURN_PWM was raw PWM direct drive; replaced by speed closed-loop. */
