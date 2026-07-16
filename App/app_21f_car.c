@@ -1248,9 +1248,6 @@ static void F21_Vision_Tick10ms(void)
         {
             s_visionStartPending = 0U;
 
-            if (s_state != F21_CAR_IDLE && s_state != F21_CAR_WAIT_START)
-                return;
-
             if (s_visionConfirmedRoom >= 1U && s_visionConfirmedRoom <= 8U)
             {
                 s_targetRoom = s_visionConfirmedRoom;
