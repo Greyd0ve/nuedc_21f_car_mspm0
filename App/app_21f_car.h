@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define F21_CROSS_CONFIRM_MS            100U
+#define F21_CROSS_CONFIRM_MS            30U
 #define F21_CROSS_ADVANCE_CM            4.0f
 #define F21_UNLOAD_WAIT_MS              3000U
 

@@ -17,7 +17,7 @@
 
 #define F21_CROSS_BLACK_THRESH          8U
 
-#define F21_CROSS_CONFIRM_TICKS         (F21_CROSS_CONFIRM_MS / CAR_CONTROL_PERIOD_MS)
+#define F21_CROSS_CONFIRM_TICKS         ((F21_CROSS_CONFIRM_MS + CAR_CONTROL_PERIOD_MS - 1U) / CAR_CONTROL_PERIOD_MS)
 
 /*
  * Route table for rooms 1-8.
@@ -27,8 +27,8 @@
  */
 static const F21Route_t s_routes[8] =
 {
-    { F21_ROUTE_SIMPLE,  50.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
-    { F21_ROUTE_SIMPLE,  50.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
+    { F21_ROUTE_SIMPLE,  40.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
+    { F21_ROUTE_SIMPLE,  40.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
     { F21_ROUTE_SIMPLE, 150.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   40.0f },
     { F21_ROUTE_SIMPLE, 150.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  40.0f },
     /* room 5 secondTurn = LEFT  (placeholder, verify on track) */
