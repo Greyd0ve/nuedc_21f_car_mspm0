@@ -12,11 +12,10 @@
 #include "cmsis_compiler.h"
 #include <stdint.h>
 
-#define F21_LED_ON_MS_1                 500U
-#define F21_LED_ON_MS_0                 100U
-#define F21_LED_GAP_MS                  100U
+#define F21_LED_BLINK_ON_MS             300U
+#define F21_LED_BLINK_OFF_MS            200U
 
-#define F21_CROSS_BLACK_THRESH          6U
+#define F21_CROSS_BLACK_THRESH          8U
 
 #define F21_CROSS_CONFIRM_TICKS         (F21_CROSS_CONFIRM_MS / CAR_CONTROL_PERIOD_MS)
 
@@ -60,90 +59,54 @@ static volatile F21TurnDir_t s_secondTurnDir = F21_TURN_LEFT;
 static volatile F21RouteType_t s_routeType = F21_ROUTE_SIMPLE;
 static volatile uint8_t s_firstTurnDone = 0U;
 
-typedef enum
-{
-    F21_LED_IDLE = 0,
-    F21_LED_BIT2_ON,
-    F21_LED_GAP1,
-    F21_LED_BIT1_ON,
-    F21_LED_GAP2,
-    F21_LED_BIT0_ON,
-    F21_LED_DONE
-} F21LedSeq_t;
-
-static volatile F21LedSeq_t s_ledSeq = F21_LED_IDLE;
-static volatile uint16_t s_ledTimer = 0U;
-static volatile uint8_t s_ledRoomCache = 0U;
+static volatile uint8_t s_ledBlinkTarget = 0U;
+static volatile uint8_t s_ledBlinkCount  = 0U;
+static volatile uint16_t s_ledTimer      = 0U;
+static volatile uint8_t s_ledActive      = 0U;
+static volatile uint8_t s_ledOnPhase     = 0U;
 
 static void F21_StartLedDisplay(uint8_t room)
 {
     if (room < 1U || room > 8U) return;
-    s_ledRoomCache = room;
-    s_ledSeq = F21_LED_BIT2_ON;
-    s_ledTimer = 0U;
-    LED_User_Off();
-}
 
-static uint8_t F21_GetRoomBit(uint8_t room, uint8_t bitIndex)
-{
-    return ((room - 1U) >> bitIndex) & 1U;
-}
-
-static uint16_t F21_GetBitOnMs(uint8_t bit)
-{
-    return bit ? F21_LED_ON_MS_1 : F21_LED_ON_MS_0;
+    s_ledBlinkTarget = room;
+    s_ledBlinkCount  = 0U;
+    s_ledTimer       = 0U;
+    s_ledActive      = 1U;
+    s_ledOnPhase     = 1U;
+    LED_User_On();
 }
 
 void F21Car_Tick1ms(void)
 {
-    if (s_ledSeq == F21_LED_IDLE || s_ledSeq == F21_LED_DONE) return;
+    if (!s_ledActive) return;
 
     s_ledTimer++;
-    switch (s_ledSeq)
+
+    if (s_ledOnPhase)
     {
-    case F21_LED_BIT2_ON:
-        LED_User_On();
-        if (s_ledTimer >= F21_GetBitOnMs(F21_GetRoomBit(s_ledRoomCache, 2U)))
+        if (s_ledTimer >= F21_LED_BLINK_ON_MS)
         {
             s_ledTimer = 0U;
             LED_User_Off();
-            s_ledSeq = F21_LED_GAP1;
+            s_ledOnPhase = 0U;
+            s_ledBlinkCount++;
+
+            if (s_ledBlinkCount >= s_ledBlinkTarget)
+            {
+                s_ledActive = 0U;
+                LED_User_Off();
+            }
         }
-        break;
-    case F21_LED_GAP1:
-        if (s_ledTimer >= F21_LED_GAP_MS)
+    }
+    else
+    {
+        if (s_ledTimer >= F21_LED_BLINK_OFF_MS)
         {
             s_ledTimer = 0U;
-            s_ledSeq = F21_LED_BIT1_ON;
+            s_ledOnPhase = 1U;
+            LED_User_On();
         }
-        break;
-    case F21_LED_BIT1_ON:
-        LED_User_On();
-        if (s_ledTimer >= F21_GetBitOnMs(F21_GetRoomBit(s_ledRoomCache, 1U)))
-        {
-            s_ledTimer = 0U;
-            LED_User_Off();
-            s_ledSeq = F21_LED_GAP2;
-        }
-        break;
-    case F21_LED_GAP2:
-        if (s_ledTimer >= F21_LED_GAP_MS)
-        {
-            s_ledTimer = 0U;
-            s_ledSeq = F21_LED_BIT0_ON;
-        }
-        break;
-    case F21_LED_BIT0_ON:
-        LED_User_On();
-        if (s_ledTimer >= F21_GetBitOnMs(F21_GetRoomBit(s_ledRoomCache, 0U)))
-        {
-            s_ledTimer = 0U;
-            LED_User_Off();
-            s_ledSeq = F21_LED_DONE;
-        }
-        break;
-    default:
-        break;
     }
 }
 
@@ -269,7 +232,8 @@ void F21Car_Init(void)
     App_Line_ResetState();
     F21_ClearEncoderTotals();
     s_firstTurnDone = 0U;
-    s_ledSeq = F21_LED_IDLE;
+    s_ledActive = 0U;
+    LED_User_Off();
 }
 
 static void F21_ResetRunData(void)
@@ -329,7 +293,7 @@ void F21Car_KeyProcess(void)
         F21_ResetRunData();
         s_state = F21_CAR_IDLE;
         s_faultCode = 0U;
-        s_ledSeq = F21_LED_IDLE;
+        s_ledActive = 0U;
         LED_User_Off();
         Serial_Printf("[f21,reset]\r\n");
         break;
