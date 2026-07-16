@@ -437,6 +437,11 @@
               <FileType>1</FileType>
               <FilePath>..\App\app_board_test.c</FilePath>
             </File>
+            <File>
+              <FileName>app_21f_car.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\app_21f_car.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

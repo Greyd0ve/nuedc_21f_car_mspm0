@@ -2,6 +2,7 @@
 #include "app_config.h"
 #include "app_board_test.h"
 #include "app_car_base.h"
+#include "app_21f_car.h"
 #include "app_control.h"
 #include "app_line.h"
 #include "BeepLed.h"
@@ -108,6 +109,7 @@ int main(void)
     Serial_Init();
     Servo_Init();
     CarBase_Init();
+    F21Car_Init();
 
 #if CAR_OLED_ENABLE
     OLED_Init();
@@ -123,7 +125,7 @@ int main(void)
 #else
     App_Line_GPIOForceInit();
 #if CAR_OLED_ENABLE
-    CarBase_ShowStatus();
+    F21Car_Task200ms();
 #endif
 #endif
 
@@ -151,13 +153,13 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task10ms();
 #else
-            CarBase_Task10ms();
+            F21Car_Task10ms();
 #endif
             taskCount--;
         }
 
 #if !CAR_BOARD_TEST_MODE
-        CarBase_KeyProcess();
+        F21Car_KeyProcess();
 #endif
 
         if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
@@ -165,7 +167,7 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task100ms();
 #else
-            CarBase_Task100ms();
+            F21Car_Task100ms();
 #endif
         }
 
@@ -174,7 +176,7 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task200ms();
 #else
-            CarBase_Task200ms();
+            F21Car_Task200ms();
 #endif
         }
     }
