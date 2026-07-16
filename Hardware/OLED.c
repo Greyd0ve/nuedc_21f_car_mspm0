@@ -500,7 +500,7 @@ void OLED_Init(void)
 #endif
 
     OLED_Clear();
-    OLED_ShowString(0, 0, "E-Car MSPM0", OLED_8X16);
+    OLED_ShowString(0, 0, "MSPM0 Car", OLED_8X16);
 #if BOARD_OLED_USE_H8_SPI
     OLED_ShowString(0, 16, "OLED H8 SPI", OLED_8X16);
     OLED_ShowString(0, 32, "SCL PB9 SDA PB8", OLED_8X16);

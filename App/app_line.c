@@ -100,9 +100,9 @@ void App_Line_Update(void)
         g_lineValid = 0U;
         App_Line_HoldLastError();
         if (s_zeroMaskCount < 255U) s_zeroMaskCount++;
-        if (g_lineLostMs <= (uint16_t)(60000U - ECAR_CONTROL_PERIOD_MS))
+        if (g_lineLostMs <= (uint16_t)(60000U - CAR_CONTROL_PERIOD_MS))
         {
-            g_lineLostMs = (uint16_t)(g_lineLostMs + ECAR_CONTROL_PERIOD_MS);
+            g_lineLostMs = (uint16_t)(g_lineLostMs + CAR_CONTROL_PERIOD_MS);
         }
     }
     else

@@ -4,7 +4,7 @@
 #include "ti_msp_dl_config.h"
 
 /*
- * Board pin map for the revised NUEDC E-car wiring.
+ * Board pin map for the MSPM0G3507 car wiring.
  *
  * Keep application code using these names.  SysConfig-generated names stay
  * below this file and can be changed without touching App/Control logic.
