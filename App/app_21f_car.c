@@ -580,6 +580,15 @@ static void F21_HandleSecondTurn(void)
 
 static void F21_HandleFinalRoomRun(void)
 {
+    if (F21_GetDistanceFromPulse(s_stateStartPulse) >= s_finalRunPulse)
+    {
+        F21_SafeStop();
+        s_state = F21_CAR_ARRIVED_ROOM;
+        s_stateMs = 0U;
+        Serial_Printf("[f21,arrived,room=%u]\r\n", (unsigned int)s_targetRoom);
+        return;
+    }
+
     App_Line_Update();
     if (!g_lineValid)
     {
@@ -587,20 +596,10 @@ static void F21_HandleFinalRoomRun(void)
         return;
     }
 
-    if (F21_GetDistanceFromPulse(s_stateStartPulse) >= s_finalRunPulse)
-    {
-        F21_SafeStop();
-        s_state = F21_CAR_ARRIVED_ROOM;
-        s_stateMs = 0U;
-        Serial_Printf("[f21,arrived,room=%u]\r\n", (unsigned int)s_targetRoom);
-    }
-    else
-    {
-        g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
-        g_targetTurnSpeed = App_Line_CalcTurnCmd();
-        g_carEnable = 1U;
-        App_Control_ApplyMotorOutput();
-    }
+    g_targetForwardSpeed = F21_GetCurrentLineBaseSpeed();
+    g_targetTurnSpeed = App_Line_CalcTurnCmd();
+    g_carEnable = 1U;
+    App_Control_ApplyMotorOutput();
 }
 
 static void F21_HandleTurnAround(void)
