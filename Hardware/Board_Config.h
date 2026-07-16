@@ -84,11 +84,6 @@
  */
 #define MOTOR_L_PWM_CC_INDEX            GPIO_PWM_MOTOR_C1_IDX
 #define MOTOR_R_PWM_CC_INDEX            GPIO_PWM_MOTOR_C0_IDX
-#define MOTOR_L_PWM                     MOTOR_L_PWM_CC_INDEX
-#define MOTOR_R_PWM                     MOTOR_R_PWM_CC_INDEX
-#define MOTOR_PWM_LEFT_CC_INDEX         MOTOR_L_PWM_CC_INDEX
-#define MOTOR_PWM_RIGHT_CC_INDEX        MOTOR_R_PWM_CC_INDEX
-#define MOTOR_PWM_PERIOD_COUNTS         1600U
 
 #define MOTOR_L_IN1_PORT                GPIO_MOTOR_R_IN1_PORT   /* PA16 */
 #define MOTOR_L_IN1_PIN                 GPIO_MOTOR_R_IN1_PIN
@@ -104,22 +99,18 @@
 #define MOTOR_R_IN2                     MOTOR_R_IN2_PIN
 
 /*
- * Because new heading is reversed, verify on lifted car:
- * Motor_SetPWM(+150,+150) should drive toward new front.
+ * Measured: positive PWM drives both wheels backward in rear mode.
+ * Motor direction signs are inverted so Motor_SetPWM(+150,+150)
+ * drives the car toward the new front.
  */
-#define LEFT_MOTOR_DIR                  (-1)
-#define RIGHT_MOTOR_DIR                 (+1)
+#define LEFT_MOTOR_DIR                  (+1)
+#define RIGHT_MOTOR_DIR                 (-1)
 
 #else
 
 /* Original front sensor mode. */
 #define MOTOR_L_PWM_CC_INDEX            GPIO_PWM_MOTOR_C0_IDX
 #define MOTOR_R_PWM_CC_INDEX            GPIO_PWM_MOTOR_C1_IDX
-#define MOTOR_L_PWM                     MOTOR_L_PWM_CC_INDEX
-#define MOTOR_R_PWM                     MOTOR_R_PWM_CC_INDEX
-#define MOTOR_PWM_LEFT_CC_INDEX         MOTOR_L_PWM_CC_INDEX
-#define MOTOR_PWM_RIGHT_CC_INDEX        MOTOR_R_PWM_CC_INDEX
-#define MOTOR_PWM_PERIOD_COUNTS         1600U
 
 #define MOTOR_L_IN1_PORT                GPIO_MOTOR_L_IN1_PORT   /* B17 */
 #define MOTOR_L_IN1_PIN                 GPIO_MOTOR_L_IN1_PIN
@@ -138,6 +129,12 @@
 #define RIGHT_MOTOR_DIR                 (-1)
 
 #endif
+
+#define MOTOR_L_PWM                     MOTOR_L_PWM_CC_INDEX
+#define MOTOR_R_PWM                     MOTOR_R_PWM_CC_INDEX
+#define MOTOR_PWM_LEFT_CC_INDEX         MOTOR_L_PWM_CC_INDEX
+#define MOTOR_PWM_RIGHT_CC_INDEX        MOTOR_R_PWM_CC_INDEX
+#define MOTOR_PWM_PERIOD_COUNTS         1600U
 
 /* Legacy aliases kept for older modules during transition. */
 #define MOTOR_AIN1_PORT                 MOTOR_L_IN1_PORT
@@ -166,16 +163,12 @@
  */
 #define ENC_L_A_PORT                    GPIO_ENCODER_R_A_PORT
 #define ENC_L_A_PIN                     GPIO_ENCODER_R_A_PIN
-#define ENC_L_A                         ENC_L_A_PIN
 #define ENC_L_B_PORT                    GPIO_ENCODER_R_B_PORT
 #define ENC_L_B_PIN                     GPIO_ENCODER_R_B_PIN
-#define ENC_L_B                         ENC_L_B_PIN
 #define ENC_R_A_PORT                    GPIO_ENCODER_L_A_PORT
 #define ENC_R_A_PIN                     GPIO_ENCODER_L_A_PIN
-#define ENC_R_A                         ENC_R_A_PIN
 #define ENC_R_B_PORT                    GPIO_ENCODER_L_B_PORT
 #define ENC_R_B_PIN                     GPIO_ENCODER_L_B_PIN
-#define ENC_R_B                         ENC_R_B_PIN
 
 /*
  * Verify by pushing car toward new front:
@@ -190,21 +183,22 @@
 /* Original front sensor mode. */
 #define ENC_L_A_PORT                    GPIO_ENCODER_L_A_PORT
 #define ENC_L_A_PIN                     GPIO_ENCODER_L_A_PIN
-#define ENC_L_A                         ENC_L_A_PIN
 #define ENC_L_B_PORT                    GPIO_ENCODER_L_B_PORT
 #define ENC_L_B_PIN                     GPIO_ENCODER_L_B_PIN
-#define ENC_L_B                         ENC_L_B_PIN
 #define ENC_R_A_PORT                    GPIO_ENCODER_R_A_PORT
 #define ENC_R_A_PIN                     GPIO_ENCODER_R_A_PIN
-#define ENC_R_A                         ENC_R_A_PIN
 #define ENC_R_B_PORT                    GPIO_ENCODER_R_B_PORT
 #define ENC_R_B_PIN                     GPIO_ENCODER_R_B_PIN
-#define ENC_R_B                         ENC_R_B_PIN
 
 #define LEFT_ENCODER_DIR                (-1)
 #define RIGHT_ENCODER_DIR               (+1)
 
 #endif
+
+#define ENC_L_A                         ENC_L_A_PIN
+#define ENC_L_B                         ENC_L_B_PIN
+#define ENC_R_A                         ENC_R_A_PIN
+#define ENC_R_B                         ENC_R_B_PIN
 
 #define ENCODER_GPIO_IRQN               GPIO_ENCODER_INT_IRQN
 
