@@ -971,6 +971,8 @@ void F21Car_Task10ms(void)
         if (s_visionUnlockSent == 0U)
         {
             Serial_SendString("[num,unlock]\r\n");
+            s_ledActive = 0U;
+            LED_User_BlinkTimes(2U, 150U);
             s_visionUnlockSent = 1U;
             s_visionUnlockQuietMs = 0U;
 
