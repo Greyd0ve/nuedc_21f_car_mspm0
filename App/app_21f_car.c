@@ -1,4 +1,4 @@
-#include "app_21f_car.h"
+﻿#include "app_21f_car.h"
 #include "app_config.h"
 #include "app_car_state.h"
 #include "app_control.h"
@@ -16,16 +16,6 @@
 #define F21_LED_BLINK_OFF_MS            200U
 
 #define F21_CROSS_BLACK_THRESH          8U
-
-#ifndef F21_SERIAL_DEBUG_ENABLE
-#define F21_SERIAL_DEBUG_ENABLE          0
-#endif
-
-#if F21_SERIAL_DEBUG_ENABLE
-#define F21_DEBUG_PRINTF(...)            F21_DEBUG_PRINTF(__VA_ARGS__)
-#else
-#define F21_DEBUG_PRINTF(...)            do { } while (0)
-#endif
 
 #define F21_CROSS_CONFIRM_TICKS         ((F21_CROSS_CONFIRM_MS + CAR_CONTROL_PERIOD_MS - 1U) / CAR_CONTROL_PERIOD_MS)
 
@@ -216,7 +206,6 @@ static void F21_EnterFault(uint8_t code, const char *msg)
     F21_SafeStop();
     s_faultCode = code;
     s_state = F21_CAR_FAULT;
-    F21_DEBUG_PRINTF("[f21,fault,%s]\r\n", msg);
 }
 
 /* ---- encoder total clearing ---- */
@@ -433,7 +422,6 @@ static void F21_StartSelectedRoomTask(const char *source)
     s_visionUnlockSent = 0U;
     s_visionUnlockQuietMs = 0U;
     s_visionRxIdx = 0U;
-    F21_DEBUG_PRINTF("[f21,start,room=%u,src=%s]\r\n",
         (unsigned int)s_targetRoom, source);
 }
 
@@ -452,7 +440,6 @@ void F21Car_KeyProcess(void)
             if (s_targetRoom > 8U) s_targetRoom = 1U;
             s_state = F21_CAR_WAIT_START;
             F21_StartLedDisplay(s_targetRoom);
-            F21_DEBUG_PRINTF("[f21,room,%u]\r\n", (unsigned int)s_targetRoom);
         }
         break;
     case 2U:
@@ -469,7 +456,6 @@ void F21Car_KeyProcess(void)
         {
             F21_SafeStop();
             s_state = F21_CAR_STOP;
-            F21_DEBUG_PRINTF("[f21,stop]\r\n");
         }
         break;
     case 4U:
@@ -485,7 +471,6 @@ void F21Car_KeyProcess(void)
         s_faultCode = 0U;
         s_ledActive = 0U;
         LED_User_Off();
-        F21_DEBUG_PRINTF("[f21,reset]\r\n");
         break;
     default:
         break;
@@ -655,7 +640,6 @@ static void F21_HandleMainLineRun(void)
     if (crossed)
     {
         s_state = F21_CAR_FIRST_CROSS_ADVANCE;
-        F21_DEBUG_PRINTF("[f21,cross,first]\r\n");
     }
 }
 
@@ -671,7 +655,6 @@ static void F21_HandleFirstCrossAdvance(void)
     if (s_firstAdvanceEntered == 0U)
     {
         s_firstAdvanceEntered = 1U;
-        F21_DEBUG_PRINTF("[f21,advance,first]\r\n");
     }
 
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
@@ -679,7 +662,6 @@ static void F21_HandleFirstCrossAdvance(void)
         s_firstAdvanceEntered = 0U;
         s_state = F21_CAR_FIRST_TURN;
         s_turnStartPulse = g_turnEncoderTotal;
-        F21_DEBUG_PRINTF("[f21,turn,first]\r\n");
     }
 }
 
@@ -719,7 +701,6 @@ static void F21_HandleAfterFirstTurnRun(void)
     if (F21_HandleFarLineRunLostCross(s_secondDetectStartPulse))
     {
         s_state = F21_CAR_SECOND_CROSS_ADVANCE;
-        F21_DEBUG_PRINTF("[f21,cross,second]\r\n");
     }
 }
 
@@ -735,7 +716,6 @@ static void F21_HandleSecondCrossAdvance(void)
     if (s_secondAdvanceEntered == 0U)
     {
         s_secondAdvanceEntered = 1U;
-        F21_DEBUG_PRINTF("[f21,advance,second]\r\n");
     }
 
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
@@ -743,7 +723,6 @@ static void F21_HandleSecondCrossAdvance(void)
         s_secondAdvanceEntered = 0U;
         s_state = F21_CAR_SECOND_TURN;
         s_turnStartPulse = g_turnEncoderTotal;
-        F21_DEBUG_PRINTF("[f21,turn,second]\r\n");
     }
 }
 
@@ -773,7 +752,6 @@ static void F21_HandleFinalRoomRun(void)
         F21_SafeStop();
         s_state = F21_CAR_ARRIVED_ROOM;
         s_stateMs = 0U;
-        F21_DEBUG_PRINTF("[f21,arrived,room=%u]\r\n", (unsigned int)s_targetRoom);
         return;
     }
 
@@ -804,7 +782,6 @@ static void F21_HandleTurnAround(void)
     if (F21_IsTurnPulseComplete(F21_TURN_180_PULSE))
     {
         F21_SafeStop();
-        F21_DEBUG_PRINTF("[f21,turnaround,done]\r\n");
 
         if (s_targetRoom >= 1U && s_targetRoom <= 4U)
         {
@@ -815,7 +792,6 @@ static void F21_HandleTurnAround(void)
                 s_returnSideConfirmCnt = 0U;
                 s_stateStartPulse = g_forwardEncoderTotal;
                 s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
-                F21_DEBUG_PRINTF("[f21,return,start]\r\n");
             }
             else
             {
@@ -831,7 +807,6 @@ static void F21_HandleTurnAround(void)
                 s_returnSideConfirmCnt = 0U;
                 s_stateStartPulse = g_forwardEncoderTotal;
                 s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
-                F21_DEBUG_PRINTF("[f21,return,far,start]\r\n");
             }
             else
             {
@@ -864,11 +839,9 @@ static void F21_HandleReturnMainLineRun(void)
 
         if (s_returnMode == F21_RETURN_MODE_FAR)
         {
-            F21_DEBUG_PRINTF("[f21,return,far,cross,%u]\r\n", (unsigned int)s_returnStage);
         }
         else
         {
-            F21_DEBUG_PRINTF("[f21,cross,return]\r\n");
         }
     }
 }
@@ -885,7 +858,6 @@ static void F21_HandleReturnCrossAdvance(void)
     if (s_returnAdvanceEntered == 0U)
     {
         s_returnAdvanceEntered = 1U;
-        F21_DEBUG_PRINTF("[f21,advance,return]\r\n");
     }
 
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetReturnCrossAdvanceCm()))
@@ -893,7 +865,6 @@ static void F21_HandleReturnCrossAdvance(void)
         s_returnAdvanceEntered = 0U;
         s_state = F21_CAR_RETURN_TURN;
         s_turnStartPulse = g_turnEncoderTotal;
-        F21_DEBUG_PRINTF("[f21,turn,return]\r\n");
     }
 }
 
@@ -924,13 +895,11 @@ static void F21_HandleReturnTurn(void)
             s_returnSideConfirmCnt = 0U;
 
             s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
-            F21_DEBUG_PRINTF("[f21,return,far,next]\r\n");
         }
         else
         {
             s_stateStartPulse = g_forwardEncoderTotal;
             s_state = F21_CAR_RETURN_FINAL_RUN;
-            F21_DEBUG_PRINTF("[f21,return,final]\r\n");
         }
     }
 }
@@ -949,7 +918,6 @@ static void F21_HandleReturnFinalRun(void)
         F21_SafeStop();
         s_turnStartPulse = g_turnEncoderTotal;
         s_state = F21_CAR_RETURN_FINAL_TURN_AROUND;
-        F21_DEBUG_PRINTF("[f21,return,final_turnaround,start]\r\n");
     }
     else
     {
@@ -982,7 +950,6 @@ static void F21_HandleReturnFinalTurnAround(void)
     {
         F21_SafeStop();
         s_state = F21_CAR_FINISH;
-        F21_DEBUG_PRINTF("[f21,return,final_turnaround,done]\r\n");
     }
 }
 
@@ -1086,7 +1053,6 @@ void F21Car_Task10ms(void)
         {
             s_turnStartPulse = g_turnEncoderTotal;
             s_state = F21_CAR_TURN_AROUND;
-            F21_DEBUG_PRINTF("[f21,turnaround,start]\r\n");
         }
         break;
 
@@ -1133,7 +1099,6 @@ void F21Car_Task10ms(void)
 
 void F21Car_Task100ms(void)
 {
-    F21_DEBUG_PRINTF("[f21,state=%u,room=%u,dist=%ld,line=%d,mask=%u,black=%u]\r\n",
         (unsigned int)s_state,
         (unsigned int)s_targetRoom,
         (long)F21_GetDistanceFromPulse(s_stateStartPulse),
@@ -1199,7 +1164,6 @@ static void F21_Vision_ParseCommand(const char *buf)
                 if (s_visionBlockLastRoom
                     && s_visionLastFinishedRoom == (uint8_t)num)
                 {
-                    F21_DEBUG_PRINTF("[f21,vision,num,blocked-repeat,%u]\r\n",
                         (unsigned int)num);
                     return;
                 }
@@ -1220,7 +1184,6 @@ static void F21_Vision_ParseCommand(const char *buf)
                     s_visionStartTick = s_visionMs;
                     s_visionUnlockSent = 0U;
 
-                    F21_DEBUG_PRINTF("[f21,vision,num,start-pending,%u]\r\n",
                         (unsigned int)num);
                 }
             }
@@ -1235,7 +1198,6 @@ static void F21_Vision_ParseCommand(const char *buf)
 
             if (*p == ']' && num >= 1 && num <= 8)
             {
-                F21_DEBUG_PRINTF("[f21,vision,confirmed,ignored,%u]\r\n",
                     (unsigned int)num);
             }
         }
