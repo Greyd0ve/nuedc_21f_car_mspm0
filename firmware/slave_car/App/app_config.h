@@ -23,6 +23,16 @@
 #define CAR_BASE_BOOT_PROMPT_ENABLE             0
 #endif
 
+/* Role configuration (slave_car defaults) */
+#define CAR_ROLE_MASTER                         0
+#define CAR_ROLE_SLAVE                          1
+#ifndef CAR_ID
+#define CAR_ID                                  2
+#endif
+#ifndef ENABLE_K230
+#define ENABLE_K230                             0
+#endif
+
 /* Temporary encoder-only memory corruption diagnostic mode. */
 #ifndef ECAR_ENCODER_MINIMAL_DEBUG
 #define ECAR_ENCODER_MINIMAL_DEBUG              0

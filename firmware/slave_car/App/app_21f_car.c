@@ -962,50 +962,56 @@ void F21Car_Task10ms(void)
 
     if (s_state == F21_CAR_FINISH)
     {
-        uint8_t drained;
-
         F21_SafeStop();
-
-        if (s_visionUnlockSent == 0U)
+#if ENABLE_K230
         {
-            Serial_SendString("[num,unlock]\r\n");
-            s_ledActive = 0U;
-            LED_User_BlinkTimes(2U, 150U);
-            s_visionUnlockSent = 1U;
-            s_visionUnlockQuietMs = 0U;
+            uint8_t drained;
 
-            if (s_targetRoom >= 1U && s_targetRoom <= 8U)
+            if (s_visionUnlockSent == 0U)
             {
-                s_visionLastFinishedRoom = s_targetRoom;
-                s_visionBlockLastRoom = 1U;
+                Serial_SendString("[num,unlock]\r\n");
+                s_ledActive = 0U;
+                LED_User_BlinkTimes(2U, 150U);
+                s_visionUnlockSent = 1U;
+                s_visionUnlockQuietMs = 0U;
+
+                if (s_targetRoom >= 1U && s_targetRoom <= 8U)
+                {
+                    s_visionLastFinishedRoom = s_targetRoom;
+                    s_visionBlockLastRoom = 1U;
+                }
+            }
+
+            drained = F21_Vision_DrainRx();
+
+            s_visionStartPending = 0U;
+            s_visionRoom = 0U;
+            s_visionConfirmedRoom = 0U;
+
+            if (drained)
+            {
+                s_visionUnlockQuietMs = 0U;
+            }
+            else if (s_visionUnlockQuietMs < F21_VISION_UNLOCK_QUIET_MS)
+            {
+                s_visionUnlockQuietMs += CAR_CONTROL_PERIOD_MS;
+            }
+            else
+            {
+                s_visionUnlockQuietMs = 0U;
+                s_state = F21_CAR_IDLE;
             }
         }
-
-        drained = F21_Vision_DrainRx();
-
-        s_visionStartPending = 0U;
-        s_visionRoom = 0U;
-        s_visionConfirmedRoom = 0U;
-
-        if (drained)
-        {
-            s_visionUnlockQuietMs = 0U;
-        }
-        else if (s_visionUnlockQuietMs < F21_VISION_UNLOCK_QUIET_MS)
-        {
-            s_visionUnlockQuietMs += CAR_CONTROL_PERIOD_MS;
-        }
-        else
-        {
-            s_visionUnlockQuietMs = 0U;
-            s_state = F21_CAR_IDLE;
-        }
-
+#else
+        s_state = F21_CAR_IDLE;
+#endif
         return;
     }
 
+#if ENABLE_K230
     F21_Vision_Process();
     F21_Vision_Tick10ms();
+#endif
 
     switch (s_state)
     {
