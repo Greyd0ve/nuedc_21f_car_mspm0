@@ -118,6 +118,7 @@ static volatile uint8_t s_visionConfirmedRoom = 0U;
 static volatile uint8_t s_visionStartPending = 0U;
 static volatile uint32_t s_visionStartTick = 0U;
 static volatile uint32_t s_visionMs = 0U;
+static volatile uint8_t s_visionUnlockSent = 0U;
 
 static volatile uint8_t s_ledBlinkTarget = 0U;
 static volatile uint8_t s_ledBlinkCount  = 0U;
@@ -375,6 +376,7 @@ void F21Car_Init(void)
     s_firstTurnDone = 0U;
     s_ledActive = 0U;
     LED_User_Off();
+    s_visionUnlockSent = 0U;
 }
 
 static void F21_ResetRunData(void)
@@ -407,6 +409,7 @@ static void F21_StartSelectedRoomTask(const char *source)
     s_stateStartPulse = g_forwardEncoderTotal;
     s_state = F21_CAR_MAIN_LINE_RUN;
     s_visionStartPending = 0U;
+    s_visionUnlockSent = 0U;
     Serial_Printf("[f21,start,room=%u,src=%s]\r\n",
         (unsigned int)s_targetRoom, source);
 }
@@ -1017,6 +1020,12 @@ void F21Car_Task10ms(void)
 
     case F21_CAR_FINISH:
         F21_SafeStop();
+        if (s_visionUnlockSent == 0U)
+        {
+            Serial_SendString("[num,unlock]\r\n");
+            s_visionUnlockSent = 1U;
+            s_state = F21_CAR_IDLE;
+        }
         break;
 
     case F21_CAR_STOP:
@@ -1072,19 +1081,21 @@ static void F21_Vision_ParseCommand(const char *buf)
             if (num >= 1 && num <= 8)
             {
                 s_visionRoom = (uint8_t)num;
-                if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
+                if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START
+                    || s_state == F21_CAR_FINISH)
                 {
                     s_visionConfirmedRoom = (uint8_t)num;
                     s_targetRoom = (uint8_t)num;
                     s_state = F21_CAR_WAIT_START;
                     F21_StartLedDisplay(s_targetRoom);
 
-                    Serial_SendString("[ack,num,");
+                    Serial_SendString("[num,");
                     Serial_SendByte((uint8_t)('0' + num));
                     Serial_SendString("]\r\n");
 
                     s_visionStartPending = 1U;
                     s_visionStartTick = s_visionMs;
+                    s_visionUnlockSent = 0U;
 
                     Serial_Printf("[f21,vision,num,start-pending,%u]\r\n",
                         (unsigned int)num);
