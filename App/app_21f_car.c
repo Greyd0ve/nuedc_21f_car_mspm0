@@ -203,6 +203,7 @@ static void F21_SafeStop(void)
 
 static void F21_EnterFault(uint8_t code, const char *msg)
 {
+    (void)msg;
     F21_SafeStop();
     s_faultCode = code;
     s_state = F21_CAR_FAULT;
@@ -412,6 +413,7 @@ static void F21_ResetRunData(void)
 
 static void F21_StartSelectedRoomTask(const char *source)
 {
+    (void)source;
     if (s_targetRoom < 1U || s_targetRoom > 8U) return;
 
     F21_ApplyRoute(s_targetRoom);
@@ -422,7 +424,6 @@ static void F21_StartSelectedRoomTask(const char *source)
     s_visionUnlockSent = 0U;
     s_visionUnlockQuietMs = 0U;
     s_visionRxIdx = 0U;
-        (unsigned int)s_targetRoom, source);
 }
 
 void F21Car_KeyProcess(void)
@@ -1099,12 +1100,6 @@ void F21Car_Task10ms(void)
 
 void F21Car_Task100ms(void)
 {
-        (unsigned int)s_state,
-        (unsigned int)s_targetRoom,
-        (long)F21_GetDistanceFromPulse(s_stateStartPulse),
-        (int)g_lineError,
-        (unsigned int)g_lineMask,
-        (unsigned int)g_lineBlackCount);
 }
 
 void F21Car_Task200ms(void)
@@ -1164,7 +1159,6 @@ static void F21_Vision_ParseCommand(const char *buf)
                 if (s_visionBlockLastRoom
                     && s_visionLastFinishedRoom == (uint8_t)num)
                 {
-                        (unsigned int)num);
                     return;
                 }
 
@@ -1183,8 +1177,6 @@ static void F21_Vision_ParseCommand(const char *buf)
                     s_visionStartPending = 1U;
                     s_visionStartTick = s_visionMs;
                     s_visionUnlockSent = 0U;
-
-                        (unsigned int)num);
                 }
             }
         }
@@ -1198,7 +1190,6 @@ static void F21_Vision_ParseCommand(const char *buf)
 
             if (*p == ']' && num >= 1 && num <= 8)
             {
-                    (unsigned int)num);
             }
         }
     }
