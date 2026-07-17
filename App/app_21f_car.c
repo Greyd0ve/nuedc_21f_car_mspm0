@@ -31,6 +31,7 @@
 
 static void F21_Vision_Process(void);
 static void F21_Vision_Tick10ms(void);
+static void F21_Vision_DrainRx(void);
 
 /*
  * Route table for rooms 1-8.
