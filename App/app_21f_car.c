@@ -952,6 +952,7 @@ void F21Car_Task10ms(void)
             Serial_SendString("[num,unlock]\r\n");
             s_visionUnlockSent = 1U;
         }
+        F21_Vision_DrainRx();
         s_visionStartPending = 0U;
         s_visionRoom = 0U;
         s_visionConfirmedRoom = 0U;
@@ -1072,6 +1073,14 @@ void F21Car_Task200ms(void)
 }
 
 /* ---- K230 vision serial ---- */
+
+static void F21_Vision_DrainRx(void)
+{
+    uint8_t byte;
+    while (Serial_ReadByte(&byte))
+    {
+    }
+}
 
 static void F21_Vision_ParseCommand(const char *buf)
 {
