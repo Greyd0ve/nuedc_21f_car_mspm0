@@ -944,6 +944,21 @@ void F21Car_Task10ms(void)
 {
     s_stateMs += CAR_CONTROL_PERIOD_MS;
 
+    if (s_state == F21_CAR_FINISH)
+    {
+        F21_SafeStop();
+        if (s_visionUnlockSent == 0U)
+        {
+            Serial_SendString("[num,unlock]\r\n");
+            s_visionUnlockSent = 1U;
+        }
+        s_visionStartPending = 0U;
+        s_visionRoom = 0U;
+        s_visionConfirmedRoom = 0U;
+        s_state = F21_CAR_IDLE;
+        return;
+    }
+
     F21_Vision_Process();
     F21_Vision_Tick10ms();
 
@@ -1020,12 +1035,6 @@ void F21Car_Task10ms(void)
 
     case F21_CAR_FINISH:
         F21_SafeStop();
-        if (s_visionUnlockSent == 0U)
-        {
-            Serial_SendString("[num,unlock]\r\n");
-            s_visionUnlockSent = 1U;
-            s_state = F21_CAR_IDLE;
-        }
         break;
 
     case F21_CAR_STOP:
@@ -1081,8 +1090,7 @@ static void F21_Vision_ParseCommand(const char *buf)
             if (num >= 1 && num <= 8)
             {
                 s_visionRoom = (uint8_t)num;
-                if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START
-                    || s_state == F21_CAR_FINISH)
+                if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
                 {
                     s_visionConfirmedRoom = (uint8_t)num;
                     s_targetRoom = (uint8_t)num;
