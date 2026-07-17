@@ -52,8 +52,8 @@ static uint8_t F21_Vision_DrainRx(void);
  */
 static const F21Route_t s_routes[8] =
 {
-    { F21_ROUTE_SIMPLE,  40.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   35.0f },
-    { F21_ROUTE_SIMPLE,  40.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  35.0f },
+    { F21_ROUTE_SIMPLE,  15.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   35.0f },
+    { F21_ROUTE_SIMPLE,  15.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  35.0f },
     { F21_ROUTE_SIMPLE, 120.0f, F21_TURN_LEFT,   0.0f, F21_TURN_LEFT,   35.0f },
     { F21_ROUTE_SIMPLE, 120.0f, F21_TURN_RIGHT,  0.0f, F21_TURN_RIGHT,  35.0f },
     /* room 5 secondTurn = LEFT  (placeholder, verify on track) */
