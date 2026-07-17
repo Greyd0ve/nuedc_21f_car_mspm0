@@ -126,6 +126,9 @@ static volatile uint16_t s_visionUnlockQuietMs = 0U;
 static char s_visionRxBuf[F21_VISION_BUF_SIZE];
 static uint8_t s_visionRxIdx = 0U;
 
+static volatile uint8_t s_visionLastFinishedRoom = 0U;
+static volatile uint8_t s_visionBlockLastRoom = 0U;
+
 static volatile uint8_t s_ledBlinkTarget = 0U;
 static volatile uint8_t s_ledBlinkCount  = 0U;
 static volatile uint16_t s_ledTimer      = 0U;
@@ -462,8 +465,10 @@ void F21Car_KeyProcess(void)
     case 4U:
         s_visionStartPending = 0U;
         s_visionUnlockSent = 0U;
-        s_visionUnlockQuietMs = 0U;
-        s_visionRxIdx = 0U;
+    s_visionUnlockQuietMs = 0U;
+    s_visionRxIdx = 0U;
+    s_visionLastFinishedRoom = 0U;
+    s_visionBlockLastRoom = 0U;
         s_targetRoom = 1U;
         F21_ResetRunData();
         s_state = F21_CAR_IDLE;
@@ -968,6 +973,12 @@ void F21Car_Task10ms(void)
             Serial_SendString("[num,unlock]\r\n");
             s_visionUnlockSent = 1U;
             s_visionUnlockQuietMs = 0U;
+
+            if (s_targetRoom >= 1U && s_targetRoom <= 8U)
+            {
+                s_visionLastFinishedRoom = s_targetRoom;
+                s_visionBlockLastRoom = 1U;
+            }
         }
 
         drained = F21_Vision_DrainRx();
@@ -1139,8 +1150,27 @@ static void F21_Vision_ParseCommand(const char *buf)
             if (num >= 1 && num <= 8)
             {
                 s_visionRoom = (uint8_t)num;
+
+                if (s_state == F21_CAR_WAIT_START && s_visionStartPending
+                    && s_visionConfirmedRoom == (uint8_t)num)
+                {
+                    Serial_SendString("[num,");
+                    Serial_SendByte((uint8_t)('0' + num));
+                    Serial_SendString("]\r\n");
+                    return;
+                }
+
+                if (s_visionBlockLastRoom
+                    && s_visionLastFinishedRoom == (uint8_t)num)
+                {
+                    Serial_Printf("[f21,vision,num,blocked-repeat,%u]\r\n",
+                        (unsigned int)num);
+                    return;
+                }
+
                 if (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START)
                 {
+                    s_visionBlockLastRoom = 0U;
                     s_visionConfirmedRoom = (uint8_t)num;
                     s_targetRoom = (uint8_t)num;
                     s_state = F21_CAR_WAIT_START;
