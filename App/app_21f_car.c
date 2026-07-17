@@ -27,11 +27,12 @@
 #define F21_RETURN_MODE_FAR             2U
 
 #define F21_VISION_START_DELAY_MS        500U
+#define F21_VISION_UNLOCK_QUIET_MS       800U
 #define F21_VISION_BUF_SIZE              32U
 
 static void F21_Vision_Process(void);
 static void F21_Vision_Tick10ms(void);
-static void F21_Vision_DrainRx(void);
+static uint8_t F21_Vision_DrainRx(void);
 
 /*
  * Route table for rooms 1-8.
@@ -120,6 +121,10 @@ static volatile uint8_t s_visionStartPending = 0U;
 static volatile uint32_t s_visionStartTick = 0U;
 static volatile uint32_t s_visionMs = 0U;
 static volatile uint8_t s_visionUnlockSent = 0U;
+static volatile uint16_t s_visionUnlockQuietMs = 0U;
+
+static char s_visionRxBuf[F21_VISION_BUF_SIZE];
+static uint8_t s_visionRxIdx = 0U;
 
 static volatile uint8_t s_ledBlinkTarget = 0U;
 static volatile uint8_t s_ledBlinkCount  = 0U;
@@ -378,6 +383,8 @@ void F21Car_Init(void)
     s_ledActive = 0U;
     LED_User_Off();
     s_visionUnlockSent = 0U;
+    s_visionUnlockQuietMs = 0U;
+    s_visionRxIdx = 0U;
 }
 
 static void F21_ResetRunData(void)
@@ -411,6 +418,8 @@ static void F21_StartSelectedRoomTask(const char *source)
     s_state = F21_CAR_MAIN_LINE_RUN;
     s_visionStartPending = 0U;
     s_visionUnlockSent = 0U;
+    s_visionUnlockQuietMs = 0U;
+    s_visionRxIdx = 0U;
     Serial_Printf("[f21,start,room=%u,src=%s]\r\n",
         (unsigned int)s_targetRoom, source);
 }
@@ -452,6 +461,9 @@ void F21Car_KeyProcess(void)
         break;
     case 4U:
         s_visionStartPending = 0U;
+        s_visionUnlockSent = 0U;
+        s_visionUnlockQuietMs = 0U;
+        s_visionRxIdx = 0U;
         s_targetRoom = 1U;
         F21_ResetRunData();
         s_state = F21_CAR_IDLE;
@@ -947,17 +959,37 @@ void F21Car_Task10ms(void)
 
     if (s_state == F21_CAR_FINISH)
     {
+        uint8_t drained;
+
         F21_SafeStop();
+
         if (s_visionUnlockSent == 0U)
         {
             Serial_SendString("[num,unlock]\r\n");
             s_visionUnlockSent = 1U;
+            s_visionUnlockQuietMs = 0U;
         }
-        F21_Vision_DrainRx();
+
+        drained = F21_Vision_DrainRx();
+
         s_visionStartPending = 0U;
         s_visionRoom = 0U;
         s_visionConfirmedRoom = 0U;
-        s_state = F21_CAR_IDLE;
+
+        if (drained)
+        {
+            s_visionUnlockQuietMs = 0U;
+        }
+        else if (s_visionUnlockQuietMs < F21_VISION_UNLOCK_QUIET_MS)
+        {
+            s_visionUnlockQuietMs += CAR_CONTROL_PERIOD_MS;
+        }
+        else
+        {
+            s_visionUnlockQuietMs = 0U;
+            s_state = F21_CAR_IDLE;
+        }
+
         return;
     }
 
@@ -1075,12 +1107,19 @@ void F21Car_Task200ms(void)
 
 /* ---- K230 vision serial ---- */
 
-static void F21_Vision_DrainRx(void)
+static uint8_t F21_Vision_DrainRx(void)
 {
     uint8_t byte;
+    uint8_t drained = 0U;
+
+    s_visionRxIdx = 0U;
+
     while (Serial_ReadByte(&byte))
     {
+        drained = 1U;
     }
+
+    return drained;
 }
 
 static void F21_Vision_ParseCommand(const char *buf)
@@ -1139,25 +1178,25 @@ static void F21_Vision_ParseCommand(const char *buf)
 
 static void F21_Vision_Process(void)
 {
-    static char vbuf[F21_VISION_BUF_SIZE];
-    static uint8_t vidx = 0U;
     uint8_t byte;
 
     while (Serial_ReadByte(&byte))
     {
         if (byte == '[')
         {
-            vidx = 0U;
-            if (vidx < sizeof(vbuf) - 1U) vbuf[vidx++] = (char)byte;
+            s_visionRxIdx = 0U;
+            if (s_visionRxIdx < sizeof(s_visionRxBuf) - 1U)
+                s_visionRxBuf[s_visionRxIdx++] = (char)byte;
         }
-        else if (vidx > 0U)
+        else if (s_visionRxIdx > 0U)
         {
-            if (vidx < sizeof(vbuf) - 1U) vbuf[vidx++] = (char)byte;
+            if (s_visionRxIdx < sizeof(s_visionRxBuf) - 1U)
+                s_visionRxBuf[s_visionRxIdx++] = (char)byte;
             if (byte == ']')
             {
-                vbuf[vidx] = '\0';
-                F21_Vision_ParseCommand(vbuf);
-                vidx = 0U;
+                s_visionRxBuf[s_visionRxIdx] = '\0';
+                F21_Vision_ParseCommand(s_visionRxBuf);
+                s_visionRxIdx = 0U;
             }
         }
     }
