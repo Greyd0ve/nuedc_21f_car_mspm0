@@ -59,31 +59,31 @@ static const F21Route_t s_routes[8] =
 static const F21ReturnRoute_t s_returnRoutes[4] =
 {
     /* room 1: outbound left, return right */
-    { 20.0f, F21_TURN_RIGHT,  60.0f },
+    { 20.0f, F21_TURN_RIGHT,  45.0f },
 
     /* room 2: outbound right, return left */
-    { 20.0f, F21_TURN_LEFT,   60.0f },
+    { 20.0f, F21_TURN_LEFT,   45.0f },
 
     /* room 3: outbound left, return right */
-    { 20.0f, F21_TURN_RIGHT, 150.0f },
+    { 20.0f, F21_TURN_RIGHT, 135.0f },
 
     /* room 4: outbound right, return left */
-    { 20.0f, F21_TURN_LEFT,  150.0f },
+    { 20.0f, F21_TURN_LEFT,  135.0f },
 };
 
 static const F21FarReturnRoute_t s_farReturnRoutes[4] =
 {
     /* room 5: outbound first LEFT, second LEFT -> return RIGHT, RIGHT */
-    { 10.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_RIGHT, 230.0f },
+    { 10.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_RIGHT, 215.0f },
 
     /* room 6: outbound first RIGHT, second RIGHT -> return LEFT, LEFT */
-    { 10.0f, F21_TURN_LEFT,  60.0f, F21_TURN_LEFT,  230.0f },
+    { 10.0f, F21_TURN_LEFT,  60.0f, F21_TURN_LEFT,  215.0f },
 
     /* room 7: outbound first LEFT, second RIGHT -> return LEFT, RIGHT */
-    { 10.0f, F21_TURN_LEFT,  60.0f, F21_TURN_RIGHT, 230.0f },
+    { 10.0f, F21_TURN_LEFT,  60.0f, F21_TURN_RIGHT, 215.0f },
 
     /* room 8: outbound first RIGHT, second LEFT -> return RIGHT, LEFT */
-    { 10.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_LEFT,  230.0f },
+    { 10.0f, F21_TURN_RIGHT, 60.0f, F21_TURN_LEFT,  215.0f },
 };
 
 static volatile F21CarState_t s_state = F21_CAR_IDLE;
