@@ -947,8 +947,9 @@ static void F21_HandleReturnFinalRun(void)
     if (F21_GetDistanceFromPulse(s_stateStartPulse) >= s_returnFinalRunPulse)
     {
         F21_SafeStop();
-        s_state = F21_CAR_FINISH;
-        F21_DEBUG_PRINTF("[f21,return,finish]\r\n");
+        s_turnStartPulse = g_turnEncoderTotal;
+        s_state = F21_CAR_RETURN_FINAL_TURN_AROUND;
+        F21_DEBUG_PRINTF("[f21,return,final_turnaround,start]\r\n");
     }
     else
     {
@@ -963,6 +964,25 @@ static void F21_HandleReturnFinalRun(void)
         g_targetTurnSpeed = App_Line_CalcTurnCmd();
         g_carEnable = 1U;
         App_Control_ApplyMotorOutput();
+    }
+}
+
+static void F21_HandleReturnFinalTurnAround(void)
+{
+    if (F21_TURN_180_PULSE == 0U)
+    {
+        F21_EnterFault(4U, "final_turn180_not_set");
+        return;
+    }
+
+    F21_SetMotionCmd(0.0f,
+        F21_TurnDirToSign(F21_TURN_RIGHT) * F21_TURN_SPEED_CMPS);
+
+    if (F21_IsTurnPulseComplete(F21_TURN_180_PULSE))
+    {
+        F21_SafeStop();
+        s_state = F21_CAR_FINISH;
+        F21_DEBUG_PRINTF("[f21,return,final_turnaround,done]\r\n");
     }
 }
 
@@ -1088,6 +1108,10 @@ void F21Car_Task10ms(void)
 
     case F21_CAR_RETURN_FINAL_RUN:
         F21_HandleReturnFinalRun();
+        break;
+
+    case F21_CAR_RETURN_FINAL_TURN_AROUND:
+        F21_HandleReturnFinalTurnAround();
         break;
 
     case F21_CAR_FINISH:
