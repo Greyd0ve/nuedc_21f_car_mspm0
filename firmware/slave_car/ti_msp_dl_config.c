@@ -143,7 +143,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
         GPIO_UART_DEBUG_IOMUX_TX, GPIO_UART_DEBUG_IOMUX_TX_FUNC);
     DL_GPIO_initPeripheralInputFunction(
         GPIO_UART_DEBUG_IOMUX_RX, GPIO_UART_DEBUG_IOMUX_RX_FUNC);
-
     DL_GPIO_initPeripheralOutputFunction(
         GPIO_UART_TUNING_IOMUX_TX, GPIO_UART_TUNING_IOMUX_TX_FUNC);
     DL_GPIO_initPeripheralInputFunction(
@@ -203,10 +202,28 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 
     DL_GPIO_initDigitalOutput(GPIO_BOARD_IO_BEEP_IOMUX);
 
+    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_CE_IOMUX);
+
+    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_CSN_IOMUX);
+
+    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_SCK_IOMUX);
+
+    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_MOSI_IOMUX);
+
+    DL_GPIO_initDigitalInputFeatures(GPIO_NRF_NRF_MISO_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_NONE,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
+
     DL_GPIO_clearPins(GPIOA, GPIO_MOTOR_R_IN1_PIN |
-		GPIO_BOARD_IO_BEEP_PIN);
+		GPIO_BOARD_IO_BEEP_PIN |
+		GPIO_NRF_NRF_SCK_PIN |
+		GPIO_NRF_NRF_MOSI_PIN);
+    DL_GPIO_setPins(GPIOA, GPIO_NRF_NRF_CSN_PIN);
     DL_GPIO_enableOutput(GPIOA, GPIO_MOTOR_R_IN1_PIN |
-		GPIO_BOARD_IO_BEEP_PIN);
+		GPIO_BOARD_IO_BEEP_PIN |
+		GPIO_NRF_NRF_CSN_PIN |
+		GPIO_NRF_NRF_SCK_PIN |
+		GPIO_NRF_NRF_MOSI_PIN);
     DL_GPIO_setUpperPinsPolarity(GPIOA, DL_GPIO_PIN_26_EDGE_RISE_FALL |
 		DL_GPIO_PIN_25_EDGE_RISE_FALL);
     DL_GPIO_setLowerPinsInputFilter(GPIOA, DL_GPIO_PIN_14_INPUT_FILTER_8_CYCLES);
@@ -223,25 +240,16 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		GPIO_GRAYSCALE_AD2_PIN |
 		GPIO_GRAYSCALE_AD1_PIN |
 		GPIO_GRAYSCALE_AD0_PIN |
-		GPIO_BOARD_IO_LED_USER_PIN);
+		GPIO_BOARD_IO_LED_USER_PIN |
+		GPIO_NRF_NRF_CE_PIN);
     DL_GPIO_enableOutput(GPIOB, GPIO_MOTOR_L_IN1_PIN |
 		GPIO_MOTOR_L_IN2_PIN |
 		GPIO_MOTOR_R_IN2_PIN |
 		GPIO_GRAYSCALE_AD2_PIN |
 		GPIO_GRAYSCALE_AD1_PIN |
 		GPIO_GRAYSCALE_AD0_PIN |
-		GPIO_BOARD_IO_LED_USER_PIN);
-
-    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_CE_IOMUX);
-    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_CSN_IOMUX);
-    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_SCK_IOMUX);
-    DL_GPIO_initDigitalOutput(GPIO_NRF_NRF_MOSI_IOMUX);
-    DL_GPIO_initDigitalInput(GPIO_NRF_NRF_MISO_IOMUX);
-
-    DL_GPIO_clearPins(GPIO_NRF_NRF_CE_PORT, GPIO_NRF_NRF_CE_PIN);
-    DL_GPIO_setPins(GPIO_NRF_NRF_CSN_PORT, GPIO_NRF_NRF_CSN_PIN);
-    DL_GPIO_clearPins(GPIO_NRF_NRF_SCK_PORT, GPIO_NRF_NRF_SCK_PIN);
-    DL_GPIO_clearPins(GPIO_NRF_NRF_MOSI_PORT, GPIO_NRF_NRF_MOSI_PIN);
+		GPIO_BOARD_IO_LED_USER_PIN |
+		GPIO_NRF_NRF_CE_PIN);
 
 }
 
@@ -480,6 +488,7 @@ static const DL_UART_Main_ClockConfig gUART_TUNINGClockConfig = {
     .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
     .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
 };
+
 static const DL_UART_Main_Config gUART_TUNINGConfig = {
     .mode        = DL_UART_MAIN_MODE_NORMAL,
     .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
@@ -492,11 +501,22 @@ static const DL_UART_Main_Config gUART_TUNINGConfig = {
 SYSCONFIG_WEAK void SYSCFG_DL_UART_TUNING_init(void)
 {
     DL_UART_Main_setClockConfig(UART_TUNING_INST, (DL_UART_Main_ClockConfig *) &gUART_TUNINGClockConfig);
+
     DL_UART_Main_init(UART_TUNING_INST, (DL_UART_Main_Config *) &gUART_TUNINGConfig);
+    /*
+     * Configure baud rate by setting oversampling and baud rate divisors.
+     *  Target baud rate: 9600
+     *  Actual baud rate: 9600.24
+     */
     DL_UART_Main_setOversampling(UART_TUNING_INST, DL_UART_OVERSAMPLING_RATE_16X);
-    DL_UART_Main_setBaudRateDivisor(UART_TUNING_INST,
-        UART_TUNING_IBRD_32_MHZ_9600_BAUD, UART_TUNING_FBRD_32_MHZ_9600_BAUD);
-    DL_UART_Main_enableInterrupt(UART_TUNING_INST, DL_UART_MAIN_INTERRUPT_RX);
+    DL_UART_Main_setBaudRateDivisor(UART_TUNING_INST, UART_TUNING_IBRD_32_MHZ_9600_BAUD, UART_TUNING_FBRD_32_MHZ_9600_BAUD);
+
+
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(UART_TUNING_INST,
+                                 DL_UART_MAIN_INTERRUPT_RX);
+
+
     DL_UART_Main_enable(UART_TUNING_INST);
 }
 
