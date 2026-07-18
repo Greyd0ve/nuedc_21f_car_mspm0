@@ -373,6 +373,14 @@ static uint8_t F21_IsTurnComplete(void)
     return F21_IsTurnPulseComplete(F21_TURN_90_PULSE);
 }
 
+static void F21_CancelLedDisplay(void)
+{
+    s_ledActive = 0U;
+    s_ledTimer = 0U;
+    s_ledBlinkCount = 0U;
+    LED_User_Off();
+}
+
 /* ---- public API ---- */
 
 void F21Car_Init(void)
@@ -384,8 +392,7 @@ void F21Car_Init(void)
     App_Line_ResetState();
     F21_ClearEncoderTotals();
     s_firstTurnDone = 0U;
-    s_ledActive = 0U;
-    LED_User_Off();
+    F21_CancelLedDisplay();
     s_visionUnlockSent = 0U;
     s_visionUnlockQuietMs = 0U;
     s_visionRxIdx = 0U;
@@ -427,9 +434,8 @@ static void F21_StartSelectedRoomTask(const char *source)
     s_visionRxIdx = 0U;
 }
 
-void F21Car_KeyProcess(void)
+void F21Car_HandleKey(uint8_t key)
 {
-    uint8_t key = Key_GetNum();
     if (key == 0U) return;
 
     switch (key)
@@ -464,22 +470,61 @@ void F21Car_KeyProcess(void)
         }
         break;
     case 4U:
+        App_Radio_ClearPendingCommands();
         s_visionStartPending = 0U;
         s_visionUnlockSent = 0U;
-    s_visionUnlockQuietMs = 0U;
-    s_visionRxIdx = 0U;
-    s_visionLastFinishedRoom = 0U;
-    s_visionBlockLastRoom = 0U;
+        s_visionUnlockQuietMs = 0U;
+        s_visionRxIdx = 0U;
+        s_visionLastFinishedRoom = 0U;
+        s_visionBlockLastRoom = 0U;
         s_targetRoom = 1U;
         F21_ResetRunData();
         s_state = F21_CAR_IDLE;
         s_faultCode = 0U;
-        s_ledActive = 0U;
-        LED_User_Off();
+        F21_CancelLedDisplay();
         break;
     default:
         break;
     }
+}
+
+void F21Car_KeyProcess(void)
+{
+    F21Car_HandleKey(Key_GetNum());
+}
+
+void F21Car_ResetTask(void)
+{
+    App_Radio_ClearPendingCommands();
+    s_visionStartPending = 0U;
+    s_visionUnlockSent = 0U;
+    s_visionUnlockQuietMs = 0U;
+    s_visionRxIdx = 0U;
+    s_visionLastFinishedRoom = 0U;
+    s_visionBlockLastRoom = 0U;
+    s_visionRoom = 0U;
+    s_visionConfirmedRoom = 0U;
+    s_targetRoom = 1U;
+    F21_ResetRunData();
+    s_state = F21_CAR_IDLE;
+    s_faultCode = 0U;
+    F21_CancelLedDisplay();
+}
+
+uint8_t F21Car_IsModeSwitchAllowed(void)
+{
+    uint8_t idleState = (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START) ? 1U : 0U;
+    uint8_t motorStopped = (g_carEnable == 0U && g_leftPwm == 0 && g_rightPwm == 0) ? 1U : 0U;
+
+    if (!idleState) return 0U;
+    if (!motorStopped) return 0U;
+    if (s_visionStartPending) return 0U;
+    return 1U;
+}
+
+void F21Car_CancelLedDisplay(void)
+{
+    F21_CancelLedDisplay();
 }
 
 void F21Car_SetTargetRoom(uint8_t room)
@@ -970,10 +1015,27 @@ static void F21_HandleReturnFinalTurnAround(void)
     }
 }
 
+static void F21_Radio_Process10ms(void)
+{
+#if CAR_ROLE_SLAVE
+    AppRadioCommand_t cmd;
+
+    while (App_Radio_PopCommand(&cmd))
+    {
+        if (cmd.cmd == RADIO_CMD_TARGET_ROOM)
+        {
+            F21Car_SetTargetRoom(cmd.room_id);
+        }
+    }
+#endif
+}
+
 /* ---- main 10ms task ---- */
 
 void F21Car_Task10ms(void)
 {
+    F21_Radio_Process10ms();
+
     s_stateMs += CAR_CONTROL_PERIOD_MS;
 
     if (s_state == F21_CAR_FINISH)

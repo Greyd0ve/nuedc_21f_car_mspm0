@@ -443,6 +443,16 @@
               <FilePath>..\App\app_21f_car.c</FilePath>
             </File>
             <File>
+              <FileName>app_task_mode.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\app_task_mode.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_coop.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\app_coop.c</FilePath>
+            </File>
+            <File>
               <FileName>app_radio.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\app_radio.c</FilePath>

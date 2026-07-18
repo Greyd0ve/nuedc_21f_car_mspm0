@@ -83,8 +83,7 @@ void LED_User_BlinkTimes(uint8_t times, uint16_t intervalMs)
 {
     if (times == 0U || intervalMs == 0U)
     {
-        s_ledBlinkRemainToggles = 0U;
-        LED_User_Off();
+        LED_User_CancelBlink();
         return;
     }
 
@@ -92,6 +91,14 @@ void LED_User_BlinkTimes(uint8_t times, uint16_t intervalMs)
     s_ledBlinkIntervalMs = intervalMs;
     s_ledBlinkTimerMs = intervalMs;
     LED_User_On();
+}
+
+void LED_User_CancelBlink(void)
+{
+    s_ledBlinkRemainToggles = 0U;
+    s_ledBlinkIntervalMs = 0U;
+    s_ledBlinkTimerMs = 0U;
+    LED_User_Off();
 }
 
 void BeepLed_Init(void)

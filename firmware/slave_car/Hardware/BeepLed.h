@@ -17,5 +17,6 @@ void LED_User_On(void);
 void LED_User_Off(void);
 void LED_User_Toggle(void);
 void LED_User_BlinkTimes(uint8_t times, uint16_t intervalMs);
+void LED_User_CancelBlink(void);
 
 #endif

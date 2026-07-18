@@ -4,7 +4,7 @@
 #include "Key.h"
 #include "BeepLed.h"
 #include "app_car_base.h"
-#include "app_21f_car.h"
+#include "app_task_mode.h"
 #include <stdint.h>
 
 extern volatile uint8_t g_task_1ms_count;
@@ -47,7 +47,7 @@ void TIMG6_IRQHandler(void)
             Key_Tick();
             BeepLed_Tick1ms();
             CarBase_PromptTick1ms();
-            F21Car_Tick1ms();
+            App_TaskMode_Tick1ms();
 
             Timer_SaturatingInc(&g_task_1ms_count);
 

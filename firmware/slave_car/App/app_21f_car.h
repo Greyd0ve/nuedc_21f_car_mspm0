@@ -96,9 +96,14 @@ typedef struct
 void F21Car_Init(void);
 void F21Car_Tick1ms(void);
 void F21Car_Task10ms(void);
+void F21Car_HandleKey(uint8_t key);
 void F21Car_KeyProcess(void);
 void F21Car_Task100ms(void);
 void F21Car_Task200ms(void);
+
+void F21Car_ResetTask(void);
+uint8_t F21Car_IsModeSwitchAllowed(void);
+void F21Car_CancelLedDisplay(void);
 
 void F21Car_SetTargetRoom(uint8_t room);
 uint8_t F21Car_GetTargetRoom(void);

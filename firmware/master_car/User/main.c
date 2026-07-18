@@ -3,6 +3,8 @@
 #include "app_board_test.h"
 #include "app_car_base.h"
 #include "app_21f_car.h"
+#include "app_coop.h"
+#include "app_task_mode.h"
 #include "app_radio.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -108,11 +110,15 @@ int main(void)
     Motor_StopAll();
     Encoder_Init();
     BeepLed_Init();
+#if ENABLE_K230
     Serial_Init();
+#endif
     DebugSerial_Init();
     Servo_Init();
     CarBase_Init();
     F21Car_Init();
+    F21Coop_Init();
+    App_TaskMode_Init();
     App_Radio_Init();
 
 #if CAR_OLED_ENABLE
@@ -159,13 +165,20 @@ int main(void)
 #else
             App_Radio_Task10ms();
             DebugSerial_Task10ms();
-            F21Car_Task10ms();
+            if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
+            {
+                F21Car_Task10ms();
+            }
+            else
+            {
+                F21Coop_Task10ms();
+            }
 #endif
             taskCount--;
         }
 
 #if !CAR_BOARD_TEST_MODE
-        F21Car_KeyProcess();
+        App_TaskMode_KeyProcess();
 #endif
 
         if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
@@ -173,7 +186,14 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task100ms();
 #else
-            F21Car_Task100ms();
+            if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
+            {
+                F21Car_Task100ms();
+            }
+            else
+            {
+                F21Coop_Task100ms();
+            }
 #endif
         }
 
@@ -182,7 +202,14 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task200ms();
 #else
-            F21Car_Task200ms();
+            if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
+            {
+                F21Car_Task200ms();
+            }
+            else
+            {
+                F21Coop_Task200ms();
+            }
 #endif
         }
     }
