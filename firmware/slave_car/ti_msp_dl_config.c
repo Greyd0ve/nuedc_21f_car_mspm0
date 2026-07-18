@@ -58,6 +58,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_TIMER_SYS_init();
     SYSCFG_DL_I2C_SHARED_init();
     SYSCFG_DL_UART_DEBUG_init();
+    SYSCFG_DL_UART_TUNING_init();
     /* Ensure backup structures have no valid state */
 	gPWM_SERVOBackup.backupRdy 	= false;
 	gTIMER_SYSBackup.backupRdy 	= false;
@@ -98,6 +99,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerG_reset(TIMER_SYS_INST);
     DL_I2C_reset(I2C_SHARED_INST);
     DL_UART_Main_reset(UART_DEBUG_INST);
+    DL_UART_Main_reset(UART_TUNING_INST);
 
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
@@ -106,6 +108,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerG_enablePower(TIMER_SYS_INST);
     DL_I2C_enablePower(I2C_SHARED_INST);
     DL_UART_Main_enablePower(UART_DEBUG_INST);
+    DL_UART_Main_enablePower(UART_TUNING_INST);
     delay_cycles(POWER_STARTUP_DELAY);
 }
 
@@ -140,6 +143,11 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
         GPIO_UART_DEBUG_IOMUX_TX, GPIO_UART_DEBUG_IOMUX_TX_FUNC);
     DL_GPIO_initPeripheralInputFunction(
         GPIO_UART_DEBUG_IOMUX_RX, GPIO_UART_DEBUG_IOMUX_RX_FUNC);
+
+    DL_GPIO_initPeripheralOutputFunction(
+        GPIO_UART_TUNING_IOMUX_TX, GPIO_UART_TUNING_IOMUX_TX_FUNC);
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_UART_TUNING_IOMUX_RX, GPIO_UART_TUNING_IOMUX_RX_FUNC);
 
     DL_GPIO_initDigitalOutput(GPIO_MOTOR_L_IN1_IOMUX);
 
@@ -466,5 +474,29 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_DEBUG_init(void)
 
 
     DL_UART_Main_enable(UART_DEBUG_INST);
+}
+
+static const DL_UART_Main_ClockConfig gUART_TUNINGClockConfig = {
+    .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
+    .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
+};
+static const DL_UART_Main_Config gUART_TUNINGConfig = {
+    .mode        = DL_UART_MAIN_MODE_NORMAL,
+    .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
+    .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
+    .parity      = DL_UART_MAIN_PARITY_NONE,
+    .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
+    .stopBits    = DL_UART_MAIN_STOP_BITS_ONE
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_UART_TUNING_init(void)
+{
+    DL_UART_Main_setClockConfig(UART_TUNING_INST, (DL_UART_Main_ClockConfig *) &gUART_TUNINGClockConfig);
+    DL_UART_Main_init(UART_TUNING_INST, (DL_UART_Main_Config *) &gUART_TUNINGConfig);
+    DL_UART_Main_setOversampling(UART_TUNING_INST, DL_UART_OVERSAMPLING_RATE_16X);
+    DL_UART_Main_setBaudRateDivisor(UART_TUNING_INST,
+        UART_TUNING_IBRD_32_MHZ_9600_BAUD, UART_TUNING_FBRD_32_MHZ_9600_BAUD);
+    DL_UART_Main_enableInterrupt(UART_TUNING_INST, DL_UART_MAIN_INTERRUPT_RX);
+    DL_UART_Main_enable(UART_TUNING_INST);
 }
 

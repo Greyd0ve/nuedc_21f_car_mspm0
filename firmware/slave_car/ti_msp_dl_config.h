@@ -169,6 +169,23 @@ extern "C" {
 #define UART_DEBUG_IBRD_32_MHZ_115200_BAUD                                  (17)
 #define UART_DEBUG_FBRD_32_MHZ_115200_BAUD                                  (23)
 
+/* Defines for UART_TUNING */
+#define UART_TUNING_INST                                                    UART2
+#define UART_TUNING_INST_FREQUENCY                                       32000000
+#define UART_TUNING_INST_IRQHandler                              UART2_IRQHandler
+#define UART_TUNING_INST_INT_IRQN                                  UART2_INT_IRQn
+#define GPIO_UART_TUNING_RX_PORT                                           GPIOA
+#define GPIO_UART_TUNING_TX_PORT                                           GPIOA
+#define GPIO_UART_TUNING_RX_PIN                                    DL_GPIO_PIN_24
+#define GPIO_UART_TUNING_TX_PIN                                    DL_GPIO_PIN_23
+#define GPIO_UART_TUNING_IOMUX_RX                                 (IOMUX_PINCM54)
+#define GPIO_UART_TUNING_IOMUX_TX                                 (IOMUX_PINCM53)
+#define GPIO_UART_TUNING_IOMUX_RX_FUNC                  IOMUX_PINCM54_PF_UART2_RX
+#define GPIO_UART_TUNING_IOMUX_TX_FUNC                  IOMUX_PINCM53_PF_UART2_TX
+#define UART_TUNING_BAUD_RATE                                              (9600)
+#define UART_TUNING_IBRD_32_MHZ_9600_BAUD                                   (208)
+#define UART_TUNING_FBRD_32_MHZ_9600_BAUD                                    (21)
+
 
 
 
@@ -259,6 +276,7 @@ void SYSCFG_DL_PWM_SERVO_init(void);
 void SYSCFG_DL_TIMER_SYS_init(void);
 void SYSCFG_DL_I2C_SHARED_init(void);
 void SYSCFG_DL_UART_DEBUG_init(void);
+void SYSCFG_DL_UART_TUNING_init(void);
 
 /* Defines for GPIO_NRF */
 #define GPIO_NRF_NRF_CE_PORT                                    (GPIOB)

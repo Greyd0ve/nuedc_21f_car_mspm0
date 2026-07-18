@@ -14,6 +14,7 @@
 #include "Motor.h"
 #include "OLED.h"
 #include "Serial.h"
+#include "DebugSerial.h"
 #include "Servo.h"
 #include "Timer.h"
 #include "cmsis_compiler.h"
@@ -108,6 +109,7 @@ int main(void)
     Encoder_Init();
     BeepLed_Init();
     Serial_Init();
+    DebugSerial_Init();
     Servo_Init();
     CarBase_Init();
     F21Car_Init();

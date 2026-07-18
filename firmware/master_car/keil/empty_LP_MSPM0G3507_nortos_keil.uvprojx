@@ -493,6 +493,11 @@
               <FilePath>..\Hardware\Serial.c</FilePath>
             </File>
             <File>
+              <FileName>DebugSerial.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\DebugSerial.c</FilePath>
+            </File>
+            <File>
               <FileName>OLED.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Hardware\OLED.c</FilePath>

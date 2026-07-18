@@ -1,7 +1,7 @@
 #include "app_radio.h"
 #include "app_21f_car.h"
 #include "NRF24L01.h"
-#include "Serial.h"
+#include "DebugSerial.h"
 #include <stdint.h>
 
 #ifndef RADIO_DEBUG_ENABLE
@@ -9,7 +9,7 @@
 #endif
 
 #if RADIO_DEBUG_ENABLE
-#define RADIO_PRINTF(...) Serial_Printf(__VA_ARGS__)
+#define RADIO_PRINTF(...) DebugSerial_Printf(__VA_ARGS__)
 #else
 #define RADIO_PRINTF(...) do { } while (0)
 #endif
