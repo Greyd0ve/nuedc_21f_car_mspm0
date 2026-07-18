@@ -4,16 +4,18 @@
 #include <stdarg.h>
 
 #define DEBUG_RX_BUF_SIZE 128U
+#define DEBUG_PING_BUF_SIZE 64U
 
 static volatile uint8_t s_rxBuf[DEBUG_RX_BUF_SIZE];
 static volatile uint8_t s_rxHead = 0U;
 static volatile uint8_t s_rxTail = 0U;
+static volatile uint32_t s_rxOverflow = 0U;
 
 static void DebugSerial_PushRx(uint8_t byte)
 {
     uint8_t next = (uint8_t)(s_rxHead + 1U);
     if (next >= DEBUG_RX_BUF_SIZE) next = 0U;
-    if (next == s_rxTail) return;
+    if (next == s_rxTail) { s_rxOverflow++; return; }
     s_rxBuf[s_rxHead] = byte;
     s_rxHead = next;
 }
@@ -37,8 +39,14 @@ void DebugSerial_Init(void)
 {
     s_rxHead = 0U;
     s_rxTail = 0U;
+    s_rxOverflow = 0U;
     NVIC_ClearPendingIRQ(UART_TUNING_INST_INT_IRQN);
     NVIC_EnableIRQ(UART_TUNING_INST_INT_IRQN);
+}
+
+uint32_t DebugSerial_GetRxOverflowCount(void)
+{
+    return s_rxOverflow;
 }
 
 void DebugSerial_SendByte(uint8_t byte)
@@ -48,10 +56,7 @@ void DebugSerial_SendByte(uint8_t byte)
 
 void DebugSerial_SendString(const char *str)
 {
-    while (*str)
-    {
-        DebugSerial_SendByte((uint8_t)*str++);
-    }
+    while (*str) { DebugSerial_SendByte((uint8_t)*str++); }
 }
 
 uint8_t DebugSerial_ReadByte(uint8_t *byte)
@@ -63,25 +68,21 @@ uint8_t DebugSerial_ReadByte(uint8_t *byte)
     return 1U;
 }
 
-static void DebugSerial_SendNumber(uint32_t num, uint8_t len)
+static void DebugSerial_SendNumU(uint32_t num, uint8_t width, uint8_t zeroPad)
 {
-    uint8_t i;
     uint8_t buf[10];
-    for (i = 0U; i < len; i++)
-    {
-        buf[len - 1U - i] = (uint8_t)((num % 10U) + '0');
-        num /= 10U;
-    }
-    for (i = 0U; i < len; i++) { DebugSerial_SendByte(buf[i]); }
+    uint8_t i = 0U;
+    do { buf[i++] = (uint8_t)((num % 10U) + '0'); num /= 10U; } while (num > 0U);
+    while (zeroPad && i < width) { DebugSerial_SendByte('0'); width--; }
+    while (i > 0U) { DebugSerial_SendByte(buf[--i]); }
 }
 
 void DebugSerial_Printf(const char *format, ...)
 {
     va_list args;
     const char *p;
-    uint32_t uval;
+    uint8_t zeroPad, width;
     int32_t ival;
-    const char *sp;
 
     va_start(args, format);
     p = format;
@@ -89,23 +90,60 @@ void DebugSerial_Printf(const char *format, ...)
     {
         if (*p != '%') { DebugSerial_SendByte((uint8_t)*p++); continue; }
         p++;
+        zeroPad = 0U; width = 0U;
+        if (*p == '0') { zeroPad = 1U; p++; }
+        while (*p >= '0' && *p <= '9') { width = (uint8_t)(width * 10U + (uint8_t)(*p - '0')); p++; }
+        if (*p == 'l') p++;
         switch (*p)
         {
-        case 'u': uval = va_arg(args, uint32_t);
-                  { uint8_t n = 0U; uint32_t t = uval; do { n++; t /= 10U; } while (t > 0U); if (n == 0U) n = 1U; DebugSerial_SendNumber(uval, n); }
-                  break;
-        case 'd': ival = va_arg(args, int32_t);
-                  if (ival < 0) { DebugSerial_SendByte('-'); ival = -ival; }
-                  { uint8_t n = 0U; int32_t t = ival; do { n++; t /= 10; } while (t != 0); if (n == 0U) n = 1U; DebugSerial_SendNumber((uint32_t)ival, n); }
-                  break;
-        case 'x': uval = va_arg(args, uint32_t);
-                  { uint8_t i2; for (i2 = 8U; i2 > 0U; i2--) { uint8_t nib = (uint8_t)((uval >> ((i2 - 1U) * 4U)) & 0xFU); DebugSerial_SendByte(nib < 10U ? (uint8_t)('0' + nib) : (uint8_t)('A' + nib - 10U)); } }
-                  break;
-        case 's': sp = va_arg(args, const char *); while (*sp) DebugSerial_SendByte((uint8_t)*sp++); break;
+        case 'u': DebugSerial_SendNumU(va_arg(args, uint32_t), width, zeroPad); break;
+        case 'd':
+            ival = va_arg(args, int32_t);
+            if (ival < 0) { DebugSerial_SendByte('-'); ival = -ival; }
+            DebugSerial_SendNumU((uint32_t)ival, width, zeroPad);
+            break;
+        case 'x':
+        case 'X':
+            { uint32_t xv = va_arg(args, uint32_t); uint8_t xi; uint8_t xb[8];
+              for (xi = 0U; xi < 8U; xi++) { uint8_t n = (uint8_t)((xv >> (xi * 4U)) & 0xFU); xb[7U - xi] = n < 10U ? (uint8_t)('0' + n) : (uint8_t)((*p == 'X' ? 'A' : 'a') + n - 10U); }
+              xi = 0U; while (xi < 7U && xb[xi] == '0' && !zeroPad) xi++; if (width > 0U && (7U - xi) < width) { xi = 7U - width; if (xi > 7U) xi = 7U; }
+              while (xi < 8U) DebugSerial_SendByte(xb[xi++]); }
+            break;
+        case 'c': DebugSerial_SendByte((uint8_t)va_arg(args, int32_t)); break;
+        case 's': { const char *sp = va_arg(args, const char *); while (*sp) DebugSerial_SendByte((uint8_t)*sp++); } break;
         case '%': DebugSerial_SendByte('%'); break;
         default: DebugSerial_SendByte('%'); DebugSerial_SendByte((uint8_t)*p); break;
         }
         p++;
     }
     va_end(args);
+}
+
+void DebugSerial_Task10ms(void)
+{
+    static char buf[DEBUG_PING_BUF_SIZE];
+    static uint8_t idx = 0U;
+    uint8_t byte;
+
+    while (DebugSerial_ReadByte(&byte))
+    {
+        if (byte == '\r' || byte == '\n')
+        {
+            if (idx > 0U) { buf[idx] = '\0'; idx = 0U; }
+            continue;
+        }
+        if (idx >= sizeof(buf) - 1U) { idx = 0U; continue; }
+        if (byte == '[') { idx = 0U; }
+        buf[idx++] = (char)byte;
+        if (byte == ']')
+        {
+            buf[idx] = '\0';
+            idx = 0U;
+            if (buf[0] == '[' && buf[1] == 'p' && buf[2] == 'i' && buf[3] == 'n'
+                && buf[4] == 'g' && buf[5] == ']')
+            {
+                DebugSerial_SendString("[pong]\r\n");
+            }
+        }
+    }
 }

@@ -485,6 +485,7 @@ void F21Car_KeyProcess(void)
 void F21Car_SetTargetRoom(uint8_t room)
 {
     if (room < 1U || room > 8U) return;
+    if (s_state != F21_CAR_IDLE && s_state != F21_CAR_WAIT_START) return;
     s_targetRoom = room;
 }
 

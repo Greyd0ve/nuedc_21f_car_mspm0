@@ -108,7 +108,9 @@ int main(void)
     Motor_StopAll();
     Encoder_Init();
     BeepLed_Init();
+#if ENABLE_K230
     Serial_Init();
+#endif
     DebugSerial_Init();
     Servo_Init();
     CarBase_Init();
@@ -158,6 +160,7 @@ int main(void)
             BoardTest_Task10ms();
 #else
             App_Radio_Task10ms();
+            DebugSerial_Task10ms();
             F21Car_Task10ms();
 #endif
             taskCount--;

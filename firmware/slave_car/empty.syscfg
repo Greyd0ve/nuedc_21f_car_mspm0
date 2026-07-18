@@ -15,6 +15,7 @@ const GPIO2  = GPIO.addInstance();
 const GPIO3  = GPIO.addInstance();
 const GPIO4  = GPIO.addInstance();
 const GPIO5  = GPIO.addInstance();
+const GPIO_NRF = GPIO.addInstance();
 const I2C    = scripting.addModule("/ti/driverlib/I2C", {}, false);
 const I2C1   = I2C.addInstance();
 const PWM    = scripting.addModule("/ti/driverlib/PWM", {}, false);
@@ -215,30 +216,6 @@ UART1.enabledInterrupts        = ["RX"];
 UART1.peripheral.txPin.$assign = "PB6";
 UART1.peripheral.rxPin.$assign = "PB7";
 
-I2C1.$name                     = "I2C_SHARED";
-I2C1.basicEnableController     = true;
-I2C1.basicControllerBusSpeed   = 100000;
-I2C1.advAnalogGlitchFilter     = "DISABLED";
-I2C1.peripheral.$assign        = "I2C0";
-I2C1.peripheral.sclPin.$assign = "PA31";
-I2C1.peripheral.sdaPin.$assign = "PA28";
-
-/* TX1/RX1 is UART_DEBUG (UART1) for K230.
- * UART2 (TX=PA23, RX=PA24) for debug/tuning, 9600 8N1.
- */
-
-const UART   = scripting.addModule("/ti/driverlib/UART", {}, false);
-const UART1  = UART.addInstance();
-UART1.$name                    = "UART_DEBUG";
-UART1.profile                  = "CONFIG_PROFILE_1";
-UART1.peripheral.$assign       = "UART1";
-UART1.targetBaudRate           = 115200;
-UART1.enableInternalLoopback   = false;
-UART1.enableFIFO              = false;
-UART1.enabledInterrupts        = ["RX"];
-UART1.peripheral.txPin.$assign = "PB6";
-UART1.peripheral.rxPin.$assign = "PB7";
-
 const UART2  = UART.addInstance();
 UART2.$name                    = "UART_TUNING";
 UART2.profile                  = "CONFIG_PROFILE_1";
@@ -250,8 +227,14 @@ UART2.enabledInterrupts        = ["RX"];
 UART2.peripheral.txPin.$assign = "PA23";
 UART2.peripheral.rxPin.$assign = "PA24";
 
-const GPIO         = scripting.addModule("/ti/driverlib/GPIO", {}, false);
-const GPIO_NRF     = GPIO.addInstance();
+I2C1.$name                     = "I2C_SHARED";
+I2C1.basicEnableController     = true;
+I2C1.basicControllerBusSpeed   = 100000;
+I2C1.advAnalogGlitchFilter     = "DISABLED";
+I2C1.peripheral.$assign        = "I2C0";
+I2C1.peripheral.sclPin.$assign = "PA31";
+I2C1.peripheral.sdaPin.$assign = "PA28";
+
 GPIO_NRF.$name     = "GPIO_NRF";
 GPIO_NRF.pin1.$assign = "PB20";
 GPIO_NRF.pin1.$name = "NRF_CE";
@@ -273,7 +256,6 @@ GPIO_NRF.pin5.$assign = "PA10";
 GPIO_NRF.pin5.$name = "NRF_MISO";
 GPIO_NRF.pin5.dir    = "INPUT";
 GPIO_NRF.pin5.internalResistor = "NONE";
-GPIO_NRF.peripheral.$assign = "GPIOA";
 
 SYSCTL.forceDefaultClkConfig = true;
 SYSCTL.clockTreeEn = true;
