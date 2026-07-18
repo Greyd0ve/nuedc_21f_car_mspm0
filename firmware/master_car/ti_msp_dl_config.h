@@ -168,23 +168,22 @@ extern "C" {
 #define UART_DEBUG_BAUD_RATE                                            (115200)
 #define UART_DEBUG_IBRD_32_MHZ_115200_BAUD                                  (17)
 #define UART_DEBUG_FBRD_32_MHZ_115200_BAUD                                  (23)
-
 /* Defines for UART_TUNING */
-#define UART_TUNING_INST                                                    UART2
-#define UART_TUNING_INST_FREQUENCY                                       32000000
-#define UART_TUNING_INST_IRQHandler                              UART2_IRQHandler
-#define UART_TUNING_INST_INT_IRQN                                  UART2_INT_IRQn
+#define UART_TUNING_INST                                                   UART2
+#define UART_TUNING_INST_FREQUENCY                                      32000000
+#define UART_TUNING_INST_IRQHandler                             UART2_IRQHandler
+#define UART_TUNING_INST_INT_IRQN                                 UART2_INT_IRQn
 #define GPIO_UART_TUNING_RX_PORT                                           GPIOA
 #define GPIO_UART_TUNING_TX_PORT                                           GPIOA
-#define GPIO_UART_TUNING_RX_PIN                                    DL_GPIO_PIN_24
-#define GPIO_UART_TUNING_TX_PIN                                    DL_GPIO_PIN_23
-#define GPIO_UART_TUNING_IOMUX_RX                                 (IOMUX_PINCM54)
-#define GPIO_UART_TUNING_IOMUX_TX                                 (IOMUX_PINCM53)
-#define GPIO_UART_TUNING_IOMUX_RX_FUNC                  IOMUX_PINCM54_PF_UART2_RX
-#define GPIO_UART_TUNING_IOMUX_TX_FUNC                  IOMUX_PINCM53_PF_UART2_TX
-#define UART_TUNING_BAUD_RATE                                              (9600)
-#define UART_TUNING_IBRD_32_MHZ_9600_BAUD                                   (208)
-#define UART_TUNING_FBRD_32_MHZ_9600_BAUD                                    (21)
+#define GPIO_UART_TUNING_RX_PIN                                   DL_GPIO_PIN_24
+#define GPIO_UART_TUNING_TX_PIN                                   DL_GPIO_PIN_23
+#define GPIO_UART_TUNING_IOMUX_RX                                (IOMUX_PINCM54)
+#define GPIO_UART_TUNING_IOMUX_TX                                (IOMUX_PINCM53)
+#define GPIO_UART_TUNING_IOMUX_RX_FUNC                 IOMUX_PINCM54_PF_UART2_RX
+#define GPIO_UART_TUNING_IOMUX_TX_FUNC                 IOMUX_PINCM53_PF_UART2_TX
+#define UART_TUNING_BAUD_RATE                                             (9600)
+#define UART_TUNING_IBRD_32_MHZ_9600_BAUD                                  (208)
+#define UART_TUNING_FBRD_32_MHZ_9600_BAUD                                   (21)
 
 
 
@@ -264,6 +263,26 @@ extern "C" {
 #define GPIO_BOARD_IO_BEEP_PORT                                          (GPIOA)
 #define GPIO_BOARD_IO_BEEP_PIN                                   (DL_GPIO_PIN_7)
 #define GPIO_BOARD_IO_BEEP_IOMUX                                 (IOMUX_PINCM14)
+/* Defines for NRF_CE: GPIOB.20 with pinCMx 48 on package pin 19 */
+#define GPIO_NRF_NRF_CE_PORT                                             (GPIOB)
+#define GPIO_NRF_NRF_CE_PIN                                     (DL_GPIO_PIN_20)
+#define GPIO_NRF_NRF_CE_IOMUX                                    (IOMUX_PINCM48)
+/* Defines for NRF_CSN: GPIOA.8 with pinCMx 19 on package pin 54 */
+#define GPIO_NRF_NRF_CSN_PORT                                            (GPIOA)
+#define GPIO_NRF_NRF_CSN_PIN                                     (DL_GPIO_PIN_8)
+#define GPIO_NRF_NRF_CSN_IOMUX                                   (IOMUX_PINCM19)
+/* Defines for NRF_SCK: GPIOA.11 with pinCMx 22 on package pin 57 */
+#define GPIO_NRF_NRF_SCK_PORT                                            (GPIOA)
+#define GPIO_NRF_NRF_SCK_PIN                                    (DL_GPIO_PIN_11)
+#define GPIO_NRF_NRF_SCK_IOMUX                                   (IOMUX_PINCM22)
+/* Defines for NRF_MOSI: GPIOA.9 with pinCMx 20 on package pin 55 */
+#define GPIO_NRF_NRF_MOSI_PORT                                           (GPIOA)
+#define GPIO_NRF_NRF_MOSI_PIN                                    (DL_GPIO_PIN_9)
+#define GPIO_NRF_NRF_MOSI_IOMUX                                  (IOMUX_PINCM20)
+/* Defines for NRF_MISO: GPIOA.10 with pinCMx 21 on package pin 56 */
+#define GPIO_NRF_NRF_MISO_PORT                                           (GPIOA)
+#define GPIO_NRF_NRF_MISO_PIN                                   (DL_GPIO_PIN_10)
+#define GPIO_NRF_NRF_MISO_IOMUX                                  (IOMUX_PINCM21)
 
 /* clang-format on */
 
@@ -277,25 +296,6 @@ void SYSCFG_DL_TIMER_SYS_init(void);
 void SYSCFG_DL_I2C_SHARED_init(void);
 void SYSCFG_DL_UART_DEBUG_init(void);
 void SYSCFG_DL_UART_TUNING_init(void);
-
-/* Defines for GPIO_NRF */
-#define GPIO_NRF_NRF_CE_PORT                                    (GPIOB)
-#define GPIO_NRF_NRF_CE_PIN                                     (DL_GPIO_PIN_20)
-#define GPIO_NRF_NRF_CE_IOMUX                                   (IOMUX_PINCM48)
-#define GPIO_NRF_NRF_CSN_PORT                                   (GPIOA)
-#define GPIO_NRF_NRF_CSN_PIN                                    (DL_GPIO_PIN_8)
-#define GPIO_NRF_NRF_CSN_IOMUX                                  (IOMUX_PINCM19)
-#define GPIO_NRF_NRF_SCK_PORT                                   (GPIOA)
-#define GPIO_NRF_NRF_SCK_PIN                                    (DL_GPIO_PIN_11)
-#define GPIO_NRF_NRF_SCK_IOMUX                                  (IOMUX_PINCM22)
-#define GPIO_NRF_NRF_MOSI_PORT                                  (GPIOA)
-#define GPIO_NRF_NRF_MOSI_PIN                                   (DL_GPIO_PIN_9)
-#define GPIO_NRF_NRF_MOSI_IOMUX                                 (IOMUX_PINCM20)
-#define GPIO_NRF_NRF_MISO_PORT                                  (GPIOA)
-#define GPIO_NRF_NRF_MISO_PIN                                   (DL_GPIO_PIN_10)
-#define GPIO_NRF_NRF_MISO_IOMUX                                 (IOMUX_PINCM21)
-
-void SYSCFG_DL_GPIO_NRF_init(void);
 
 
 bool SYSCFG_DL_saveConfiguration(void);
