@@ -22,6 +22,7 @@
 #define F21_COOP_MID_DETECT_CM              120.0f
 #define F21_COOP_RETURN_DETECT_CM           20.0f
 #define F21_COOP_RETURN_HOME_CM             135.0f
+#define F21_COOP_RADIO_RETRY_MS             100U
 
 #define F21_COOP_CROSS_CONFIRM_TICKS \
     ((F21_CROSS_CONFIRM_MS + CAR_CONTROL_PERIOD_MS - 1U) / CAR_CONTROL_PERIOD_MS)
@@ -48,11 +49,15 @@ static volatile F21TurnDir_t s_returnTurnDir = F21_TURN_RIGHT;
 static volatile uint8_t s_targetSent = 0U;
 static volatile uint8_t s_slaveStartSent = 0U;
 static volatile uint8_t s_slaveReleaseSent = 0U;
+static volatile uint8_t s_slaveAtWaitReceived = 0U;
+static volatile uint8_t s_waitSlaveLogged = 0U;
 static volatile uint8_t s_finishUnlockSent = 0U;
 static volatile int32_t s_returnHomeRemainPulse = 0;
 #endif
 
 static volatile uint8_t s_yellowWaitActive = 0U;
+static volatile uint32_t s_radioRetryMs = F21_COOP_RADIO_RETRY_MS;
+static volatile uint8_t s_radioRetryFailCount = 0U;
 
 #if CAR_ROLE_MASTER
 static volatile F21CoopMasterState_t s_masterState = F21_COOP_MASTER_IDLE;
@@ -65,6 +70,8 @@ static uint8_t s_visionRxIdx = 0U;
 #if CAR_ROLE_SLAVE
 static volatile F21CoopSlaveState_t s_slaveState = F21_COOP_SLAVE_IDLE;
 static volatile uint8_t s_stateEntry = 0U;
+static volatile uint8_t s_atWaitSent = 0U;
+static volatile uint8_t s_releasePending = 0U;
 #endif
 
 static uint8_t Coop_IsRoom34(uint8_t room)
@@ -293,6 +300,33 @@ static uint8_t Coop_Turn180Right(void)
     return Coop_IsTurnComplete(F21_TURN_180_PULSE);
 }
 
+static void Coop_ResetRadioRetry(void)
+{
+    s_radioRetryMs = F21_COOP_RADIO_RETRY_MS;
+    s_radioRetryFailCount = 0U;
+}
+
+static uint8_t Coop_IsRadioRetryDue(void)
+{
+    if (s_radioRetryMs < F21_COOP_RADIO_RETRY_MS)
+    {
+        s_radioRetryMs += CAR_CONTROL_PERIOD_MS;
+        return 0U;
+    }
+
+    s_radioRetryMs = 0U;
+    return 1U;
+}
+
+static void Coop_LogRetryFailure(const char *tag)
+{
+    s_radioRetryFailCount++;
+    if (s_radioRetryFailCount == 1U || (s_radioRetryFailCount % 10U) == 0U)
+    {
+        DebugSerial_Printf("%s\r\n", tag);
+    }
+}
+
 static void Coop_SetYellowWait(uint8_t enable)
 {
     if (enable)
@@ -327,6 +361,8 @@ static void Coop_EnterFault(uint8_t code)
 #if CAR_ROLE_MASTER
     s_masterState = F21_COOP_MASTER_FAULT;
 #elif CAR_ROLE_SLAVE
+    s_releasePending = 0U;
+    s_atWaitSent = 0U;
     s_slaveState = F21_COOP_SLAVE_FAULT;
 #endif
 }
@@ -338,6 +374,13 @@ static void Coop_MasterSetState(F21CoopMasterState_t state)
 
     s_masterState = state;
     s_stateMs = 0U;
+
+    if (state == F21_COOP_MASTER_SEND_TARGET ||
+        state == F21_COOP_MASTER_SEND_SLAVE_START ||
+        state == F21_COOP_MASTER_SEND_RELEASE)
+    {
+        Coop_ResetRadioRetry();
+    }
 
     switch (state)
     {
@@ -371,6 +414,8 @@ static void Coop_MasterStartTask(uint8_t room)
     s_targetSent = 0U;
     s_slaveStartSent = 0U;
     s_slaveReleaseSent = 0U;
+    s_slaveAtWaitReceived = 0U;
+    s_waitSlaveLogged = 0U;
     s_finishUnlockSent = 0U;
     s_faultCode = 0U;
 
@@ -380,14 +425,7 @@ static void Coop_MasterStartTask(uint8_t room)
     Coop_ResetRunData();
 
     DebugSerial_Printf("[coop,target=%u]\r\n", (unsigned int)s_targetRoom);
-
-    if (s_targetSent == 0U)
-    {
-        (void)App_Radio_SendTargetRoom(s_targetRoom);
-        s_targetSent = 1U;
-    }
-
-    Coop_MasterSetState(F21_COOP_MASTER_LOAD_DELAY);
+    Coop_MasterSetState(F21_COOP_MASTER_SEND_TARGET);
 }
 
 #if ENABLE_K230
@@ -455,6 +493,99 @@ static void Coop_MasterVision_Process(void)
 }
 #endif
 
+static void Coop_MasterProcessRadio10ms(void)
+{
+    AppRadioCommand_t cmd;
+
+    while (App_Radio_PopCommand(&cmd))
+    {
+        if (cmd.cmd != RADIO_CMD_SLAVE_AT_WAIT)
+        {
+            DebugSerial_Printf("[coop,ignore,cmd=%u]\r\n", (unsigned int)cmd.cmd);
+            continue;
+        }
+
+        if (cmd.room_id != s_targetRoom)
+        {
+            DebugSerial_Printf("[coop,ignore,at_wait,room=%u]\r\n",
+                (unsigned int)cmd.room_id);
+            continue;
+        }
+
+        if (s_slaveStartSent == 0U)
+        {
+            continue;
+        }
+
+        if (s_masterState == F21_COOP_MASTER_UNLOAD_WAIT ||
+            s_masterState == F21_COOP_MASTER_SEND_SLAVE_START)
+        {
+            if (s_slaveAtWaitReceived == 0U)
+            {
+                s_slaveAtWaitReceived = 1U;
+                DebugSerial_Printf("[coop,master,slave_at_wait]\r\n");
+            }
+        }
+    }
+}
+
+static void Coop_MasterSendTarget10ms(void)
+{
+    Coop_SafeStop();
+
+    if (!Coop_IsRadioRetryDue()) return;
+
+    if (App_Radio_SendTargetRoom(s_targetRoom))
+    {
+        s_targetSent = 1U;
+        DebugSerial_Printf("[coop,master,target_sent]\r\n");
+        Coop_MasterSetState(F21_COOP_MASTER_LOAD_DELAY);
+    }
+    else
+    {
+        Coop_LogRetryFailure("[coop,master,target_retry]");
+    }
+}
+
+static void Coop_MasterSendSlaveStart10ms(void)
+{
+    Coop_SafeStop();
+
+    if (!Coop_IsRadioRetryDue()) return;
+
+    if (App_Radio_SendSlaveStart(s_targetRoom))
+    {
+        s_slaveStartSent = 1U;
+        s_slaveAtWaitReceived = 0U;
+        s_waitSlaveLogged = 0U;
+        DebugSerial_Printf("[coop,master,start_sent]\r\n");
+        Coop_MasterSetState(F21_COOP_MASTER_UNLOAD_WAIT);
+    }
+    else
+    {
+        Coop_LogRetryFailure("[coop,master,start_retry]");
+    }
+}
+
+static void Coop_MasterSendRelease10ms(void)
+{
+    Coop_SafeStop();
+
+    if (!Coop_IsRadioRetryDue()) return;
+
+    if (App_Radio_SendSlaveRelease(s_targetRoom))
+    {
+        s_slaveReleaseSent = 1U;
+        DebugSerial_Printf("[coop,master,release_sent]\r\n");
+        s_stateStartPulse = g_forwardEncoderTotal;
+        Coop_MasterSetState(F21_COOP_MASTER_RETURN_HOME);
+    }
+    else
+    {
+        Coop_LogRetryFailure("[coop,master,release_retry]");
+    }
+}
+
 static void Coop_MasterFinishTask10ms(void)
 {
     Coop_SafeStop();
@@ -476,6 +607,8 @@ static void Coop_MasterFinishTask10ms(void)
 
 static void Coop_MasterTask10ms(void)
 {
+    Coop_MasterProcessRadio10ms();
+
 #if ENABLE_K230
     if (Coop_MasterCanStart())
     {
@@ -488,6 +621,10 @@ static void Coop_MasterTask10ms(void)
     case F21_COOP_MASTER_IDLE:
     case F21_COOP_MASTER_WAIT_TARGET:
         Coop_SafeStop();
+        break;
+
+    case F21_COOP_MASTER_SEND_TARGET:
+        Coop_MasterSendTarget10ms();
         break;
 
     case F21_COOP_MASTER_LOAD_DELAY:
@@ -533,22 +670,26 @@ static void Coop_MasterTask10ms(void)
         if (Coop_LineRunDistance(s_stateStartPulse, s_roomRunPulse, F21_LINE_BASE_SPEED_CMPS))
         {
             Coop_SafeStop();
-            if (s_slaveStartSent == 0U)
-            {
-                (void)App_Radio_SendSlaveStart(s_targetRoom);
-                s_slaveStartSent = 1U;
-                DebugSerial_Printf("[coop,master,slave_start]\r\n");
-            }
-            Coop_MasterSetState(F21_COOP_MASTER_UNLOAD_WAIT);
+            Coop_MasterSetState(F21_COOP_MASTER_SEND_SLAVE_START);
         }
+        break;
+
+    case F21_COOP_MASTER_SEND_SLAVE_START:
+        Coop_MasterSendSlaveStart10ms();
         break;
 
     case F21_COOP_MASTER_UNLOAD_WAIT:
         Coop_SafeStop();
-        if (s_stateMs >= F21_UNLOAD_WAIT_MS)
+        if (s_stateMs >= F21_UNLOAD_WAIT_MS && s_slaveAtWaitReceived != 0U)
         {
             s_turnStartPulse = g_turnEncoderTotal;
+            DebugSerial_Printf("[coop,master,return_start]\r\n");
             Coop_MasterSetState(F21_COOP_MASTER_TURN_AROUND);
+        }
+        else if (s_stateMs >= F21_UNLOAD_WAIT_MS && s_waitSlaveLogged == 0U)
+        {
+            s_waitSlaveLogged = 1U;
+            DebugSerial_Printf("[coop,master,wait_slave]\r\n");
         }
         break;
 
@@ -603,18 +744,15 @@ static void Coop_MasterTask10ms(void)
         if (Coop_LineRunDistance(s_stateStartPulse, Coop_CmToPulse(F21_COOP_RELEASE_CLEAR_CM),
                 F21_LINE_BASE_SPEED_CMPS))
         {
-            if (s_slaveReleaseSent == 0U)
-            {
-                (void)App_Radio_SendSlaveRelease(s_targetRoom);
-                s_slaveReleaseSent = 1U;
-                DebugSerial_Printf("[coop,master,release]\r\n");
-            }
-
             s_returnHomeRemainPulse = s_returnFinalRunPulse - Coop_CmToPulse(F21_COOP_RELEASE_CLEAR_CM);
             if (s_returnHomeRemainPulse < 0) s_returnHomeRemainPulse = 0;
             s_stateStartPulse = g_forwardEncoderTotal;
-            Coop_MasterSetState(F21_COOP_MASTER_RETURN_HOME);
+            Coop_MasterSetState(F21_COOP_MASTER_SEND_RELEASE);
         }
+        break;
+
+    case F21_COOP_MASTER_SEND_RELEASE:
+        Coop_MasterSendRelease10ms();
         break;
 
     case F21_COOP_MASTER_RETURN_HOME:
@@ -667,6 +805,14 @@ static uint8_t Coop_TakeStateEntry(void)
     return 0U;
 }
 
+static uint8_t Coop_SlaveIsGoingToWaitRoom(void)
+{
+    return (s_slaveState == F21_COOP_SLAVE_GO_WAIT_MAIN ||
+            s_slaveState == F21_COOP_SLAVE_GO_WAIT_CROSS_ADVANCE ||
+            s_slaveState == F21_COOP_SLAVE_GO_WAIT_TURN ||
+            s_slaveState == F21_COOP_SLAVE_GO_WAIT_ROOM) ? 1U : 0U;
+}
+
 static void Coop_SlaveSetState(F21CoopSlaveState_t state)
 {
     if (s_slaveState == state) return;
@@ -678,6 +824,8 @@ static void Coop_SlaveSetState(F21CoopSlaveState_t state)
     switch (state)
     {
     case F21_COOP_SLAVE_YELLOW_WAIT:
+        s_atWaitSent = 0U;
+        Coop_ResetRadioRetry();
         DebugSerial_Printf("[coop,slave,yellow_wait]\r\n");
         break;
     case F21_COOP_SLAVE_TARGET_ROOM_RUN:
@@ -696,6 +844,38 @@ static void Coop_SlaveIgnore(uint8_t cmd)
     DebugSerial_Printf("[coop,ignore,cmd=%u]\r\n", (unsigned int)cmd);
 }
 
+static void Coop_SlaveIgnoreRoom(uint8_t room)
+{
+    DebugSerial_Printf("[coop,ignore,room=%u]\r\n", (unsigned int)room);
+}
+
+static void Coop_SlaveAtWaitTask10ms(void)
+{
+    Coop_SafeStop();
+    Coop_SetYellowWait(1U);
+
+    if (s_atWaitSent == 0U && Coop_IsRadioRetryDue())
+    {
+        if (App_Radio_SendSlaveAtWait(s_targetRoom))
+        {
+            s_atWaitSent = 1U;
+            DebugSerial_Printf("[coop,slave,at_wait_sent]\r\n");
+        }
+        else
+        {
+            Coop_LogRetryFailure("[coop,slave,at_wait_retry]");
+        }
+    }
+
+    if (s_releasePending != 0U)
+    {
+        s_releasePending = 0U;
+        Coop_SetYellowWait(0U);
+        DebugSerial_Printf("[coop,slave,release]\r\n");
+        Coop_SlaveSetState(F21_COOP_SLAVE_LEAVE_WAIT_TURN_AROUND);
+    }
+}
+
 static void Coop_SlaveOnRadioCommand(uint8_t cmd, uint8_t room)
 {
     switch (cmd)
@@ -703,20 +883,32 @@ static void Coop_SlaveOnRadioCommand(uint8_t cmd, uint8_t room)
     case RADIO_CMD_TARGET_ROOM:
         if (!Coop_IsRoom34(room))
         {
-            Coop_SlaveIgnore(cmd);
+            Coop_SlaveIgnoreRoom(room);
             return;
         }
 
-        if (s_slaveState == F21_COOP_SLAVE_IDLE ||
-            s_slaveState == F21_COOP_SLAVE_WAIT_START)
+        if (s_slaveState == F21_COOP_SLAVE_IDLE)
         {
             s_targetRoom = room;
             s_waitRoom = Coop_GetOppositeRoom(room);
             s_faultCode = 0U;
+            s_releasePending = 0U;
+            s_atWaitSent = 0U;
             Coop_SetYellowWait(0U);
             Coop_SlaveSetState(F21_COOP_SLAVE_WAIT_START);
             DebugSerial_Printf("[coop,slave,target=%u,wait=%u]\r\n",
                 (unsigned int)s_targetRoom, (unsigned int)s_waitRoom);
+        }
+        else if (s_slaveState == F21_COOP_SLAVE_WAIT_START)
+        {
+            if (room == s_targetRoom)
+            {
+                return;
+            }
+            else
+            {
+                Coop_SlaveIgnoreRoom(room);
+            }
         }
         else
         {
@@ -725,9 +917,12 @@ static void Coop_SlaveOnRadioCommand(uint8_t cmd, uint8_t room)
         break;
 
     case RADIO_CMD_SLAVE_START:
-        if (s_slaveState == F21_COOP_SLAVE_WAIT_START)
+        if (room != s_targetRoom)
         {
-            (void)room;
+            Coop_SlaveIgnoreRoom(room);
+        }
+        else if (s_slaveState == F21_COOP_SLAVE_WAIT_START)
+        {
             DebugSerial_Printf("[coop,slave,start]\r\n");
             Coop_SlaveSetState(F21_COOP_SLAVE_GO_WAIT_MAIN);
         }
@@ -738,11 +933,24 @@ static void Coop_SlaveOnRadioCommand(uint8_t cmd, uint8_t room)
         break;
 
     case RADIO_CMD_SLAVE_RELEASE:
-        if (s_slaveState == F21_COOP_SLAVE_YELLOW_WAIT)
+        if (room != s_targetRoom)
         {
-            (void)room;
+            Coop_SlaveIgnoreRoom(room);
+        }
+        else if (s_slaveState == F21_COOP_SLAVE_YELLOW_WAIT)
+        {
+            s_releasePending = 0U;
+            Coop_SetYellowWait(0U);
             DebugSerial_Printf("[coop,slave,release]\r\n");
             Coop_SlaveSetState(F21_COOP_SLAVE_LEAVE_WAIT_TURN_AROUND);
+        }
+        else if (Coop_SlaveIsGoingToWaitRoom())
+        {
+            if (s_releasePending == 0U)
+            {
+                s_releasePending = 1U;
+                DebugSerial_Printf("[coop,slave,release_pending]\r\n");
+            }
         }
         else
         {
@@ -832,8 +1040,7 @@ static void Coop_SlaveTask10ms(void)
         break;
 
     case F21_COOP_SLAVE_YELLOW_WAIT:
-        Coop_SafeStop();
-        Coop_SetYellowWait(1U);
+        Coop_SlaveAtWaitTask10ms();
         break;
 
     case F21_COOP_SLAVE_LEAVE_WAIT_TURN_AROUND:
@@ -1040,6 +1247,11 @@ void F21Coop_HandleKey(uint8_t key)
         {
             Coop_SafeStop();
             Coop_SetYellowWait(0U);
+            s_targetSent = 0U;
+            s_slaveStartSent = 0U;
+            s_slaveReleaseSent = 0U;
+            s_slaveAtWaitReceived = 0U;
+            s_waitSlaveLogged = 0U;
             Coop_MasterSetState(F21_COOP_MASTER_STOP);
         }
 #elif CAR_ROLE_SLAVE
@@ -1049,6 +1261,8 @@ void F21Coop_HandleKey(uint8_t key)
         {
             Coop_SafeStop();
             Coop_SetYellowWait(0U);
+            s_releasePending = 0U;
+            s_atWaitSent = 0U;
             Coop_SlaveSetState(F21_COOP_SLAVE_STOP);
         }
 #endif
@@ -1077,6 +1291,8 @@ void F21Coop_ResetTask(void)
     s_targetSent = 0U;
     s_slaveStartSent = 0U;
     s_slaveReleaseSent = 0U;
+    s_slaveAtWaitReceived = 0U;
+    s_waitSlaveLogged = 0U;
     s_finishUnlockSent = 0U;
     s_returnHomeRemainPulse = 0;
 #endif
@@ -1089,8 +1305,12 @@ void F21Coop_ResetTask(void)
 #endif
 
 #if CAR_ROLE_SLAVE
+    s_atWaitSent = 0U;
+    s_releasePending = 0U;
     s_slaveState = F21_COOP_SLAVE_IDLE;
 #endif
+
+    Coop_ResetRadioRetry();
 }
 
 uint8_t F21Coop_IsModeSwitchAllowed(void)

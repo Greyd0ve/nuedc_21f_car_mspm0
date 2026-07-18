@@ -12,6 +12,7 @@
 #define RADIO_CMD_PONG           0x04
 #define RADIO_CMD_SLAVE_START    0x05
 #define RADIO_CMD_SLAVE_RELEASE  0x06
+#define RADIO_CMD_SLAVE_AT_WAIT  0x07
 
 typedef struct {
     uint8_t header;
@@ -45,6 +46,7 @@ uint8_t App_Radio_SendSlaveRelease(uint8_t room);
 #endif
 
 #if CAR_ROLE_SLAVE
+uint8_t App_Radio_SendSlaveAtWait(uint8_t room);
 uint8_t App_Radio_HasNewTarget(uint8_t *room);
 uint8_t App_Radio_GetSavedTargetRoom(void);
 #endif
