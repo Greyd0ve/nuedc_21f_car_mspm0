@@ -3,6 +3,7 @@
 #include "app_board_test.h"
 #include "app_car_base.h"
 #include "app_21f_car.h"
+#include "app_radio.h"
 #include "app_control.h"
 #include "app_line.h"
 #include "BeepLed.h"
@@ -110,6 +111,7 @@ int main(void)
     Servo_Init();
     CarBase_Init();
     F21Car_Init();
+    App_Radio_Init();
 
 #if CAR_OLED_ENABLE
     OLED_Init();
@@ -153,6 +155,7 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task10ms();
 #else
+            App_Radio_Task10ms();
             F21Car_Task10ms();
 #endif
             taskCount--;

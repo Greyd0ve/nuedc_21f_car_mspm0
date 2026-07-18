@@ -17,9 +17,6 @@
 #define NRF_MISO_PORT GPIOA
 #define NRF_MISO_PIN  DL_GPIO_PIN_10
 
-#define NRF_IRQ_PORT  GPIOB
-#define NRF_IRQ_PIN   DL_GPIO_PIN_9
-
 #define NRF_CE_LOW()   DL_GPIO_clearPins(NRF_CE_PORT, NRF_CE_PIN)
 #define NRF_CE_HIGH()  DL_GPIO_setPins(NRF_CE_PORT, NRF_CE_PIN)
 
@@ -34,9 +31,8 @@
 
 #define NRF_MISO_READ() (DL_GPIO_readPins(NRF_MISO_PORT, NRF_MISO_PIN) ? 1U : 0U)
 
-#define NRF_IRQ_READ()  (DL_GPIO_readPins(NRF_IRQ_PORT, NRF_IRQ_PIN) == 0U)
+#define NRF_USE_IRQ 0
 
-/* NRF24L01 register definitions */
 #define NRF_REG_CONFIG      0x00
 #define NRF_REG_EN_AA       0x01
 #define NRF_REG_EN_RXADDR   0x02
@@ -63,34 +59,29 @@
 #define NRF_STATUS_TX_DS   0x20
 #define NRF_STATUS_MAX_RT  0x10
 
-#define NRF_PAYLOAD_WIDTH  32
+#define NRF_PAYLOAD_WIDTH  32U
+#define NRF_TX_TIMEOUT_MS  20U
 
-static void NRF_SPI_Delay(void)
+static void NRF_DelayUs(volatile uint32_t us)
 {
-    volatile uint8_t i;
-    for (i = 0U; i < 2U; i++) { }
+    while (us--) { volatile uint8_t i; for (i = 0U; i < 12U; i++) { } }
 }
 
 static uint8_t NRF_SPI_RW(uint8_t byte)
 {
     uint8_t i;
     uint8_t rx = 0U;
-
     for (i = 0U; i < 8U; i++)
     {
         if (byte & 0x80U) NRF_MOSI_HIGH(); else NRF_MOSI_LOW();
         byte <<= 1U;
-
-        NRF_SPI_Delay();
+        NRF_DelayUs(1U);
         NRF_SCK_HIGH();
-
         rx <<= 1U;
         if (NRF_MISO_READ()) rx |= 1U;
-
-        NRF_SPI_Delay();
+        NRF_DelayUs(1U);
         NRF_SCK_LOW();
     }
-
     return rx;
 }
 
@@ -130,10 +121,7 @@ uint8_t NRF24L01_ReadBuf(uint8_t reg, uint8_t *buf, uint8_t len)
     uint8_t i;
     NRF_CSN_LOW();
     status = NRF_SPI_RW((uint8_t)(NRF_CMD_R_REGISTER | (reg & 0x1FU)));
-    for (i = 0U; i < len; i++)
-    {
-        buf[i] = NRF_SPI_RW(0xFFU);
-    }
+    for (i = 0U; i < len; i++) { buf[i] = NRF_SPI_RW(0xFFU); }
     NRF_CSN_HIGH();
     return status;
 }
@@ -144,10 +132,7 @@ uint8_t NRF24L01_WriteBuf(uint8_t reg, const uint8_t *buf, uint8_t len)
     uint8_t i;
     NRF_CSN_LOW();
     status = NRF_SPI_RW((uint8_t)(NRF_CMD_W_REGISTER | (reg & 0x1FU)));
-    for (i = 0U; i < len; i++)
-    {
-        NRF_SPI_RW(buf[i]);
-    }
+    for (i = 0U; i < len; i++) { NRF_SPI_RW(buf[i]); }
     NRF_CSN_HIGH();
     return status;
 }
@@ -168,7 +153,26 @@ void NRF24L01_FlushRX(void)
 
 void NRF24L01_ClearIRQFlags(void)
 {
-    NRF24L01_WriteReg(NRF_REG_STATUS, NRF_STATUS_RX_DR | NRF_STATUS_TX_DS | NRF_STATUS_MAX_RT);
+    uint8_t mask = NRF_STATUS_RX_DR | NRF_STATUS_TX_DS | NRF_STATUS_MAX_RT;
+    NRF24L01_WriteReg(NRF_REG_STATUS, mask);
+}
+
+uint8_t NRF24L01_Check(void)
+{
+    uint8_t orig[5];
+    uint8_t test[5] = {0xA5, 0x5A, 0xC3, 0x3C, 0x96};
+    uint8_t back[5];
+    uint8_t i;
+    uint8_t ok;
+
+    NRF24L01_ReadBuf(NRF_REG_TX_ADDR, orig, 5);
+    NRF24L01_WriteBuf(NRF_REG_TX_ADDR, test, 5);
+    NRF24L01_ReadBuf(NRF_REG_TX_ADDR, back, 5);
+    NRF24L01_WriteBuf(NRF_REG_TX_ADDR, orig, 5);
+
+    ok = 1U;
+    for (i = 0U; i < 5U; i++) { if (back[i] != test[i]) ok = 0U; }
+    return ok;
 }
 
 void NRF24L01_Init(void)
@@ -176,96 +180,73 @@ void NRF24L01_Init(void)
     NRF_CE_LOW();
     NRF_CSN_HIGH();
 
-    DL_GPIO_initDigitalOutput(NRF_CE_PIN);
-    DL_GPIO_initDigitalOutput(NRF_CSN_PIN);
-    DL_GPIO_initDigitalOutput(NRF_SCK_PIN);
-    DL_GPIO_initDigitalOutput(NRF_MOSI_PIN);
-    DL_GPIO_initDigitalInput(NRF_MISO_PIN);
+    DL_GPIO_initDigitalOutput(NRF_CE_PORT, NRF_CE_PIN);
+    DL_GPIO_initDigitalOutput(NRF_CSN_PORT, NRF_CSN_PIN);
+    DL_GPIO_initDigitalOutput(NRF_SCK_PORT, NRF_SCK_PIN);
+    DL_GPIO_initDigitalOutput(NRF_MOSI_PORT, NRF_MOSI_PIN);
+    DL_GPIO_initDigitalInput(NRF_MISO_PORT, NRF_MISO_PIN);
 
     NRF_SCK_LOW();
     NRF_MOSI_LOW();
-
     NRF_CE_LOW();
-
-    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x08);
-    NRF24L01_WriteReg(NRF_REG_EN_AA, 0x01);
-    NRF24L01_WriteReg(NRF_REG_EN_RXADDR, 0x01);
-    NRF24L01_WriteReg(NRF_REG_SETUP_AW, 0x03);
-    NRF24L01_WriteReg(NRF_REG_SETUP_RETR, 0x00);
-    NRF24L01_WriteReg(NRF_REG_RF_CH, 40U);
-    NRF24L01_WriteReg(NRF_REG_RF_SETUP, 0x07);
-    NRF24L01_WriteReg(NRF_REG_RX_PW_P0, NRF_PAYLOAD_WIDTH);
-    NRF24L01_WriteReg(NRF_REG_DYNPD, 0x00);
-    NRF24L01_WriteReg(NRF_REG_FEATURE, 0x00);
-
-    NRF24L01_FlushTX();
-    NRF24L01_FlushRX();
-    NRF24L01_ClearIRQFlags();
-
-    NRF_CE_LOW();
-}
-
-uint8_t NRF24L01_Check(void)
-{
-    uint8_t val = NRF24L01_ReadReg(NRF_REG_CONFIG);
-    return (val == 0x08U) ? 1U : 0U;
 }
 
 void NRF24L01_RX_Mode(void)
 {
     NRF_CE_LOW();
-    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0B);
+    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0F);
+    NRF24L01_ClearIRQFlags();
+    NRF_DelayUs(2000U);
     NRF_CE_HIGH();
 }
 
 void NRF24L01_TX_Mode(void)
 {
     NRF_CE_LOW();
-    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0A);
-    NRF_CE_HIGH();
+    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0E);
+    NRF24L01_ClearIRQFlags();
+    NRF_DelayUs(2000U);
 }
 
 uint8_t NRF24L01_SendPacket(const uint8_t *buf, uint8_t len)
 {
-    uint8_t status;
     uint8_t i;
+    uint8_t status;
+    uint32_t timeout;
 
     NRF_CE_LOW();
+    NRF24L01_TX_Mode();
     NRF24L01_FlushTX();
     NRF24L01_ClearIRQFlags();
 
     NRF_CSN_LOW();
     NRF_SPI_RW(NRF_CMD_W_TX_PAYLOAD);
-    for (i = 0U; i < len && i < NRF_PAYLOAD_WIDTH; i++)
-    {
-        NRF_SPI_RW(buf[i]);
-    }
+    for (i = 0U; i < len && i < NRF_PAYLOAD_WIDTH; i++) { NRF_SPI_RW(buf[i]); }
     NRF_CSN_HIGH();
 
     NRF_CE_HIGH();
-
-    for (i = 0U; i < 100U; i++)
-    {
-        NRF_SPI_Delay();
-    }
-
-    status = NRF24L01_ReadReg(NRF_REG_STATUS);
-
-    if (status & NRF_STATUS_TX_DS)
-    {
-        NRF24L01_ClearIRQFlags();
-        NRF_CE_LOW();
-        return 1U;
-    }
-    if (status & NRF_STATUS_MAX_RT)
-    {
-        NRF24L01_ClearIRQFlags();
-        NRF24L01_FlushTX();
-        NRF_CE_LOW();
-        return 0U;
-    }
-
+    NRF_DelayUs(20U);
     NRF_CE_LOW();
+
+    for (timeout = 0U; timeout < NRF_TX_TIMEOUT_MS; timeout++)
+    {
+        status = NRF24L01_ReadReg(NRF_REG_STATUS);
+        if (status & NRF_STATUS_TX_DS)
+        {
+            NRF24L01_ClearIRQFlags();
+            return 1U;
+        }
+        if (status & NRF_STATUS_MAX_RT)
+        {
+            NRF24L01_ClearIRQFlags();
+            NRF24L01_FlushTX();
+            return 0U;
+        }
+        NRF_DelayUs(1000U);
+    }
+
+    NRF24L01_ClearIRQFlags();
+    NRF24L01_FlushTX();
     return 0U;
 }
 
@@ -275,18 +256,11 @@ uint8_t NRF24L01_ReceivePacket(uint8_t *buf, uint8_t len)
     uint8_t i;
 
     status = NRF24L01_ReadReg(NRF_REG_STATUS);
-
-    if (!(status & NRF_STATUS_RX_DR))
-    {
-        return 0U;
-    }
+    if (!(status & NRF_STATUS_RX_DR)) return 0U;
 
     NRF_CSN_LOW();
     NRF_SPI_RW(NRF_CMD_R_RX_PAYLOAD);
-    for (i = 0U; i < len && i < NRF_PAYLOAD_WIDTH; i++)
-    {
-        buf[i] = NRF_SPI_RW(0xFFU);
-    }
+    for (i = 0U; i < len && i < NRF_PAYLOAD_WIDTH; i++) { buf[i] = NRF_SPI_RW(0xFFU); }
     NRF_CSN_HIGH();
 
     NRF24L01_ClearIRQFlags();

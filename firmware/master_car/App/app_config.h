@@ -23,6 +23,23 @@
 #define CAR_BASE_BOOT_PROMPT_ENABLE             0
 #endif
 
+#ifndef CAR_ROLE_MASTER
+#define CAR_ROLE_MASTER                         1
+#endif
+#ifndef CAR_ROLE_SLAVE
+#define CAR_ROLE_SLAVE                          0
+#endif
+#ifndef CAR_ID
+#define CAR_ID                                  1
+#endif
+#ifndef ENABLE_K230
+#define ENABLE_K230                             1
+#endif
+
+#ifndef RADIO_DEBUG_ENABLE
+#define RADIO_DEBUG_ENABLE                      1
+#endif
+
 /* Temporary encoder-only memory corruption diagnostic mode. */
 #ifndef ECAR_ENCODER_MINIMAL_DEBUG
 #define ECAR_ENCODER_MINIMAL_DEBUG              0

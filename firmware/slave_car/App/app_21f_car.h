@@ -100,4 +100,7 @@ void F21Car_KeyProcess(void);
 void F21Car_Task100ms(void);
 void F21Car_Task200ms(void);
 
+void F21Car_SetTargetRoom(uint8_t room);
+uint8_t F21Car_GetTargetRoom(void);
+
 #endif

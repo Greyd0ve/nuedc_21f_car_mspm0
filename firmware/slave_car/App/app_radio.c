@@ -1,12 +1,10 @@
 #include "app_radio.h"
-#include "app_config.h"
 #include "NRF24L01.h"
-#include "BeepLed.h"
 #include "Serial.h"
 #include <stdint.h>
 
 #ifndef RADIO_DEBUG_ENABLE
-#define RADIO_DEBUG_ENABLE 0
+#define RADIO_DEBUG_ENABLE 1
 #endif
 
 #if RADIO_DEBUG_ENABLE
@@ -37,13 +35,15 @@ static uint8_t Radio_ComputeChecksum(const RadioPacket_t *pkt)
 static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
 {
     if (pkt->header != RADIO_HEADER) return 0U;
-
 #if CAR_ROLE_SLAVE
+    if (pkt->sender_id != 1U) return 0U;
     if (pkt->target_id != 2U) return 0U;
+    if (pkt->room_id < 1U || pkt->room_id > 8U) return 0U;
 #else
+    if (pkt->sender_id != 2U) return 0U;
     if (pkt->target_id != 1U) return 0U;
 #endif
-
+    if (pkt->cmd != RADIO_CMD_TARGET_ROOM) return 0U;
     if (Radio_ComputeChecksum(pkt) != pkt->checksum) return 0U;
     return 1U;
 }
@@ -52,52 +52,45 @@ void App_Radio_Init(void)
 {
     NRF24L01_Init();
 
+    if (!NRF24L01_Check())
+    {
+        RADIO_PRINTF("[radio,init,fail]\r\n");
+        return;
+    }
+
     NRF24L01_CE_Set(0);
+
+    NRF24L01_WriteReg(NRF_REG_EN_AA, 0x3F);
+    NRF24L01_WriteReg(NRF_REG_EN_RXADDR, 0x01);
+    NRF24L01_WriteReg(NRF_REG_SETUP_AW, 0x03);
+    NRF24L01_WriteReg(NRF_REG_SETUP_RETR, 0x1A);
+    NRF24L01_WriteReg(NRF_REG_RF_CH, NRF_RF_CHANNEL);
+    NRF24L01_WriteReg(NRF_REG_RF_SETUP, 0x07);
+    NRF24L01_WriteReg(NRF_REG_RX_PW_P0, NRF_PAYLOAD_SIZE);
+    NRF24L01_WriteReg(NRF_REG_DYNPD, 0x00);
+    NRF24L01_WriteReg(NRF_REG_FEATURE, 0x00);
+
+    NRF24L01_WriteBuf(NRF_REG_RX_ADDR_P0, NRF_ADDR_SLAVE, 5);
+    NRF24L01_WriteBuf(NRF_REG_TX_ADDR, NRF_ADDR_SLAVE, 5);
+
     NRF24L01_FlushTX();
     NRF24L01_FlushRX();
     NRF24L01_ClearIRQFlags();
 
-    NRF24L01_WriteReg(0x01, 0x01);
-    NRF24L01_WriteReg(0x02, 0x01);
-    NRF24L01_WriteReg(0x03, 0x03);
-    NRF24L01_WriteReg(0x04, 0x00);
-    NRF24L01_WriteReg(0x05, NRF_RF_CHANNEL);
-    NRF24L01_WriteReg(0x06, 0x07);
-
-    NRF24L01_WriteBuf(0x0A, NRF_ADDR_MASTER, 5);
-    NRF24L01_WriteBuf(0x10, NRF_ADDR_MASTER, 5);
-    NRF24L01_WriteReg(0x11, NRF_PAYLOAD_SIZE);
-
 #if CAR_ROLE_SLAVE
-    NRF24L01_WriteBuf(0x0A, NRF_ADDR_SLAVE, 5);
-    {
-        uint8_t cfg = 0x0B;
-        NRF24L01_WriteReg(0x00, cfg);
-    }
+    NRF24L01_RX_Mode();
 #else
-    {
-        uint8_t cfg = 0x0A;
-        NRF24L01_WriteReg(0x00, cfg);
-    }
+    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0E);
 #endif
-    NRF24L01_CE_Set(1);
 
-    if (NRF24L01_Check())
-    {
-        s_radioReady = 1U;
-        RADIO_PRINTF("[radio,init,ok]\r\n");
-    }
-    else
-    {
-        RADIO_PRINTF("[radio,init,fail]\r\n");
-    }
+    s_radioReady = 1U;
+    RADIO_PRINTF("[radio,init,ok]\r\n");
 }
 
 #if CAR_ROLE_MASTER
 uint8_t App_Radio_SendTargetRoom(uint8_t room)
 {
     RadioPacket_t pkt;
-
     if (!s_radioReady) return 0U;
 
     pkt.header    = RADIO_HEADER;
@@ -109,17 +102,12 @@ uint8_t App_Radio_SendTargetRoom(uint8_t room)
     pkt.reserved  = 0U;
     pkt.checksum  = Radio_ComputeChecksum(&pkt);
 
-    NRF24L01_CE_Set(0);
-    NRF24L01_WriteBuf(0x10, NRF_ADDR_SLAVE, 5);
-    NRF24L01_CE_Set(1);
-
     if (NRF24L01_SendPacket((const uint8_t *)&pkt, NRF_PAYLOAD_SIZE))
     {
-        RADIO_PRINTF("[radio,tx,room=%u,ok]\r\n", (unsigned int)room);
+        RADIO_PRINTF("[radio,tx,target=%u,ack]\r\n", (unsigned int)room);
         return 1U;
     }
-
-    RADIO_PRINTF("[radio,tx,room=%u,fail]\r\n", (unsigned int)room);
+    RADIO_PRINTF("[radio,tx,target=%u,fail]\r\n", (unsigned int)room);
     return 0U;
 }
 #endif
@@ -128,45 +116,21 @@ uint8_t App_Radio_SendTargetRoom(uint8_t room)
 uint8_t App_Radio_HasNewTarget(uint8_t *room)
 {
     RadioPacket_t pkt;
-
     if (!s_radioReady) return 0U;
 
     if (!NRF24L01_ReceivePacket((uint8_t *)&pkt, NRF_PAYLOAD_SIZE))
         return 0U;
 
-    if (!Radio_ValidatePacket(&pkt)) return 0U;
-
-    if (pkt.cmd == RADIO_CMD_TARGET_ROOM)
+    if (!Radio_ValidatePacket(&pkt))
     {
-        s_savedTargetRoom = pkt.room_id;
-        RADIO_PRINTF("[radio,rx,target=%u]\r\n", (unsigned int)pkt.room_id);
-
-        {
-            RadioPacket_t ack;
-            ack.header    = RADIO_HEADER;
-            ack.sender_id = 2U;
-            ack.target_id = 1U;
-            ack.cmd       = RADIO_CMD_ACK;
-            ack.room_id   = pkt.room_id;
-            ack.seq       = pkt.seq;
-            ack.reserved  = 0U;
-            ack.checksum  = Radio_ComputeChecksum(&ack);
-
-            NRF24L01_CE_Set(0);
-            NRF24L01_WriteBuf(0x10, NRF_ADDR_MASTER, 5);
-            NRF24L01_CE_Set(1);
-
-            if (NRF24L01_SendPacket((const uint8_t *)&ack, NRF_PAYLOAD_SIZE))
-            {
-                RADIO_PRINTF("[radio,tx,ack,ok]\r\n");
-            }
-        }
-
-        if (room) *room = pkt.room_id;
-        return 1U;
+        RADIO_PRINTF("[radio,rx,invalid]\r\n");
+        return 0U;
     }
 
-    return 0U;
+    s_savedTargetRoom = pkt.room_id;
+    RADIO_PRINTF("[radio,rx,target=%u]\r\n", (unsigned int)pkt.room_id);
+    if (room) *room = pkt.room_id;
+    return 1U;
 }
 
 uint8_t App_Radio_GetSavedTargetRoom(void)

@@ -2,6 +2,7 @@
 #define __APP_RADIO_H
 
 #include <stdint.h>
+#include "app_config.h"
 
 #define RADIO_HEADER             0xA5
 
@@ -24,10 +25,12 @@ typedef struct {
 void App_Radio_Init(void);
 void App_Radio_Task10ms(void);
 
+#if CAR_ROLE_MASTER
 uint8_t App_Radio_SendTargetRoom(uint8_t room);
-uint8_t App_Radio_HasNewTarget(uint8_t *room);
+#endif
 
-#ifdef CAR_ROLE_SLAVE
+#if CAR_ROLE_SLAVE
+uint8_t App_Radio_HasNewTarget(uint8_t *room);
 uint8_t App_Radio_GetSavedTargetRoom(void);
 #endif
 

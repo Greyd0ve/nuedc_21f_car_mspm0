@@ -1,5 +1,6 @@
 ﻿#include "app_21f_car.h"
 #include "app_config.h"
+#include "app_radio.h"
 #include "app_car_state.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -447,6 +448,9 @@ void F21Car_KeyProcess(void)
         s_visionStartPending = 0U;
         if (s_state == F21_CAR_WAIT_START || s_state == F21_CAR_IDLE)
         {
+#if CAR_ROLE_MASTER
+            App_Radio_SendTargetRoom(s_targetRoom);
+#endif
             F21_StartSelectedRoomTask("key");
         }
         break;
@@ -476,6 +480,17 @@ void F21Car_KeyProcess(void)
     default:
         break;
     }
+}
+
+void F21Car_SetTargetRoom(uint8_t room)
+{
+    if (room < 1U || room > 8U) return;
+    s_targetRoom = room;
+}
+
+uint8_t F21Car_GetTargetRoom(void)
+{
+    return s_targetRoom;
 }
 
 /* ---- line run handler (shared) ---- */
@@ -962,56 +977,50 @@ void F21Car_Task10ms(void)
 
     if (s_state == F21_CAR_FINISH)
     {
+        uint8_t drained;
+
         F21_SafeStop();
-#if ENABLE_K230
+
+        if (s_visionUnlockSent == 0U)
         {
-            uint8_t drained;
+            Serial_SendString("[num,unlock]\r\n");
+            s_ledActive = 0U;
+            LED_User_BlinkTimes(2U, 150U);
+            s_visionUnlockSent = 1U;
+            s_visionUnlockQuietMs = 0U;
 
-            if (s_visionUnlockSent == 0U)
+            if (s_targetRoom >= 1U && s_targetRoom <= 8U)
             {
-                Serial_SendString("[num,unlock]\r\n");
-                s_ledActive = 0U;
-                LED_User_BlinkTimes(2U, 150U);
-                s_visionUnlockSent = 1U;
-                s_visionUnlockQuietMs = 0U;
-
-                if (s_targetRoom >= 1U && s_targetRoom <= 8U)
-                {
-                    s_visionLastFinishedRoom = s_targetRoom;
-                    s_visionBlockLastRoom = 1U;
-                }
-            }
-
-            drained = F21_Vision_DrainRx();
-
-            s_visionStartPending = 0U;
-            s_visionRoom = 0U;
-            s_visionConfirmedRoom = 0U;
-
-            if (drained)
-            {
-                s_visionUnlockQuietMs = 0U;
-            }
-            else if (s_visionUnlockQuietMs < F21_VISION_UNLOCK_QUIET_MS)
-            {
-                s_visionUnlockQuietMs += CAR_CONTROL_PERIOD_MS;
-            }
-            else
-            {
-                s_visionUnlockQuietMs = 0U;
-                s_state = F21_CAR_IDLE;
+                s_visionLastFinishedRoom = s_targetRoom;
+                s_visionBlockLastRoom = 1U;
             }
         }
-#else
-        s_state = F21_CAR_IDLE;
-#endif
+
+        drained = F21_Vision_DrainRx();
+
+        s_visionStartPending = 0U;
+        s_visionRoom = 0U;
+        s_visionConfirmedRoom = 0U;
+
+        if (drained)
+        {
+            s_visionUnlockQuietMs = 0U;
+        }
+        else if (s_visionUnlockQuietMs < F21_VISION_UNLOCK_QUIET_MS)
+        {
+            s_visionUnlockQuietMs += CAR_CONTROL_PERIOD_MS;
+        }
+        else
+        {
+            s_visionUnlockQuietMs = 0U;
+            s_state = F21_CAR_IDLE;
+        }
+
         return;
     }
 
-#if ENABLE_K230
     F21_Vision_Process();
     F21_Vision_Tick10ms();
-#endif
 
     switch (s_state)
     {

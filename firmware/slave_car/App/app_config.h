@@ -24,13 +24,20 @@
 #endif
 
 /* Role configuration (slave_car defaults) */
+#ifndef CAR_ROLE_MASTER
 #define CAR_ROLE_MASTER                         0
+#endif
+#ifndef CAR_ROLE_SLAVE
 #define CAR_ROLE_SLAVE                          1
+#endif
 #ifndef CAR_ID
 #define CAR_ID                                  2
 #endif
 #ifndef ENABLE_K230
 #define ENABLE_K230                             0
+#endif
+#ifndef RADIO_DEBUG_ENABLE
+#define RADIO_DEBUG_ENABLE                      1
 #endif
 
 /* Temporary encoder-only memory corruption diagnostic mode. */

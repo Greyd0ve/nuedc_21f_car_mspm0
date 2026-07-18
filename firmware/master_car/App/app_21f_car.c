@@ -1,5 +1,6 @@
 ﻿#include "app_21f_car.h"
 #include "app_config.h"
+#include "app_radio.h"
 #include "app_car_state.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -447,6 +448,9 @@ void F21Car_KeyProcess(void)
         s_visionStartPending = 0U;
         if (s_state == F21_CAR_WAIT_START || s_state == F21_CAR_IDLE)
         {
+#if CAR_ROLE_MASTER
+            App_Radio_SendTargetRoom(s_targetRoom);
+#endif
             F21_StartSelectedRoomTask("key");
         }
         break;
@@ -476,6 +480,17 @@ void F21Car_KeyProcess(void)
     default:
         break;
     }
+}
+
+void F21Car_SetTargetRoom(uint8_t room)
+{
+    if (room < 1U || room > 8U) return;
+    s_targetRoom = room;
+}
+
+uint8_t F21Car_GetTargetRoom(void)
+{
+    return s_targetRoom;
 }
 
 /* ---- line run handler (shared) ---- */
