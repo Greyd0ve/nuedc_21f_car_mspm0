@@ -260,6 +260,25 @@ void SYSCFG_DL_TIMER_SYS_init(void);
 void SYSCFG_DL_I2C_SHARED_init(void);
 void SYSCFG_DL_UART_DEBUG_init(void);
 
+/* Defines for GPIO_NRF */
+#define GPIO_NRF_NRF_CE_PORT                                    (GPIOB)
+#define GPIO_NRF_NRF_CE_PIN                                     (DL_GPIO_PIN_20)
+#define GPIO_NRF_NRF_CE_IOMUX                                   (IOMUX_PINCM48)
+#define GPIO_NRF_NRF_CSN_PORT                                   (GPIOA)
+#define GPIO_NRF_NRF_CSN_PIN                                    (DL_GPIO_PIN_8)
+#define GPIO_NRF_NRF_CSN_IOMUX                                  (IOMUX_PINCM19)
+#define GPIO_NRF_NRF_SCK_PORT                                   (GPIOA)
+#define GPIO_NRF_NRF_SCK_PIN                                    (DL_GPIO_PIN_11)
+#define GPIO_NRF_NRF_SCK_IOMUX                                  (IOMUX_PINCM22)
+#define GPIO_NRF_NRF_MOSI_PORT                                  (GPIOA)
+#define GPIO_NRF_NRF_MOSI_PIN                                   (DL_GPIO_PIN_9)
+#define GPIO_NRF_NRF_MOSI_IOMUX                                 (IOMUX_PINCM20)
+#define GPIO_NRF_NRF_MISO_PORT                                  (GPIOA)
+#define GPIO_NRF_NRF_MISO_PIN                                   (DL_GPIO_PIN_10)
+#define GPIO_NRF_NRF_MISO_IOMUX                                 (IOMUX_PINCM21)
+
+void SYSCFG_DL_GPIO_NRF_init(void);
+
 
 bool SYSCFG_DL_saveConfiguration(void);
 bool SYSCFG_DL_restoreConfiguration(void);

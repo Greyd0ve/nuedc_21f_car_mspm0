@@ -6,6 +6,25 @@
 #define NRF24L01_RXMODE  0
 #define NRF24L01_TXMODE  1
 
+#define NRF_REG_CONFIG       0x00U
+#define NRF_REG_EN_AA        0x01U
+#define NRF_REG_EN_RXADDR    0x02U
+#define NRF_REG_SETUP_AW     0x03U
+#define NRF_REG_SETUP_RETR   0x04U
+#define NRF_REG_RF_CH        0x05U
+#define NRF_REG_RF_SETUP     0x06U
+#define NRF_REG_STATUS       0x07U
+#define NRF_REG_RX_ADDR_P0   0x0AU
+#define NRF_REG_TX_ADDR      0x10U
+#define NRF_REG_RX_PW_P0     0x11U
+#define NRF_REG_FIFO_STATUS  0x17U
+#define NRF_REG_DYNPD        0x1CU
+#define NRF_REG_FEATURE      0x1DU
+
+#define NRF_STATUS_RX_DR     0x40U
+#define NRF_STATUS_TX_DS     0x20U
+#define NRF_STATUS_MAX_RT    0x10U
+
 void NRF24L01_Init(void);
 uint8_t NRF24L01_Check(void);
 

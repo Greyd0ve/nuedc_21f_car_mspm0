@@ -1,4 +1,5 @@
 #include "app_radio.h"
+#include "app_21f_car.h"
 #include "NRF24L01.h"
 #include "Serial.h"
 #include <stdint.h>
@@ -20,7 +21,10 @@ static const uint8_t NRF_ADDR_MASTER[5] = {0x34, 0x43, 0x10, 0x10, 0x01};
 static const uint8_t NRF_ADDR_SLAVE[5]  = {0x34, 0x43, 0x10, 0x10, 0x02};
 
 static uint8_t s_radioReady = 0U;
+
+#if CAR_ROLE_MASTER
 static uint8_t s_seq = 0U;
+#endif
 
 #if CAR_ROLE_SLAVE
 static uint8_t s_savedTargetRoom = 0U;
@@ -32,21 +36,18 @@ static uint8_t Radio_ComputeChecksum(const RadioPacket_t *pkt)
         ^ pkt->cmd ^ pkt->room_id ^ pkt->seq ^ pkt->reserved);
 }
 
+#if CAR_ROLE_SLAVE
 static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
 {
     if (pkt->header != RADIO_HEADER) return 0U;
-#if CAR_ROLE_SLAVE
     if (pkt->sender_id != 1U) return 0U;
     if (pkt->target_id != 2U) return 0U;
     if (pkt->room_id < 1U || pkt->room_id > 8U) return 0U;
-#else
-    if (pkt->sender_id != 2U) return 0U;
-    if (pkt->target_id != 1U) return 0U;
-#endif
     if (pkt->cmd != RADIO_CMD_TARGET_ROOM) return 0U;
     if (Radio_ComputeChecksum(pkt) != pkt->checksum) return 0U;
     return 1U;
 }
+#endif
 
 void App_Radio_Init(void)
 {
@@ -60,7 +61,7 @@ void App_Radio_Init(void)
 
     NRF24L01_CE_Set(0);
 
-    NRF24L01_WriteReg(NRF_REG_EN_AA, 0x3F);
+    NRF24L01_WriteReg(NRF_REG_EN_AA, 0x01);
     NRF24L01_WriteReg(NRF_REG_EN_RXADDR, 0x01);
     NRF24L01_WriteReg(NRF_REG_SETUP_AW, 0x03);
     NRF24L01_WriteReg(NRF_REG_SETUP_RETR, 0x1A);
@@ -92,6 +93,7 @@ uint8_t App_Radio_SendTargetRoom(uint8_t room)
 {
     RadioPacket_t pkt;
     if (!s_radioReady) return 0U;
+    if (room < 1U || room > 8U) return 0U;
 
     pkt.header    = RADIO_HEADER;
     pkt.sender_id = 1U;
@@ -143,6 +145,9 @@ void App_Radio_Task10ms(void)
 {
 #if CAR_ROLE_SLAVE
     uint8_t room;
-    App_Radio_HasNewTarget(&room);
+    if (App_Radio_HasNewTarget(&room))
+    {
+        F21Car_SetTargetRoom(room);
+    }
 #endif
 }

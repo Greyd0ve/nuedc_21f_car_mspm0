@@ -227,5 +227,30 @@ I2C1.peripheral.sdaPin.$assign = "PA28";
  * UART2/3 are reserved connectors and are not initialized here.
  */
 
+const GPIO         = scripting.addModule("/ti/driverlib/GPIO", {}, false);
+const GPIO_NRF     = GPIO.addInstance();
+GPIO_NRF.$name     = "GPIO_NRF";
+GPIO_NRF.pin1.$assign = "PB20";
+GPIO_NRF.pin1.$name = "NRF_CE";
+GPIO_NRF.pin1.dir    = "OUTPUT";
+GPIO_NRF.pin1.initValue = "CLEARED";
+GPIO_NRF.pin2.$assign = "PA8";
+GPIO_NRF.pin2.$name = "NRF_CSN";
+GPIO_NRF.pin2.dir    = "OUTPUT";
+GPIO_NRF.pin2.initValue = "SET";
+GPIO_NRF.pin3.$assign = "PA11";
+GPIO_NRF.pin3.$name = "NRF_SCK";
+GPIO_NRF.pin3.dir    = "OUTPUT";
+GPIO_NRF.pin3.initValue = "CLEARED";
+GPIO_NRF.pin4.$assign = "PA9";
+GPIO_NRF.pin4.$name = "NRF_MOSI";
+GPIO_NRF.pin4.dir    = "OUTPUT";
+GPIO_NRF.pin4.initValue = "CLEARED";
+GPIO_NRF.pin5.$assign = "PA10";
+GPIO_NRF.pin5.$name = "NRF_MISO";
+GPIO_NRF.pin5.dir    = "INPUT";
+GPIO_NRF.pin5.internalResistor = "NONE";
+GPIO_NRF.peripheral.$assign = "GPIOA";
+
 SYSCTL.forceDefaultClkConfig = true;
 SYSCTL.clockTreeEn = true;

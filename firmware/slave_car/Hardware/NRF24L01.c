@@ -2,20 +2,20 @@
 #include "ti_msp_dl_config.h"
 #include <stdint.h>
 
-#define NRF_CE_PORT   GPIOB
-#define NRF_CE_PIN    DL_GPIO_PIN_20
+#define NRF_CE_PORT   GPIO_NRF_NRF_CE_PORT
+#define NRF_CE_PIN    GPIO_NRF_NRF_CE_PIN
 
-#define NRF_CSN_PORT  GPIOA
-#define NRF_CSN_PIN   DL_GPIO_PIN_8
+#define NRF_CSN_PORT  GPIO_NRF_NRF_CSN_PORT
+#define NRF_CSN_PIN   GPIO_NRF_NRF_CSN_PIN
 
-#define NRF_SCK_PORT  GPIOA
-#define NRF_SCK_PIN   DL_GPIO_PIN_11
+#define NRF_SCK_PORT  GPIO_NRF_NRF_SCK_PORT
+#define NRF_SCK_PIN   GPIO_NRF_NRF_SCK_PIN
 
-#define NRF_MOSI_PORT GPIOA
-#define NRF_MOSI_PIN  DL_GPIO_PIN_9
+#define NRF_MOSI_PORT GPIO_NRF_NRF_MOSI_PORT
+#define NRF_MOSI_PIN  GPIO_NRF_NRF_MOSI_PIN
 
-#define NRF_MISO_PORT GPIOA
-#define NRF_MISO_PIN  DL_GPIO_PIN_10
+#define NRF_MISO_PORT GPIO_NRF_NRF_MISO_PORT
+#define NRF_MISO_PIN  GPIO_NRF_NRF_MISO_PIN
 
 #define NRF_CE_LOW()   DL_GPIO_clearPins(NRF_CE_PORT, NRF_CE_PIN)
 #define NRF_CE_HIGH()  DL_GPIO_setPins(NRF_CE_PORT, NRF_CE_PIN)
@@ -33,38 +33,20 @@
 
 #define NRF_USE_IRQ 0
 
-#define NRF_REG_CONFIG      0x00
-#define NRF_REG_EN_AA       0x01
-#define NRF_REG_EN_RXADDR   0x02
-#define NRF_REG_SETUP_AW    0x03
-#define NRF_REG_SETUP_RETR  0x04
-#define NRF_REG_RF_CH       0x05
-#define NRF_REG_RF_SETUP    0x06
-#define NRF_REG_STATUS      0x07
-#define NRF_REG_RX_ADDR_P0  0x0A
-#define NRF_REG_TX_ADDR     0x10
-#define NRF_REG_RX_PW_P0    0x11
-#define NRF_REG_FIFO_STATUS 0x17
-#define NRF_REG_DYNPD       0x1C
-#define NRF_REG_FEATURE     0x1D
+#define NRF_CMD_R_REGISTER    0x00U
+#define NRF_CMD_W_REGISTER    0x20U
+#define NRF_CMD_R_RX_PAYLOAD  0x61U
+#define NRF_CMD_W_TX_PAYLOAD  0xA0U
+#define NRF_CMD_FLUSH_TX      0xE1U
+#define NRF_CMD_FLUSH_RX      0xE2U
 
-#define NRF_CMD_R_REGISTER    0x00
-#define NRF_CMD_W_REGISTER    0x20
-#define NRF_CMD_R_RX_PAYLOAD  0x61
-#define NRF_CMD_W_TX_PAYLOAD  0xA0
-#define NRF_CMD_FLUSH_TX      0xE1
-#define NRF_CMD_FLUSH_RX      0xE2
+#define NRF_FIFO_RX_EMPTY     0x01U
+#define NRF_PAYLOAD_WIDTH      32U
+#define NRF_TX_TIMEOUT_MS      20U
 
-#define NRF_STATUS_RX_DR   0x40
-#define NRF_STATUS_TX_DS   0x20
-#define NRF_STATUS_MAX_RT  0x10
-
-#define NRF_PAYLOAD_WIDTH  32U
-#define NRF_TX_TIMEOUT_MS  20U
-
-static void NRF_DelayUs(volatile uint32_t us)
+static void NRF_DelayUs(uint32_t us)
 {
-    while (us--) { volatile uint8_t i; for (i = 0U; i < 12U; i++) { } }
+    delay_cycles((CPUCLK_FREQ / 1000000U) * us);
 }
 
 static uint8_t NRF_SPI_RW(uint8_t byte)
@@ -179,22 +161,14 @@ void NRF24L01_Init(void)
 {
     NRF_CE_LOW();
     NRF_CSN_HIGH();
-
-    DL_GPIO_initDigitalOutput(NRF_CE_PORT, NRF_CE_PIN);
-    DL_GPIO_initDigitalOutput(NRF_CSN_PORT, NRF_CSN_PIN);
-    DL_GPIO_initDigitalOutput(NRF_SCK_PORT, NRF_SCK_PIN);
-    DL_GPIO_initDigitalOutput(NRF_MOSI_PORT, NRF_MOSI_PIN);
-    DL_GPIO_initDigitalInput(NRF_MISO_PORT, NRF_MISO_PIN);
-
     NRF_SCK_LOW();
     NRF_MOSI_LOW();
-    NRF_CE_LOW();
 }
 
 void NRF24L01_RX_Mode(void)
 {
     NRF_CE_LOW();
-    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0F);
+    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0FU);
     NRF24L01_ClearIRQFlags();
     NRF_DelayUs(2000U);
     NRF_CE_HIGH();
@@ -203,7 +177,7 @@ void NRF24L01_RX_Mode(void)
 void NRF24L01_TX_Mode(void)
 {
     NRF_CE_LOW();
-    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0E);
+    NRF24L01_WriteReg(NRF_REG_CONFIG, 0x0EU);
     NRF24L01_ClearIRQFlags();
     NRF_DelayUs(2000U);
 }
@@ -252,11 +226,11 @@ uint8_t NRF24L01_SendPacket(const uint8_t *buf, uint8_t len)
 
 uint8_t NRF24L01_ReceivePacket(uint8_t *buf, uint8_t len)
 {
-    uint8_t status;
+    uint8_t fifo;
     uint8_t i;
 
-    status = NRF24L01_ReadReg(NRF_REG_STATUS);
-    if (!(status & NRF_STATUS_RX_DR)) return 0U;
+    fifo = NRF24L01_ReadReg(NRF_REG_FIFO_STATUS);
+    if (fifo & NRF_FIFO_RX_EMPTY) return 0U;
 
     NRF_CSN_LOW();
     NRF_SPI_RW(NRF_CMD_R_RX_PAYLOAD);
