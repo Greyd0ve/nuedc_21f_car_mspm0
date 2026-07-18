@@ -20,14 +20,14 @@ static void DebugSerial_PushRx(uint8_t byte)
     s_rxHead = next;
 }
 
-void UART_TUNING_INST_IRQHandler(void)
+void UART_DEBUG_INST_IRQHandler(void)
 {
-    switch (DL_UART_Main_getPendingInterrupt(UART_TUNING_INST))
+    switch (DL_UART_Main_getPendingInterrupt(UART_DEBUG_INST))
     {
         case DL_UART_MAIN_IIDX_RX:
-            while (!DL_UART_Main_isRXFIFOEmpty(UART_TUNING_INST))
+            while (!DL_UART_Main_isRXFIFOEmpty(UART_DEBUG_INST))
             {
-                DebugSerial_PushRx(DL_UART_Main_receiveData(UART_TUNING_INST));
+                DebugSerial_PushRx(DL_UART_Main_receiveData(UART_DEBUG_INST));
             }
             break;
         default:
@@ -40,8 +40,8 @@ void DebugSerial_Init(void)
     s_rxHead = 0U;
     s_rxTail = 0U;
     s_rxOverflow = 0U;
-    NVIC_ClearPendingIRQ(UART_TUNING_INST_INT_IRQN);
-    NVIC_EnableIRQ(UART_TUNING_INST_INT_IRQN);
+    NVIC_ClearPendingIRQ(UART_DEBUG_INST_INT_IRQN);
+    NVIC_EnableIRQ(UART_DEBUG_INST_INT_IRQN);
 }
 
 uint32_t DebugSerial_GetRxOverflowCount(void)
@@ -51,7 +51,7 @@ uint32_t DebugSerial_GetRxOverflowCount(void)
 
 void DebugSerial_SendByte(uint8_t byte)
 {
-    DL_UART_Main_transmitDataBlocking(UART_TUNING_INST, byte);
+    DL_UART_Main_transmitDataBlocking(UART_DEBUG_INST, byte);
 }
 
 void DebugSerial_SendString(const char *str)

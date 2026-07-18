@@ -363,15 +363,13 @@
 #define SERVO4_PWM                      SERVO4_PWM_CC_INDEX
 
 /* ---------------- UARTs ----------------
- * UART_DEBUG uses the schematic TX1/RX1 connector:
- * UART1_TX -> PB6/TX1, UART1_RX -> PB7/RX1, 9600 8N1.
- * UART2 and UART3 are reserved.
- * Do not connect two active TX devices to the same UART RX. External modules
- * must share ground with the controller.
+ * UART_DEBUG  = UART1, PB6/PB7, 9600   for debug/bluetooth.
+ * UART_K230   = UART0, PA0/PA1, 115200 for K230 vision.
+ * UART2 (PA23/PA24) is unused.
  */
-#define SERIAL_UART_INST                UART_DEBUG_INST
-#define SERIAL_UART_IRQN                UART_DEBUG_INST_INT_IRQN
-#define SERIAL_BAUD_RATE                UART_DEBUG_BAUD_RATE
+#define SERIAL_UART_INST                UART_K230_INST
+#define SERIAL_UART_IRQN                UART_K230_INST_INT_IRQN
+#define SERIAL_BAUD_RATE                UART_K230_BAUD_RATE
 
 /* ---------------- System tick ---------------- */
 #define SYSTEM_TIMER_INST               TIMER_SYS_INST
