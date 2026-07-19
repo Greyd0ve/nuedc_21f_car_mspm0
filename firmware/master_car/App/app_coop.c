@@ -1227,6 +1227,10 @@ void F21Coop_HandleKey(uint8_t key)
             s_targetRoom = (s_targetRoom == 3U) ? 4U : 3U;
             s_waitRoom = Coop_GetOppositeRoom(s_targetRoom);
             Coop_MasterSetState(F21_COOP_MASTER_WAIT_TARGET);
+
+            LED_User_CancelBlink();
+            LED_User_BlinkTimes(s_targetRoom, 200U);
+
             DebugSerial_Printf("[coop,target=%u]\r\n", (unsigned int)s_targetRoom);
         }
 #endif
