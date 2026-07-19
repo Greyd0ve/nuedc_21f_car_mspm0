@@ -415,7 +415,7 @@ uint32_t Serial_GetRxOverflowCount(void)
     return s_rxOverflowCount;
 }
 
-void UART_DEBUG_INST_IRQHandler(void)
+void UART_K230_INST_IRQHandler(void)
 {
     switch (DL_UART_Main_getPendingInterrupt(SERIAL_UART_INST))
     {

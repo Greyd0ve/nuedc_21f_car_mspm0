@@ -175,13 +175,13 @@ extern "C" {
 #define UART_K230_INST_INT_IRQN                                   UART0_INT_IRQn
 #define GPIO_UART_K230_RX_PORT                                             GPIOA
 #define GPIO_UART_K230_TX_PORT                                             GPIOA
-#define GPIO_UART_K230_RX_PIN                                     DL_GPIO_PIN_1
-#define GPIO_UART_K230_TX_PIN                                     DL_GPIO_PIN_0
+#define GPIO_UART_K230_RX_PIN                                      DL_GPIO_PIN_1
+#define GPIO_UART_K230_TX_PIN                                      DL_GPIO_PIN_0
 #define GPIO_UART_K230_IOMUX_RX                                   (IOMUX_PINCM2)
 #define GPIO_UART_K230_IOMUX_TX                                   (IOMUX_PINCM1)
 #define GPIO_UART_K230_IOMUX_RX_FUNC                    IOMUX_PINCM2_PF_UART0_RX
 #define GPIO_UART_K230_IOMUX_TX_FUNC                    IOMUX_PINCM1_PF_UART0_TX
-#define UART_K230_BAUD_RATE                                            (115200)
+#define UART_K230_BAUD_RATE                                             (115200)
 #define UART_K230_IBRD_32_MHZ_115200_BAUD                                   (17)
 #define UART_K230_FBRD_32_MHZ_115200_BAUD                                   (23)
 
