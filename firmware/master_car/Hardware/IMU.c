@@ -62,6 +62,7 @@ static void IMU_IIC_DelayUs(uint32_t us)
 
 static void IMU_SDA_RELEASE(void)
 {
+    DL_GPIO_disableOutput(IMU_SDA_PORT, IMU_SDA_PIN);
     DL_GPIO_initDigitalInputFeatures(IMU_SDA_IOMUX,
         DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
         DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
@@ -76,6 +77,7 @@ static void IMU_SDA_LOW(void)
 
 static void IMU_SCL_RELEASE(void)
 {
+    DL_GPIO_disableOutput(IMU_SCL_PORT, IMU_SCL_PIN);
     DL_GPIO_initDigitalInputFeatures(IMU_SCL_IOMUX,
         DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
         DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
@@ -91,6 +93,21 @@ static void IMU_SCL_LOW(void)
 static uint8_t IMU_SDA_GET(void)
 {
     return (uint8_t)(((DL_GPIO_readPins(IMU_SDA_PORT, IMU_SDA_PIN) & IMU_SDA_PIN) != 0U) ? 1U : 0U);
+}
+
+void IMU_GetBusLevels(uint8_t *sda, uint8_t *scl)
+{
+    uint8_t sdaLevel, sclLevel;
+
+    IMU_SDA_RELEASE();
+    IMU_SCL_RELEASE();
+    IMU_IIC_DelayUs(10U);
+
+    sdaLevel = (uint8_t)(((DL_GPIO_readPins(IMU_SDA_PORT, IMU_SDA_PIN) & IMU_SDA_PIN) != 0U) ? 1U : 0U);
+    sclLevel = (uint8_t)(((DL_GPIO_readPins(IMU_SCL_PORT, IMU_SCL_PIN) & IMU_SCL_PIN) != 0U) ? 1U : 0U);
+
+    if (sda != 0) { *sda = sdaLevel; }
+    if (scl != 0) { *scl = sclLevel; }
 }
 
 static void IMU_SoftI2CInit(void)
@@ -330,11 +347,17 @@ uint8_t IMU_Scan(uint8_t *foundAddr)
 
     for (round = 0U; round < 10U; round++)
     {
+        uint8_t who;
         IMU_IIC_BusRecover();
-        if (IMU_ProbeAddressAck(0x68U)) { *foundAddr = 0x68U; s_mpuAddr = 0x68U; s_mpuAddrValid = 1U; return 1U; }
-        if (IMU_ProbeAddressAck(0x69U)) { *foundAddr = 0x69U; s_mpuAddr = 0x69U; s_mpuAddrValid = 1U; return 1U; }
+        s_mpuAddr = 0x68U;
+        if (IMU_ReadWhoAmI(&who) && IMU_IsValidWhoAmI(who))
+        { *foundAddr = 0x68U; s_mpuAddrValid = 1U; return 1U; }
+        s_mpuAddr = 0x69U;
+        if (IMU_ReadWhoAmI(&who) && IMU_IsValidWhoAmI(who))
+        { *foundAddr = 0x69U; s_mpuAddrValid = 1U; return 1U; }
         IMU_IIC_DelayUs(200);
     }
+    s_mpuAddr = 0x68U;
     return 0U;
 }
 
@@ -443,13 +466,21 @@ static uint8_t IMU_ReadGyroRawSingle(int16_t *gx, int16_t *gy, int16_t *gz)
     return 1U;
 }
 
-void IMU_CalibrateGyroZ(uint16_t samples)
+uint8_t IMU_CalibrateGyroZ(uint16_t samples)
 {
     int32_t sum = 0; uint16_t i; uint16_t validCount = 0U; int16_t gz;
     if (samples == 0U) { samples = 200U; }
-    for (i = 0; i < samples; i++) { int16_t dx, dy; if (IMU_ReadGyroRaw(&dx, &dy, &gz)) { sum += (int32_t)gz; validCount++; } }
-    s_gyroZOffset = (validCount > 0U) ? (int16_t)(sum / (int32_t)validCount) : 0;
+    if (!s_imuReady) { return 0U; }
+    for (i = 0; i < samples; i++)
+    {
+        int16_t dx, dy;
+        if (IMU_ReadGyroRaw(&dx, &dy, &gz)) { sum += (int32_t)gz; validCount++; }
+        IMU_IIC_DelayUs(500U);
+    }
+    if (validCount < (uint16_t)((uint32_t)samples * 90U / 100U)) { return 0U; }
+    s_gyroZOffset = (int16_t)(sum / (int32_t)validCount);
     s_yawDeg_x10 = 0; s_yawValid = 1U; s_yawFault = 0U;
+    return 1U;
 }
 
 void IMU_ResetYaw(void)
