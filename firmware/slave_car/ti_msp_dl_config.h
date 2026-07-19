@@ -175,13 +175,13 @@ extern "C" {
 #define UART_K230_INST_INT_IRQN                                   UART0_INT_IRQn
 #define GPIO_UART_K230_RX_PORT                                             GPIOA
 #define GPIO_UART_K230_TX_PORT                                             GPIOA
-#define GPIO_UART_K230_RX_PIN                                     DL_GPIO_PIN_1
-#define GPIO_UART_K230_TX_PIN                                     DL_GPIO_PIN_0
+#define GPIO_UART_K230_RX_PIN                                      DL_GPIO_PIN_1
+#define GPIO_UART_K230_TX_PIN                                      DL_GPIO_PIN_0
 #define GPIO_UART_K230_IOMUX_RX                                   (IOMUX_PINCM2)
 #define GPIO_UART_K230_IOMUX_TX                                   (IOMUX_PINCM1)
 #define GPIO_UART_K230_IOMUX_RX_FUNC                    IOMUX_PINCM2_PF_UART0_RX
 #define GPIO_UART_K230_IOMUX_TX_FUNC                    IOMUX_PINCM1_PF_UART0_TX
-#define UART_K230_BAUD_RATE                                            (115200)
+#define UART_K230_BAUD_RATE                                             (115200)
 #define UART_K230_IBRD_32_MHZ_115200_BAUD                                   (17)
 #define UART_K230_FBRD_32_MHZ_115200_BAUD                                   (23)
 
@@ -243,12 +243,13 @@ extern "C" {
 /* Port definition for Pin Group GPIO_KEYS */
 #define GPIO_KEYS_PORT                                                   (GPIOB)
 
-/* Defines for KEY1: GPIOB.14 with pinCMx 31 on package pin 2 */
-#define GPIO_KEYS_KEY1_PIN                                      (DL_GPIO_PIN_14)
-#define GPIO_KEYS_KEY1_IOMUX                                     (IOMUX_PINCM31)
-/* Defines for KEY2: GPIOB.11 with pinCMx 28 on package pin 63 */
-#define GPIO_KEYS_KEY2_PIN                                      (DL_GPIO_PIN_11)
-#define GPIO_KEYS_KEY2_IOMUX                                     (IOMUX_PINCM28)
+/* Defines for KEY1: GPIOB.22 with pinCMx 50 */
+#define GPIO_KEYS_KEY1_PIN                                      (DL_GPIO_PIN_22)
+#define GPIO_KEYS_KEY1_IOMUX                                     (IOMUX_PINCM50)
+/* Defines for KEY2: GPIOA.30 with pinCMx 5 */
+#define GPIO_KEYS_KEY2_PORT                                       (GPIOA)
+#define GPIO_KEYS_KEY2_PIN                                      (DL_GPIO_PIN_30)
+#define GPIO_KEYS_KEY2_IOMUX                                      (IOMUX_PINCM5)
 /* Defines for KEY3: GPIOB.27 with pinCMx 58 on package pin 29 */
 #define GPIO_KEYS_KEY3_PIN                                      (DL_GPIO_PIN_27)
 #define GPIO_KEYS_KEY3_IOMUX                                     (IOMUX_PINCM58)

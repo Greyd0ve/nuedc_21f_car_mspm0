@@ -243,12 +243,13 @@ extern "C" {
 /* Port definition for Pin Group GPIO_KEYS */
 #define GPIO_KEYS_PORT                                                   (GPIOB)
 
-/* Defines for KEY1: GPIOB.14 with pinCMx 31 on package pin 2 */
-#define GPIO_KEYS_KEY1_PIN                                      (DL_GPIO_PIN_14)
-#define GPIO_KEYS_KEY1_IOMUX                                     (IOMUX_PINCM31)
-/* Defines for KEY2: GPIOB.11 with pinCMx 28 on package pin 63 */
-#define GPIO_KEYS_KEY2_PIN                                      (DL_GPIO_PIN_11)
-#define GPIO_KEYS_KEY2_IOMUX                                     (IOMUX_PINCM28)
+/* Defines for KEY1: GPIOB.22 with pinCMx 50 */
+#define GPIO_KEYS_KEY1_PIN                                      (DL_GPIO_PIN_22)
+#define GPIO_KEYS_KEY1_IOMUX                                     (IOMUX_PINCM50)
+/* Defines for KEY2: GPIOA.30 with pinCMx 5 */
+#define GPIO_KEYS_KEY2_PORT                                       (GPIOA)
+#define GPIO_KEYS_KEY2_PIN                                      (DL_GPIO_PIN_30)
+#define GPIO_KEYS_KEY2_IOMUX                                      (IOMUX_PINCM5)
 /* Defines for KEY3: GPIOB.27 with pinCMx 58 on package pin 29 */
 #define GPIO_KEYS_KEY3_PIN                                      (DL_GPIO_PIN_27)
 #define GPIO_KEYS_KEY3_IOMUX                                     (IOMUX_PINCM58)
