@@ -5,6 +5,10 @@
 
 #define MPU6050_WHO_AM_I_VAL  0x68U
 
+#define IMU_YAW_FAULT_NONE      0U
+#define IMU_YAW_FAULT_DELTA     1U
+#define IMU_YAW_FAULT_RANGE     2U
+
 void IMU_Init(void);
 uint8_t IMU_ReadWhoAmI(uint8_t *whoAmI);
 uint8_t IMU_IsReady(void);
@@ -41,5 +45,14 @@ uint8_t IMU_IsAddrValid(void);
 uint8_t IMU_StatusHasIdle(uint32_t status);
 uint8_t IMU_StatusHasBusy(uint32_t status);
 uint8_t IMU_StatusHasError(uint32_t status);
+
+uint8_t IMU_GetYawFault(void);
+uint8_t IMU_GetYawFaultReason(void);
+int32_t IMU_GetLastYawBefore_x10(void);
+int32_t IMU_GetLastYawAfter_x10(void);
+int32_t IMU_GetLastGyroDps_x100(void);
+int16_t IMU_GetYawFaultGyroZRaw(void);
+int16_t IMU_GetYawFaultOffset(void);
+uint8_t IMU_GetYawFaultGyroByte(uint8_t index);
 
 #endif

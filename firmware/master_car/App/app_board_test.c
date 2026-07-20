@@ -12,6 +12,16 @@ static uint32_t s_lastErrorMs = 0U;
 static uint8_t s_lastSda = 1U;
 static uint8_t s_lastScl = 1U;
 static uint32_t s_reinitTimer = 0U;
+static uint8_t s_yawFaultPrinted = 0U;
+
+static uint8_t BoardTest_ImuInitAndCalibrate(void)
+{
+    IMU_Init();
+    if (!IMU_IsReady()) { return 0U; }
+    if (!IMU_CalibrateGyroZ(300U)) { return 0U; }
+    IMU_ResetYaw();
+    return 1U;
+}
 
 void BoardTest_Init(void)
 {
@@ -28,10 +38,8 @@ void BoardTest_Init(void)
         uint8_t whoOk = IMU_ReadWhoAmI(&who);
 
         DebugSerial_Printf("[imu,init,ok,addr=0x%02X,who=0x%02X,ready=%u,healthy=%u]\r\n",
-            (unsigned int)IMU_GetAddr(),
-            (unsigned int)who,
-            (unsigned int)IMU_IsReady(),
-            (unsigned int)IMU_IsHealthy());
+            (unsigned int)IMU_GetAddr(), (unsigned int)who,
+            (unsigned int)IMU_IsReady(), (unsigned int)IMU_IsHealthy());
         DebugSerial_Printf("[imu,who,ok=%u,value=0x%02X]\r\n", (unsigned int)whoOk, (unsigned int)who);
 
         DebugSerial_SendString("[imu,calib,start,keep_still]\r\n");
@@ -40,46 +48,32 @@ void BoardTest_Init(void)
             DebugSerial_Printf("[imu,calib,done,offset=%d]\r\n", (int)IMU_GetGyroZOffset());
             DebugSerial_SendString("[imu,yaw,reset]\r\n");
         }
-        else
-        {
-            DebugSerial_SendString("[imu,calib,fail]\r\n");
-        }
+        else { DebugSerial_SendString("[imu,calib,fail]\r\n"); }
     }
     else
     {
-        uint8_t sda, scl;
-        IMU_GetBusLevels(&sda, &scl);
+        uint8_t sda, scl; IMU_GetBusLevels(&sda, &scl);
         DebugSerial_Printf("[imu,init,fail,addr=0x%02X,addr_valid=%u,stage=%u,name=%s]\r\n",
-            (unsigned int)IMU_GetAddr(),
-            (unsigned int)IMU_IsAddrValid(),
-            (unsigned int)IMU_GetLastErrorStage(),
-            IMU_GetErrorStageName(IMU_GetLastErrorStage()));
+            (unsigned int)IMU_GetAddr(), (unsigned int)IMU_IsAddrValid(),
+            (unsigned int)IMU_GetLastErrorStage(), IMU_GetErrorStageName(IMU_GetLastErrorStage()));
         DebugSerial_Printf("[imu,bus,sda=%u,scl=%u]\r\n", (unsigned int)sda, (unsigned int)scl);
     }
 }
 
 static void BoardTest_ImuReinit(void)
 {
-    IMU_Init();
-    if (IMU_IsReady())
+    if (BoardTest_ImuInitAndCalibrate())
     {
         DebugSerial_SendString("[imu,reinit,ok]\r\n");
-        if (IMU_CalibrateGyroZ(300))
-        {
-            DebugSerial_Printf("[imu,calib,done,offset=%d]\r\n", (int)IMU_GetGyroZOffset());
-        }
-        else
-        {
-            DebugSerial_SendString("[imu,calib,fail]\r\n");
-        }
+        DebugSerial_Printf("[imu,calib,done,offset=%d]\r\n", (int)IMU_GetGyroZOffset());
+        DebugSerial_SendString("[imu,yaw,reset]\r\n");
+        s_yawFaultPrinted = 0U;
     }
     else
     {
-        uint8_t sda, scl;
-        IMU_GetBusLevels(&sda, &scl);
+        uint8_t sda, scl; IMU_GetBusLevels(&sda, &scl);
         DebugSerial_Printf("[imu,reinit,fail,stage=%u,name=%s,sda=%u,scl=%u]\r\n",
-            (unsigned int)IMU_GetLastErrorStage(),
-            IMU_GetErrorStageName(IMU_GetLastErrorStage()),
+            (unsigned int)IMU_GetLastErrorStage(), IMU_GetErrorStageName(IMU_GetLastErrorStage()),
             (unsigned int)sda, (unsigned int)scl);
     }
 }
@@ -102,7 +96,6 @@ void BoardTest_Task10ms(void)
 
     {
         uint8_t key = Key_GetNum();
-
         if (key != 0U)
         {
             switch (key)
@@ -118,12 +111,11 @@ void BoardTest_Task10ms(void)
                     if (IMU_CalibrateGyroZ(300))
                     {
                         DebugSerial_Printf("[imu,calib,done,offset=%d]\r\n", (int)IMU_GetGyroZOffset());
+                        IMU_ResetYaw();
                         DebugSerial_SendString("[imu,yaw,reset]\r\n");
+                        s_yawFaultPrinted = 0U;
                     }
-                    else
-                    {
-                        DebugSerial_SendString("[imu,calib,fail]\r\n");
-                    }
+                    else { DebugSerial_SendString("[imu,calib,fail]\r\n"); }
                 }
                 break;
             case 2U:
@@ -135,40 +127,40 @@ void BoardTest_Task10ms(void)
                 {
                     IMU_ResetYaw();
                     DebugSerial_SendString("[imu,yaw,reset]\r\n");
+                    s_yawFaultPrinted = 0U;
                 }
                 break;
             case 3U:
                 s_printPaused = !s_printPaused;
-                if (s_printPaused)
-                    DebugSerial_SendString("[imu,print,paused]\r\n");
-                else
-                    DebugSerial_SendString("[imu,print,resumed]\r\n");
+                if (s_printPaused) DebugSerial_SendString("[imu,print,paused]\r\n");
+                else DebugSerial_SendString("[imu,print,resumed]\r\n");
                 break;
             case 4U:
+                s_printPaused = 1U;
                 Motor_StopAll();
-                IMU_Init();
-                if (IMU_IsReady())
+                if (BoardTest_ImuInitAndCalibrate())
+                {
                     DebugSerial_SendString("[imu,test,reset,ok]\r\n");
+                    DebugSerial_Printf("[imu,calib,done,offset=%d]\r\n", (int)IMU_GetGyroZOffset());
+                    DebugSerial_SendString("[imu,yaw,reset]\r\n");
+                    s_yawFaultPrinted = 0U;
+                }
                 else
                 {
-                    uint8_t sda, scl;
-                    IMU_GetBusLevels(&sda, &scl);
+                    uint8_t sda, scl; IMU_GetBusLevels(&sda, &scl);
                     DebugSerial_Printf("[imu,test,reset,fail,stage=%u,name=%s,sda=%u,scl=%u]\r\n",
-                        (unsigned int)IMU_GetLastErrorStage(),
-                        IMU_GetErrorStageName(IMU_GetLastErrorStage()),
+                        (unsigned int)IMU_GetLastErrorStage(), IMU_GetErrorStageName(IMU_GetLastErrorStage()),
                         (unsigned int)sda, (unsigned int)scl);
                 }
+                s_printPaused = 0U;
                 break;
-            default:
-                break;
+            default: break;
             }
         }
     }
 }
 
-void BoardTest_Task100ms(void)
-{
-}
+void BoardTest_Task100ms(void) { }
 
 void BoardTest_Task200ms(void)
 {
@@ -195,18 +187,32 @@ void BoardTest_Task200ms(void)
             DebugSerial_Printf("[imu,gyro,gx=%d,gy=%d,gz=%d,offset=%d,z_dps_x10=%d]\r\n",
                 (int)gx, (int)gy, (int)gz, (int)offset, (int)dps_x10);
             DebugSerial_Printf("[imu,yaw_x10=%ld,ready=%u,healthy=%u,stage=%u]\r\n",
-                (long)yaw_x10,
-                (unsigned int)IMU_IsReady(),
-                (unsigned int)IMU_IsHealthy(),
-                (unsigned int)IMU_GetLastErrorStage());
+                (long)yaw_x10, (unsigned int)IMU_IsReady(),
+                (unsigned int)IMU_IsHealthy(), (unsigned int)IMU_GetLastErrorStage());
+            DebugSerial_Printf("[imu,yaw_diag,dps_x100=%ld,delta_x10=%ld,residual=%ld,fault=%u,reason=%u]\r\n",
+                (long)IMU_GetLastGyroDps_x100(), (long)IMU_GetLastYawDelta_x10(),
+                (long)(s_yawFaultPrinted ? 0L : 0L),
+                (unsigned int)IMU_GetYawFault(), (unsigned int)IMU_GetYawFaultReason());
+
+            if (IMU_GetYawFault() && !s_yawFaultPrinted)
+            {
+                s_yawFaultPrinted = 1U;
+                DebugSerial_Printf("[imu,yaw_fault,reason=%u,gz=%d,offset=%d,dps_x100=%ld,delta_x10=%ld,yaw_before=%ld,yaw_after=%ld,bytes=%02X,%02X,%02X,%02X,%02X,%02X]\r\n",
+                    (unsigned int)IMU_GetYawFaultReason(),
+                    (int)IMU_GetYawFaultGyroZRaw(), (int)IMU_GetYawFaultOffset(),
+                    (long)IMU_GetLastGyroDps_x100(), (long)IMU_GetLastYawDelta_x10(),
+                    (long)IMU_GetLastYawBefore_x10(), (long)IMU_GetLastYawAfter_x10(),
+                    (unsigned int)IMU_GetYawFaultGyroByte(0), (unsigned int)IMU_GetYawFaultGyroByte(1),
+                    (unsigned int)IMU_GetYawFaultGyroByte(2), (unsigned int)IMU_GetYawFaultGyroByte(3),
+                    (unsigned int)IMU_GetYawFaultGyroByte(4), (unsigned int)IMU_GetYawFaultGyroByte(5));
+            }
         }
         else
         {
             if (changed || now >= 1000U)
             {
                 DebugSerial_Printf("[imu,read,fail,stage=%u,name=%s,sda=%u,scl=%u]\r\n",
-                    (unsigned int)IMU_GetLastErrorStage(),
-                    IMU_GetErrorStageName(IMU_GetLastErrorStage()),
+                    (unsigned int)IMU_GetLastErrorStage(), IMU_GetErrorStageName(IMU_GetLastErrorStage()),
                     (unsigned int)sda, (unsigned int)scl);
                 s_lastErrorMs = now;
             }
@@ -217,8 +223,7 @@ void BoardTest_Task200ms(void)
         if (changed || now >= 1000U)
         {
             DebugSerial_Printf("[imu,not_ready,stage=%u,name=%s,sda=%u,scl=%u]\r\n",
-                (unsigned int)IMU_GetLastErrorStage(),
-                IMU_GetErrorStageName(IMU_GetLastErrorStage()),
+                (unsigned int)IMU_GetLastErrorStage(), IMU_GetErrorStageName(IMU_GetLastErrorStage()),
                 (unsigned int)sda, (unsigned int)scl);
             s_lastErrorMs = now;
         }
