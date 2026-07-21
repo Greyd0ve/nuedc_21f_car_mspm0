@@ -6,19 +6,14 @@
 /* Neutral CAR_ aliases for template layer use.
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
-#define CAR_TEST_IMU_ENABLE             ECAR_TEST_IMU_ENABLE
-#define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
+#define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
 #define CAR_ENCODER_MINIMAL_DEBUG       ECAR_ENCODER_MINIMAL_DEBUG
 #define CAR_ENCODER_SPEED_PERIOD_MS     ECAR_ENCODER_SPEED_PERIOD_MS
 #define CAR_CONTROL_PERIOD_MS           ECAR_CONTROL_PERIOD_MS
 #define CAR_SERIAL_PLOT_PERIOD_MS       ECAR_SERIAL_PLOT_PERIOD_MS
 #define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
 #define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
-
-#if CAR_BOARD_TEST_MODE && CAR_TEST_RADIO_ENABLE && CAR_TEST_IMU_ENABLE
-#error "Radio board test and IMU board test cannot be enabled together"
-#endif
 
 /* CarBase template behaviour switches. */
 #ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
@@ -73,10 +68,6 @@
 #endif
 #ifndef ECAR_TEST_RADIO_ENABLE
 #define ECAR_TEST_RADIO_ENABLE                  1
-#endif
-
-#ifndef ECAR_TEST_IMU_ENABLE
-#define ECAR_TEST_IMU_ENABLE                    0
 #endif
 
 /* Master OLED switch. Set to 1 only when the display is physically connected.

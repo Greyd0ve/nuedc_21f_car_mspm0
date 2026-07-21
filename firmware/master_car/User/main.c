@@ -11,7 +11,6 @@
 #include "BeepLed.h"
 #include "Encoder.h"
 #include "Grayscale.h"
-#include "IMU.h"
 #include "Key.h"
 #include "Motor.h"
 #include "OLED.h"
@@ -124,10 +123,6 @@ int main(void)
 #if CAR_OLED_ENABLE
     OLED_Init();
     OLED_Clear();
-#endif
-
-#if CAR_TEST_IMU_ENABLE
-    IMU_Init();
 #endif
 
 #if CAR_BOARD_TEST_MODE
