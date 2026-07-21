@@ -38,15 +38,19 @@ void App_Radio_Task10ms(void);
 uint8_t App_Radio_PopCommand(AppRadioCommand_t *cmd);
 void App_Radio_ClearPendingCommands(void);
 
+uint8_t App_Radio_IsReady(void);
+
 #if CAR_ROLE_MASTER
 uint8_t App_Radio_SendCommand(uint8_t cmd, uint8_t room);
 uint8_t App_Radio_SendTargetRoom(uint8_t room);
 uint8_t App_Radio_SendSlaveStart(uint8_t room);
 uint8_t App_Radio_SendSlaveRelease(uint8_t room);
+uint8_t App_Radio_SendPing(uint8_t token);
 #endif
 
 #if CAR_ROLE_SLAVE
 uint8_t App_Radio_SendSlaveAtWait(uint8_t room);
+uint8_t App_Radio_SendPong(uint8_t token);
 uint8_t App_Radio_HasNewTarget(uint8_t *room);
 uint8_t App_Radio_GetSavedTargetRoom(void);
 #endif

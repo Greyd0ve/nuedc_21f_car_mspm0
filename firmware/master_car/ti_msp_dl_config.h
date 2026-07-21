@@ -240,20 +240,20 @@ extern "C" {
 /* Defines for OUT: GPIOB.1 with pinCMx 13 on package pin 48 */
 #define GPIO_GRAYSCALE_OUT_PIN                                   (DL_GPIO_PIN_1)
 #define GPIO_GRAYSCALE_OUT_IOMUX                                 (IOMUX_PINCM13)
-/* Port definition for Pin Group GPIO_KEYS */
-#define GPIO_KEYS_PORT                                                   (GPIOB)
-
-/* Defines for KEY1: GPIOB.22 with pinCMx 50 */
+/* Defines for KEY1: GPIOB.22 with pinCMx 50 on package pin 21 */
+#define GPIO_KEYS_KEY1_PORT                                              (GPIOB)
 #define GPIO_KEYS_KEY1_PIN                                      (DL_GPIO_PIN_22)
 #define GPIO_KEYS_KEY1_IOMUX                                     (IOMUX_PINCM50)
-/* Defines for KEY2: GPIOA.30 with pinCMx 5 */
-#define GPIO_KEYS_KEY2_PORT                                       (GPIOA)
+/* Defines for KEY2: GPIOA.30 with pinCMx 5 on package pin 37 */
+#define GPIO_KEYS_KEY2_PORT                                              (GPIOA)
 #define GPIO_KEYS_KEY2_PIN                                      (DL_GPIO_PIN_30)
 #define GPIO_KEYS_KEY2_IOMUX                                      (IOMUX_PINCM5)
 /* Defines for KEY3: GPIOB.27 with pinCMx 58 on package pin 29 */
+#define GPIO_KEYS_KEY3_PORT                                              (GPIOB)
 #define GPIO_KEYS_KEY3_PIN                                      (DL_GPIO_PIN_27)
 #define GPIO_KEYS_KEY3_IOMUX                                     (IOMUX_PINCM58)
 /* Defines for KEY4: GPIOB.26 with pinCMx 57 on package pin 28 */
+#define GPIO_KEYS_KEY4_PORT                                              (GPIOB)
 #define GPIO_KEYS_KEY4_PIN                                      (DL_GPIO_PIN_26)
 #define GPIO_KEYS_KEY4_IOMUX                                     (IOMUX_PINCM57)
 /* Defines for LED_USER: GPIOB.4 with pinCMx 17 on package pin 52 */

@@ -99,14 +99,27 @@ static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
 #if CAR_ROLE_MASTER
     if (pkt->sender_id != 2U) return 0U;
     if (pkt->target_id != 1U) return 0U;
-    if (pkt->cmd != RADIO_CMD_SLAVE_AT_WAIT) return 0U;
-    if (pkt->room_id != 3U && pkt->room_id != 4U) return 0U;
+    if (pkt->cmd == RADIO_CMD_PONG)
+    {
+        if (pkt->room_id == 0U) return 0U;
+    }
+    else if (pkt->cmd == RADIO_CMD_SLAVE_AT_WAIT)
+    {
+        if (pkt->room_id != 3U && pkt->room_id != 4U) return 0U;
+    }
+    else
+    {
+        return 0U;
+    }
 #elif CAR_ROLE_SLAVE
     if (pkt->sender_id != 1U) return 0U;
     if (pkt->target_id != 2U) return 0U;
 
     switch (pkt->cmd)
     {
+    case RADIO_CMD_PING:
+        if (pkt->room_id == 0U) return 0U;
+        break;
     case RADIO_CMD_TARGET_ROOM:
         if (pkt->room_id < 1U || pkt->room_id > 8U) return 0U;
         break;
@@ -134,12 +147,17 @@ static uint8_t Radio_IsSendAllowed(uint8_t cmd, uint8_t room)
     case RADIO_CMD_SLAVE_START:
     case RADIO_CMD_SLAVE_RELEASE:
         return (room == 3U || room == 4U) ? 1U : 0U;
+    case RADIO_CMD_PING:
+        return 1U;
     default:
         return 0U;
     }
 #elif CAR_ROLE_SLAVE
-    if (cmd != RADIO_CMD_SLAVE_AT_WAIT) return 0U;
-    return (room == 3U || room == 4U) ? 1U : 0U;
+    if (cmd == RADIO_CMD_SLAVE_AT_WAIT)
+        return (room == 3U || room == 4U) ? 1U : 0U;
+    if (cmd == RADIO_CMD_PONG)
+        return 1U;
+    return 0U;
 #else
     (void)cmd;
     (void)room;
@@ -257,12 +275,22 @@ uint8_t App_Radio_SendSlaveRelease(uint8_t room)
 {
     return Radio_SendCommand(RADIO_CMD_SLAVE_RELEASE, room);
 }
+
+uint8_t App_Radio_SendPing(uint8_t token)
+{
+    return Radio_SendCommand(RADIO_CMD_PING, token);
+}
 #endif
 
 #if CAR_ROLE_SLAVE
 uint8_t App_Radio_SendSlaveAtWait(uint8_t room)
 {
     return Radio_SendCommand(RADIO_CMD_SLAVE_AT_WAIT, room);
+}
+
+uint8_t App_Radio_SendPong(uint8_t token)
+{
+    return Radio_SendCommand(RADIO_CMD_PONG, token);
 }
 #endif
 
@@ -285,6 +313,11 @@ uint8_t App_Radio_PopCommand(AppRadioCommand_t *cmd)
 void App_Radio_ClearPendingCommands(void)
 {
     Radio_ClearQueue();
+}
+
+uint8_t App_Radio_IsReady(void)
+{
+    return s_radioReady;
 }
 
 #if CAR_ROLE_SLAVE

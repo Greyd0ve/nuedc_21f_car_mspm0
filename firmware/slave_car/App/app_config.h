@@ -7,6 +7,7 @@
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
 #define CAR_TEST_IMU_ENABLE             ECAR_TEST_IMU_ENABLE
+#define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
 #define CAR_ENCODER_MINIMAL_DEBUG       ECAR_ENCODER_MINIMAL_DEBUG
 #define CAR_ENCODER_SPEED_PERIOD_MS     ECAR_ENCODER_SPEED_PERIOD_MS
@@ -14,6 +15,10 @@
 #define CAR_SERIAL_PLOT_PERIOD_MS       ECAR_SERIAL_PLOT_PERIOD_MS
 #define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
 #define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
+
+#if CAR_BOARD_TEST_MODE && CAR_TEST_RADIO_ENABLE && CAR_TEST_IMU_ENABLE
+#error "Radio board test and IMU board test cannot be enabled together"
+#endif
 
 /* CarBase template behaviour switches. */
 #ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
@@ -23,7 +28,6 @@
 #define CAR_BASE_BOOT_PROMPT_ENABLE             0
 #endif
 
-/* Role configuration (slave_car defaults) */
 #ifndef CAR_ROLE_MASTER
 #define CAR_ROLE_MASTER                         0
 #endif
@@ -36,6 +40,7 @@
 #ifndef ENABLE_K230
 #define ENABLE_K230                             0
 #endif
+
 #ifndef RADIO_DEBUG_ENABLE
 #define RADIO_DEBUG_ENABLE                      1
 #endif
@@ -52,7 +57,7 @@
 #define ECAR_ENABLE_REMOTE_START                0
 #endif
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    0
+#define ECAR_BOARD_TEST_MODE                    1
 #endif
 #ifndef ECAR_TEST_MOTOR_ENABLE
 #define ECAR_TEST_MOTOR_ENABLE                  0
@@ -66,6 +71,10 @@
 #ifndef ECAR_TEST_OLED_ENABLE
 #define ECAR_TEST_OLED_ENABLE                   0
 #endif
+#ifndef ECAR_TEST_RADIO_ENABLE
+#define ECAR_TEST_RADIO_ENABLE                  1
+#endif
+
 #ifndef ECAR_TEST_IMU_ENABLE
 #define ECAR_TEST_IMU_ENABLE                    0
 #endif
