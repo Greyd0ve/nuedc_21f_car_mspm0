@@ -58,7 +58,7 @@
 #define ECAR_ENABLE_REMOTE_START                0
 #endif
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    0
+#define ECAR_BOARD_TEST_MODE                    1
 #endif
 #ifndef ECAR_TEST_MOTOR_ENABLE
 #define ECAR_TEST_MOTOR_ENABLE                  0
@@ -76,7 +76,7 @@
 #define ECAR_TEST_RADIO_ENABLE                  0
 #endif
 #ifndef ECAR_TEST_STEPPER_ENCODER_ENABLE
-#define ECAR_TEST_STEPPER_ENCODER_ENABLE        0
+#define ECAR_TEST_STEPPER_ENCODER_ENABLE        1
 #endif
 #define ECAR_STEPPER_ENCODER_CPR             4000U
 
