@@ -52,10 +52,10 @@
 #define ECAR_ENABLE_REMOTE_START                0
 #endif
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    0
+#define ECAR_BOARD_TEST_MODE                    1
 #endif
 #ifndef ECAR_TEST_MOTOR_ENABLE
-#define ECAR_TEST_MOTOR_ENABLE                  0
+#define ECAR_TEST_MOTOR_ENABLE                  1
 #endif
 #ifndef ECAR_TEST_SERVO_ENABLE
 #define ECAR_TEST_SERVO_ENABLE                  0
