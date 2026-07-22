@@ -523,6 +523,11 @@
               <FilePath>..\Hardware\Servo.c</FilePath>
             </File>
             <File>
+              <FileName>NRF24L01.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\NRF24L01.c</FilePath>
+            </File>
+            <File>
               <FileName>Board_Config.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Hardware\Board_Config.h</FilePath>
