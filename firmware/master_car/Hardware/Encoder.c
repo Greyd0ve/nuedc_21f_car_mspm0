@@ -1,6 +1,7 @@
 #include "Encoder.h"
 #include "app_config.h"
 #include "Board_Config.h"
+#include "StepperEncoder.h"
 #include "Serial.h"
 #include "cmsis_compiler.h"
 
@@ -500,6 +501,9 @@ void GROUP1_IRQHandler(void)
     {
         case DL_INTERRUPT_GROUP1_IIDX_GPIOB:
             Encoder_ServicePort(GPIOB);
+#if CAR_TEST_STEPPER_ENCODER_ENABLE
+            StepperEncoder_ServiceISR();
+#endif
             break;
 
         case DL_INTERRUPT_GROUP1_IIDX_GPIOA:

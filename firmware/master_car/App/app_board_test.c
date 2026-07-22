@@ -3,6 +3,7 @@
 #include "Board_Config.h"
 #include "app_radio.h"
 #include "app_control.h"
+#include "StepperEncoder.h"
 #include "DebugSerial.h"
 #include "Key.h"
 #include "Motor.h"
@@ -192,6 +193,68 @@ void BoardTest_Task10ms(void)
 
 void BoardTest_Task100ms(void) { }
 void BoardTest_Task200ms(void) { }
+
+#elif CAR_TEST_STEPPER_ENCODER_ENABLE
+
+#define STEPPER_ENC_CPR 4000
+
+static int32_t  s_xSnap = 0;
+static int32_t  s_ySnap = 0;
+static uint32_t s_xBadSnap = 0U;
+static uint32_t s_yBadSnap = 0U;
+
+void BoardTest_Init(void)
+{
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+    StepperEncoder_Init();
+    StepperEncoder_ResetCounts();
+    DebugSerial_SendString("[board-test,start]\r\n");
+    DebugSerial_SendString("[board-test,mode=stepper-encoder]\r\n");
+    DebugSerial_Printf("[step-enc,cpr=%u]\r\n", (unsigned int)STEPPER_ENC_CPR);
+    DebugSerial_SendString("[step-enc,key,k1=reset,k4=stop]\r\n");
+}
+
+void BoardTest_Task10ms(void)
+{
+    uint8_t key = Key_GetNum();
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+
+    if (key == 1U)
+    {
+        StepperEncoder_ResetCounts();
+        DebugSerial_SendString("[step-enc,reset]\r\n");
+    }
+}
+
+void BoardTest_Task100ms(void) { }
+void BoardTest_Task200ms(void)
+{
+    int32_t x, y, xWin, yWin, xRev, yRev, xRem, yRem;
+    uint32_t xBad, yBad;
+
+    x = StepperEncoder_GetXCount();
+    y = StepperEncoder_GetYCount();
+    xBad = StepperEncoder_GetXBadCount();
+    yBad = StepperEncoder_GetYBadCount();
+
+    s_xSnap = x; s_ySnap = y; s_xBadSnap = xBad; s_yBadSnap = yBad;
+
+    xWin = x;
+    if (xWin < 0) xWin = -xWin;
+    xRev = xWin / (int32_t)STEPPER_ENC_CPR;
+    xRem = xWin % (int32_t)STEPPER_ENC_CPR;
+
+    yWin = y;
+    if (yWin < 0) yWin = -yWin;
+    yRev = yWin / (int32_t)STEPPER_ENC_CPR;
+    yRem = yWin % (int32_t)STEPPER_ENC_CPR;
+
+    DebugSerial_Printf("[step-enc,x=%ld,x_rev=%ld,x_rem=%ld,x_bad=%lu,y=%ld,y_rev=%ld,y_rem=%ld,y_bad=%lu]\r\n",
+        (long)x, (long)xRev, (long)xRem, (unsigned long)xBad,
+        (long)y, (long)yRev, (long)yRem, (unsigned long)yBad);
+}
 
 #else
 

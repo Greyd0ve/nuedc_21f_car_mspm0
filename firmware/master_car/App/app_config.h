@@ -8,6 +8,7 @@
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
 #define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
+#define CAR_TEST_STEPPER_ENCODER_ENABLE ECAR_TEST_STEPPER_ENCODER_ENABLE
 #define CAR_ENCODER_MINIMAL_DEBUG       ECAR_ENCODER_MINIMAL_DEBUG
 #define CAR_ENCODER_SPEED_PERIOD_MS     ECAR_ENCODER_SPEED_PERIOD_MS
 #define CAR_CONTROL_PERIOD_MS           ECAR_CONTROL_PERIOD_MS
@@ -69,6 +70,10 @@
 #ifndef ECAR_TEST_RADIO_ENABLE
 #define ECAR_TEST_RADIO_ENABLE                  0
 #endif
+#ifndef ECAR_TEST_STEPPER_ENCODER_ENABLE
+#define ECAR_TEST_STEPPER_ENCODER_ENABLE        1
+#endif
+#define ECAR_STEPPER_ENCODER_CPR             4000U
 
 /* Master OLED switch. Set to 1 only when the display is physically connected.
  * When 0, all OLED_Init / OLED_Clear / status display calls are compiled out. */
