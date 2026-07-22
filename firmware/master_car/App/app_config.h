@@ -16,6 +16,12 @@
 #define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
 #define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
 
+#if CAR_BOARD_TEST_MODE
+#if (CAR_TEST_RADIO_ENABLE && CAR_TEST_STEPPER_ENCODER_ENABLE)
+#error "Only one board test sub-mode can be enabled at a time"
+#endif
+#endif
+
 /* CarBase template behaviour switches. */
 #ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
 #define CAR_BASE_SERIAL_MONITOR_ENABLE          1

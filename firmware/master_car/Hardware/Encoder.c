@@ -501,7 +501,7 @@ void GROUP1_IRQHandler(void)
     {
         case DL_INTERRUPT_GROUP1_IIDX_GPIOB:
             Encoder_ServicePort(GPIOB);
-#if CAR_TEST_STEPPER_ENCODER_ENABLE
+#if CAR_BOARD_TEST_MODE && CAR_TEST_STEPPER_ENCODER_ENABLE
             StepperEncoder_ServiceISR();
 #endif
             break;

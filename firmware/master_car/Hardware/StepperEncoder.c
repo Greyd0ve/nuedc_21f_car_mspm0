@@ -1,46 +1,47 @@
 #include "StepperEncoder.h"
 #include "ti_msp_dl_config.h"
+#include "cmsis_compiler.h"
 #include <stdint.h>
 
-#define X_A_PORT  GPIOB
 #define X_A_PIN   DL_GPIO_PIN_15
-#define X_B_PORT  GPIOB
 #define X_B_PIN   DL_GPIO_PIN_16
-#define Y_A_PORT  GPIOB
 #define Y_A_PIN   DL_GPIO_PIN_0
-#define Y_B_PORT  GPIOB
 #define Y_B_PIN   DL_GPIO_PIN_18
 
 #define STEPPER_ENC_MASK (X_A_PIN | X_B_PIN | Y_A_PIN | Y_B_PIN)
 
-static int32_t  s_xCount = 0;
-static int32_t  s_yCount = 0;
-static uint32_t s_xBad   = 0U;
-static uint32_t s_yBad   = 0U;
+static volatile int32_t  s_xCount = 0;
+static volatile int32_t  s_yCount = 0;
+static volatile uint32_t s_xBad   = 0U;
+static volatile uint32_t s_yBad   = 0U;
+static volatile uint8_t  s_xPrev  = 0U;
+static volatile uint8_t  s_yPrev  = 0U;
+
+static void StepperEncoder_SyncPrev(void)
+{
+    uint32_t pins = DL_GPIO_readPins(GPIOB, STEPPER_ENC_MASK);
+    uint8_t xA = (pins & X_A_PIN) ? 1U : 0U;
+    uint8_t xB = (pins & X_B_PIN) ? 1U : 0U;
+    uint8_t yA = (pins & Y_A_PIN) ? 1U : 0U;
+    uint8_t yB = (pins & Y_B_PIN) ? 1U : 0U;
+    s_xPrev = (xA << 1U) | xB;
+    s_yPrev = (yA << 1U) | yB;
+}
 
 void StepperEncoder_ServiceISR(void)
 {
     uint32_t status, pins;
-    uint8_t xA, xB, yA, yB;
-    static uint8_t s_xPrev = 0U;
-    static uint8_t s_yPrev = 0U;
     uint8_t xCurr, yCurr;
     int8_t dx, dy;
 
     status = DL_GPIO_getEnabledInterruptStatus(GPIOB, STEPPER_ENC_MASK);
     DL_GPIO_clearInterruptStatus(GPIOB, status);
-
     if (!(status & STEPPER_ENC_MASK)) return;
 
     pins = DL_GPIO_readPins(GPIOB, STEPPER_ENC_MASK);
 
-    xA = (pins & X_A_PIN) ? 1U : 0U;
-    xB = (pins & X_B_PIN) ? 1U : 0U;
-    yA = (pins & Y_A_PIN) ? 1U : 0U;
-    yB = (pins & Y_B_PIN) ? 1U : 0U;
-
-    xCurr = (xA << 1U) | xB;
-    yCurr = (yA << 1U) | yB;
+    xCurr = (uint8_t)((((pins & X_A_PIN) ? 1U : 0U) << 1U) | ((pins & X_B_PIN) ? 1U : 0U));
+    yCurr = (uint8_t)((((pins & Y_A_PIN) ? 1U : 0U) << 1U) | ((pins & Y_B_PIN) ? 1U : 0U));
 
     switch ((s_xPrev << 2U) | xCurr)
     {
@@ -76,23 +77,44 @@ void StepperEncoder_Init(void)
     DL_GPIO_initDigitalInputFeatures(IOMUX_PINCM32, DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP, DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
     DL_GPIO_initDigitalInputFeatures(IOMUX_PINCM33, DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP, DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_setLowerPinsPolarity(GPIOB, DL_GPIO_PIN_0_EDGE_RISE_FALL);
-    DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_18_EDGE_RISE_FALL | DL_GPIO_PIN_15_EDGE_RISE_FALL | DL_GPIO_PIN_16_EDGE_RISE_FALL);
+    DL_GPIO_setLowerPinsPolarity(GPIOB, DL_GPIO_PIN_0_EDGE_RISE_FALL | DL_GPIO_PIN_15_EDGE_RISE_FALL);
+    DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_16_EDGE_RISE_FALL | DL_GPIO_PIN_18_EDGE_RISE_FALL);
+
+    StepperEncoder_SyncPrev();
 
     DL_GPIO_clearInterruptStatus(GPIOB, STEPPER_ENC_MASK);
     NVIC_ClearPendingIRQ(GPIOB_INT_IRQn);
     DL_GPIO_enableInterrupt(GPIOB, STEPPER_ENC_MASK);
+    NVIC_EnableIRQ(GPIOB_INT_IRQn);
 }
 
 void StepperEncoder_ResetCounts(void)
 {
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+
     s_xCount = 0;
     s_yCount = 0;
     s_xBad = 0U;
     s_yBad = 0U;
+
+    StepperEncoder_SyncPrev();
+
+    if (primask == 0U) { __enable_irq(); }
 }
 
-int32_t StepperEncoder_GetXCount(void)     { return s_xCount; }
-int32_t StepperEncoder_GetYCount(void)     { return s_yCount; }
-uint32_t StepperEncoder_GetXBadCount(void) { return s_xBad; }
-uint32_t StepperEncoder_GetYBadCount(void) { return s_yBad; }
+void StepperEncoder_GetSnapshot(StepperEncoderSnapshot_t *snapshot)
+{
+    uint32_t primask;
+    if (snapshot == 0) return;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+
+    snapshot->xCount = s_xCount;
+    snapshot->yCount = s_yCount;
+    snapshot->xBad   = s_xBad;
+    snapshot->yBad   = s_yBad;
+
+    if (primask == 0U) { __enable_irq(); }
+}
