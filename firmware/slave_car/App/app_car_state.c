@@ -35,7 +35,7 @@ volatile int32_t g_rightEncoderTotal = 0;
 volatile int32_t g_forwardEncoderTotal = 0;
 volatile int32_t g_turnEncoderTotal = 0;
 
-volatile float g_lineBlackLevelF = 0.0f;
+volatile float g_lineBlackLevelF = 1.0f;
 
 #if ECAR_REAR_LINE_SENSOR_MODE
 volatile float g_lineReverseOrderF = 1.0f;
