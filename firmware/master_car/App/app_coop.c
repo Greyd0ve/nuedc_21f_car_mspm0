@@ -20,7 +20,7 @@
 #define F21_COOP_CROSS_TO_TARGET_ADVANCE_CM F21_CROSS_ADVANCE_CM
 #define F21_COOP_ROOM_RUN_CM                35.0f
 #define F21_COOP_MID_DETECT_CM              120.0f
-#define F21_COOP_RETURN_DETECT_CM           20.0f
+#define F21_COOP_RETURN_DETECT_CM           10.0f
 #define F21_COOP_RETURN_HOME_CM             135.0f
 #define F21_COOP_RADIO_RETRY_MS             100U
 
