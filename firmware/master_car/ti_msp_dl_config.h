@@ -285,6 +285,15 @@ extern "C" {
 #define GPIO_NRF_NRF_MISO_PIN                                   (DL_GPIO_PIN_10)
 #define GPIO_NRF_NRF_MISO_IOMUX                                  (IOMUX_PINCM21)
 
+#define GPIO_STEPPER_ENCODER_X_A_PIN                        (DL_GPIO_PIN_15)
+#define GPIO_STEPPER_ENCODER_X_A_IOMUX                      (IOMUX_PINCM32)
+#define GPIO_STEPPER_ENCODER_X_B_PIN                        (DL_GPIO_PIN_16)
+#define GPIO_STEPPER_ENCODER_X_B_IOMUX                      (IOMUX_PINCM33)
+#define GPIO_STEPPER_ENCODER_Y_A_PIN                         (DL_GPIO_PIN_0)
+#define GPIO_STEPPER_ENCODER_Y_A_IOMUX                      (IOMUX_PINCM12)
+#define GPIO_STEPPER_ENCODER_Y_B_PIN                        (DL_GPIO_PIN_18)
+#define GPIO_STEPPER_ENCODER_Y_B_IOMUX                      (IOMUX_PINCM44)
+
 /* clang-format on */
 
 void SYSCFG_DL_init(void);

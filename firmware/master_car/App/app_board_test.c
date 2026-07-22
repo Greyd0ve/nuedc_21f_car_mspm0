@@ -229,6 +229,13 @@ void BoardTest_Task10ms(void)
         s_snapValid = 0U;
         DebugSerial_SendString("[step-enc,reset]\r\n");
     }
+    else if (key == 4U)
+    {
+        App_Control_ForcePWMZero();
+        Motor_StopAll();
+        Servo_DisableAll();
+        DebugSerial_SendString("[step-enc,stop]\r\n");
+    }
 }
 
 void BoardTest_Task100ms(void) { }
@@ -237,6 +244,7 @@ void BoardTest_Task200ms(void)
 {
     StepperEncoderSnapshot_t snap;
     int32_t xWin, yWin, xRev, yRev, xRem, yRem;
+    int32_t cpr = (int32_t)ECAR_STEPPER_ENCODER_CPR;
 
     StepperEncoder_GetSnapshot(&snap);
 
@@ -254,15 +262,12 @@ void BoardTest_Task200ms(void)
 
     s_lastSnap = snap;
 
-    if (xWin < 0) xWin = -xWin;
-    if (yWin < 0) yWin = -yWin;
-
-    xRev = snap.xCount / (int32_t)ECAR_STEPPER_ENCODER_CPR;
-    xRem = snap.xCount % (int32_t)ECAR_STEPPER_ENCODER_CPR;
+    xRev = snap.xCount / cpr;
+    xRem = snap.xCount % cpr;
     if (xRem < 0) { xRem = -xRem; }
 
-    yRev = snap.yCount / (int32_t)ECAR_STEPPER_ENCODER_CPR;
-    yRem = snap.yCount % (int32_t)ECAR_STEPPER_ENCODER_CPR;
+    yRev = snap.yCount / cpr;
+    yRem = snap.yCount % cpr;
     if (yRem < 0) { yRem = -yRem; }
 
     DebugSerial_Printf("[step-enc,x=%ld,x_win=%ld,x_rev=%ld,x_rem=%ld,x_bad=%lu,y=%ld,y_win=%ld,y_rev=%ld,y_rem=%ld,y_bad=%lu]\r\n",
