@@ -136,6 +136,13 @@ int main(void)
 
     Timer_Init();
 
+#if !CAR_BOARD_TEST_MODE
+    DebugSerial_SendString("[boot,mode=normal-task]\r\n");
+    DebugSerial_Printf("[boot,board-test=%u]\r\n", (unsigned int)CAR_BOARD_TEST_MODE);
+    DebugSerial_Printf("[boot,radio-test=%u]\r\n", (unsigned int)CAR_TEST_RADIO_ENABLE);
+    DebugSerial_Printf("[boot,stepper-encoder-test=%u]\r\n", (unsigned int)CAR_TEST_STEPPER_ENCODER_ENABLE);
+#endif
+
     while (1)
     {
         uint8_t taskCount;

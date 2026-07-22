@@ -3,6 +3,71 @@
 
 #include <stdint.h>
 
+/*
+ * All ECAR_* test macros MUST be defined (with #ifndef guard) before any
+ * #if check that references them.  Undefined identifiers in #if evaluate
+ * to 0, silently disabling the mutual-exclusion error.
+ */
+
+/* Temporary encoder-only memory corruption diagnostic mode. */
+#ifndef ECAR_ENCODER_MINIMAL_DEBUG
+#define ECAR_ENCODER_MINIMAL_DEBUG              0
+#endif
+
+/* Safety switches. Keep remote start disabled unless deliberately enabled. */
+#ifndef ECAR_ENABLE_REMOTE_START
+#define ECAR_ENABLE_REMOTE_START                0
+#endif
+
+/* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
+#ifndef ECAR_BOARD_TEST_MODE
+#define ECAR_BOARD_TEST_MODE                    0
+#endif
+
+/* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
+#ifndef ECAR_TEST_MOTOR_ENABLE
+#define ECAR_TEST_MOTOR_ENABLE                  0
+#endif
+#ifndef ECAR_TEST_SERVO_ENABLE
+#define ECAR_TEST_SERVO_ENABLE                  0
+#endif
+#ifndef ECAR_TEST_BEEP_ENABLE
+#define ECAR_TEST_BEEP_ENABLE                   0
+#endif
+#ifndef ECAR_TEST_OLED_ENABLE
+#define ECAR_TEST_OLED_ENABLE                   0
+#endif
+#ifndef ECAR_TEST_RADIO_ENABLE
+#define ECAR_TEST_RADIO_ENABLE                  0
+#endif
+#ifndef ECAR_TEST_STEPPER_ENCODER_ENABLE
+#define ECAR_TEST_STEPPER_ENCODER_ENABLE        0
+#endif
+
+/* Mutual exclusion: only one board test sub-mode at a time. */
+#if ECAR_BOARD_TEST_MODE && \
+    ((ECAR_TEST_RADIO_ENABLE + ECAR_TEST_STEPPER_ENCODER_ENABLE) > 1)
+#error "Only one board test sub-mode can be enabled at a time"
+#endif
+
+/*
+ * Stepper encoder measured parameters.
+ *
+ * ECAR_STEPPER_ENCODER_CPR (4096):
+ *   After AB quadrature 4x decoding, one mechanical axis revolution
+ *   produces 4096 feedback counts.
+ *
+ * ECAR_STEPPER_DRIVER_PULSE_PER_REV (3200):
+ *   Under the driver's standard microstep setting, sending 3200 STEP
+ *   pulses causes one theoretical motor revolution.
+ *
+ * These two are DIFFERENT pulse types.  The ratio is:
+ *   4096 / 3200 = 32 / 25
+ * Do NOT set ECAR_STEPPER_ENCODER_CPR to 3200.
+ */
+#define ECAR_STEPPER_ENCODER_CPR                4096U
+#define ECAR_STEPPER_DRIVER_PULSE_PER_REV       3200U
+
 /* Neutral CAR_ aliases for template layer use.
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
@@ -15,11 +80,6 @@
 #define CAR_SERIAL_PLOT_PERIOD_MS       ECAR_SERIAL_PLOT_PERIOD_MS
 #define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
 #define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
-
-#if ECAR_BOARD_TEST_MODE && \
-    ((ECAR_TEST_RADIO_ENABLE + ECAR_TEST_STEPPER_ENCODER_ENABLE) > 1)
-#error "Only one board test sub-mode can be enabled at a time"
-#endif
 
 /* CarBase template behaviour switches. */
 #ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
@@ -45,40 +105,6 @@
 #ifndef RADIO_DEBUG_ENABLE
 #define RADIO_DEBUG_ENABLE                      1
 #endif
-
-/* Temporary encoder-only memory corruption diagnostic mode. */
-#ifndef ECAR_ENCODER_MINIMAL_DEBUG
-#define ECAR_ENCODER_MINIMAL_DEBUG              0
-#endif
-
-/* Safety switches. Keep remote start disabled unless deliberately enabled.
- * For IMU-only board tests, set ECAR_TEST_MOTOR_ENABLE = 0 to prevent
- * unexpected motor output during gyro calibration and yaw testing. */
-#ifndef ECAR_ENABLE_REMOTE_START
-#define ECAR_ENABLE_REMOTE_START                0
-#endif
-#ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    1
-#endif
-#ifndef ECAR_TEST_MOTOR_ENABLE
-#define ECAR_TEST_MOTOR_ENABLE                  0
-#endif
-#ifndef ECAR_TEST_SERVO_ENABLE
-#define ECAR_TEST_SERVO_ENABLE                  0
-#endif
-#ifndef ECAR_TEST_BEEP_ENABLE
-#define ECAR_TEST_BEEP_ENABLE                   0
-#endif
-#ifndef ECAR_TEST_OLED_ENABLE
-#define ECAR_TEST_OLED_ENABLE                   0
-#endif
-#ifndef ECAR_TEST_RADIO_ENABLE
-#define ECAR_TEST_RADIO_ENABLE                  0
-#endif
-#ifndef ECAR_TEST_STEPPER_ENCODER_ENABLE
-#define ECAR_TEST_STEPPER_ENCODER_ENABLE        1
-#endif
-#define ECAR_STEPPER_ENCODER_CPR             4000U
 
 /* Master OLED switch. Set to 1 only when the display is physically connected.
  * When 0, all OLED_Init / OLED_Clear / status display calls are compiled out. */

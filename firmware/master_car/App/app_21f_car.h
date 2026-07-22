@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define F21_CROSS_CONFIRM_MS            20U
-#define F21_CROSS_ADVANCE_CM            4.0f
+#define F21_CROSS_ADVANCE_CM            6.0f
 #define F21_FAR_CROSS_ADVANCE_CM        3.0f
 #define F21_UNLOAD_WAIT_MS              2000U
 
@@ -12,7 +12,7 @@
 #define F21_SIDE_CROSS_LEFT_MASK        0x3FU
 #define F21_SIDE_CROSS_RIGHT_MASK       0xFCU
 
-#define F21_LINE_BASE_SPEED_CMPS        18.0f
+#define F21_LINE_BASE_SPEED_CMPS        20.0f
 #define F21_FAR_LINE_BASE_SPEED_CMPS    22.0f
 #define F21_FAR_FAST_LINE_SPEED_CMPS    27.0f
 #define F21_CROSS_ADVANCE_SPEED_CMPS    12.0f
