@@ -325,8 +325,8 @@ static int32_t StepperMotor_RampOne(
 }
 
 static void StepperMotor_StepChannel(
-    int32_t target, int32_t *cur,
-    int32_t *pendingTarget, StepDirState_t *dirState,
+    int32_t target, volatile int32_t *cur,
+    volatile int32_t *pendingTarget, volatile StepDirState_t *dirState,
     GPTIMER_Regs *timer, uint8_t ccIndex,
     GPIO_Regs *dirPort, uint32_t dirPin,
     volatile int32_t *stepCount, volatile uint32_t *phase)

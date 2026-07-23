@@ -2,6 +2,7 @@
 #include "app_config.h"
 #include "app_tuning.h"
 #include "app_car_state.h"
+#include "Board_Config.h"
 #include "Encoder.h"
 #include "Motor.h"
 #include "PWM.h"
