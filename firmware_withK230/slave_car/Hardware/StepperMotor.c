@@ -29,6 +29,8 @@ static volatile uint32_t s_rightPhase = 0U;
 static volatile StepDirState_t s_leftDirState  = DIR_STATE_NORMAL;
 static volatile StepDirState_t s_rightDirState = DIR_STATE_NORMAL;
 
+static volatile uint8_t s_startupHold = 1U;
+
 static void StepperMotor_SetDIR(GPIO_Regs *port, uint32_t pin, int32_t freq)
 {
     if (freq >= 0) { DL_GPIO_setPins(port, pin); }
@@ -130,6 +132,7 @@ void StepperMotor_Init(void)
     s_rightPhase  = 0U;
     s_leftDirState  = DIR_STATE_NORMAL;
     s_rightDirState = DIR_STATE_NORMAL;
+    s_startupHold   = 1U;
 
 #if STEPPER_HAS_ENABLE_GPIO
     s_leftEnabled  = 0U;
@@ -140,9 +143,12 @@ void StepperMotor_Init(void)
 #endif
 
     DL_GPIO_initDigitalOutput(STEPPER_DIR_L_IOMUX);
-    DL_GPIO_clearPins(STEPPER_DIR_L_PORT, STEPPER_DIR_L_PIN);
     DL_GPIO_initDigitalOutput(STEPPER_DIR_R_IOMUX);
-    DL_GPIO_clearPins(STEPPER_DIR_R_PORT, STEPPER_DIR_R_PIN);
+
+    StepperMotor_SetDIR(STEPPER_DIR_L_PORT, STEPPER_DIR_L_PIN,
+        (int32_t)LEFT_STEPPER_DIR_SIGN);
+    StepperMotor_SetDIR(STEPPER_DIR_R_PORT, STEPPER_DIR_R_PIN,
+        (int32_t)RIGHT_STEPPER_DIR_SIGN);
 
     StepperMotor_InitTimerChannel(
         STEPPER_STEP_L_TIMER_INST,
@@ -222,9 +228,29 @@ int32_t StepperMotor_GetRightSignedStepCount(void){ return s_rightSignedStepCoun
 uint8_t StepperMotor_IsLeftEnabled(void)          { return s_leftEnabled; }
 uint8_t StepperMotor_IsRightEnabled(void)         { return s_rightEnabled; }
 
-void StepperMotor_StopLeft(void)  { s_leftTargetFreq = 0; }
-void StepperMotor_StopRight(void) { s_rightTargetFreq = 0; }
-void StepperMotor_StopAll(void)   { s_leftTargetFreq = 0; s_rightTargetFreq = 0; }
+void StepperMotor_StopLeft(void)
+{
+    s_leftTargetFreq = 0;
+    s_leftPendingTarget = 0;
+    s_leftDirState = DIR_STATE_NORMAL;
+}
+
+void StepperMotor_StopRight(void)
+{
+    s_rightTargetFreq = 0;
+    s_rightPendingTarget = 0;
+    s_rightDirState = DIR_STATE_NORMAL;
+}
+
+void StepperMotor_StopAll(void)
+{
+    s_leftTargetFreq = 0;
+    s_leftPendingTarget = 0;
+    s_leftDirState = DIR_STATE_NORMAL;
+    s_rightTargetFreq = 0;
+    s_rightPendingTarget = 0;
+    s_rightDirState = DIR_STATE_NORMAL;
+}
 
 void StepperMotor_EmergencyStop(void)
 {
@@ -382,6 +408,14 @@ static void StepperMotor_StepChannel(
 void StepperMotor_Task1ms(void)
 {
     if (s_emergencyStop) { return; }
+
+    /* Startup hold: after Init(), let DIR settle at least 1ms
+     * before any STEP pulse can be emitted. */
+    if (s_startupHold > 0U)
+    {
+        s_startupHold--;
+        return;
+    }
 
 #if STEPPER_HAS_ENABLE_GPIO
     if (!s_leftEnabled)  { s_leftTargetFreq = 0; }
