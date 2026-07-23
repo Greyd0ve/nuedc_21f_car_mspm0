@@ -170,18 +170,20 @@ static void BoardTest_ApplyKey(void)
     switch (s_keyPending)
     {
     case 1U:
+        /* STEP_L/DIR_L → right physical motor (cross-wired) */
         s_mode = STEP_TEST_RIGHT_ONLY;
-        StepperMotor_StopLeft();
-        StepperMotor_SetRightTargetFrequency(
-            (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
+        StepperMotor_StopRight();
+        StepperMotor_SetLeftTargetFrequency(
+            (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
         modeStr = "right_only";
         break;
 
     case 2U:
+        /* STEP_R/DIR_R → left physical motor (cross-wired) */
         s_mode = STEP_TEST_LEFT_ONLY;
-        StepperMotor_StopRight();
-        StepperMotor_SetLeftTargetFrequency(
-            (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
+        StepperMotor_StopLeft();
+        StepperMotor_SetRightTargetFrequency(
+            (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
         modeStr = "left_only";
         break;
 
@@ -210,12 +212,14 @@ static void BoardTest_ApplyKey(void)
         switch (s_mode)
         {
         case STEP_TEST_RIGHT_ONLY:
-            StepperMotor_SetRightTargetFrequency(
-                (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
-            break;
-        case STEP_TEST_LEFT_ONLY:
+            /* right physical motor → STEP_L channel */
             StepperMotor_SetLeftTargetFrequency(
                 (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
+            break;
+        case STEP_TEST_LEFT_ONLY:
+            /* left physical motor → STEP_R channel */
+            StepperMotor_SetRightTargetFrequency(
+                (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
             break;
         case STEP_TEST_BOTH:
             StepperMotor_SetTargetFrequency(
