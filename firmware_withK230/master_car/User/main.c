@@ -21,6 +21,11 @@
 #include "cmsis_compiler.h"
 #include <stdint.h>
 
+#if F21_VISION_TRACK_TEST_MODE
+#include "app_vision_link.h"
+#include "app_vision_track.h"
+#endif
+
 volatile uint8_t g_task_1ms_count = 0U;
 volatile uint8_t g_task_5ms_count = 0U;
 volatile uint8_t g_task_10ms_count = 0U;
@@ -100,6 +105,53 @@ int main(void)
 				Encoder_DebugPrintGetterNoPrintf("[enc-getter-after-getdelta]");
 				Main_PrintfSingleFieldTest();
             }
+        }
+    }
+#elif F21_VISION_TRACK_TEST_MODE
+    Key_Init();
+    Motor_Init();
+    Motor_StopAll();
+    Encoder_Init();
+    BeepLed_Init();
+    Serial_Init();
+    DebugSerial_Init();
+    CarBase_Init();
+    App_VisionLink_Init();
+    App_VisionTrack_Init();
+
+    Timer_Init();
+
+    DebugSerial_SendString("[boot,mode=vision-track]\r\n");
+
+    while (1)
+    {
+        uint8_t taskCount;
+
+        (void)Main_TakeTaskCounterAll(&g_task_1ms_count);
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
+        if (taskCount > 0U)
+        {
+            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
+        }
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
+        if (taskCount > 2U)
+        {
+            taskCount = 2U;
+        }
+        while (taskCount > 0U)
+        {
+            App_VisionLink_Task10ms();
+            App_VisionTrack_Task10ms();
+            taskCount--;
+        }
+
+        App_VisionTrack_HandleKey(Key_GetNum());
+
+        if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
+        {
+            App_VisionTrack_Task100ms();
         }
     }
 #else

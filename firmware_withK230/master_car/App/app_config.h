@@ -176,4 +176,11 @@
 #define ECAR_BOARD_TEST_PWM_LIMIT               260
 #endif
 
+/* Stage 1 vision track test mode.
+ * When 1: run K230 vision-based straight-line tracking.
+ * When 0: restore original 2021 F-topic full route state machine. */
+#ifndef F21_VISION_TRACK_TEST_MODE
+#define F21_VISION_TRACK_TEST_MODE              1
+#endif
+
 #endif
