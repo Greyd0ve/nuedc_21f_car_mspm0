@@ -208,21 +208,23 @@ extern "C" {
 /* Port definition for Pin Group GPIO_ENCODER */
 #define GPIO_ENCODER_PORT                                                (GPIOB)
 
-/* Defines for L_A: GPIOB.5 with pinCMx 18 */
+/* Defines for L_A: GPIOB.5 with pinCMx 18 on package pin 53 */
 // pins affected by this interrupt request:["L_A","L_B","R_A","R_B"]
 #define GPIO_ENCODER_INT_IRQN                                   (GPIOB_INT_IRQn)
 #define GPIO_ENCODER_INT_IIDX                   (DL_INTERRUPT_GROUP1_IIDX_GPIOB)
 #define GPIO_ENCODER_L_A_IIDX                                (DL_GPIO_IIDX_DIO5)
 #define GPIO_ENCODER_L_A_PIN                                     (DL_GPIO_PIN_5)
 #define GPIO_ENCODER_L_A_IOMUX                                   (IOMUX_PINCM18)
-/* Defines for L_B: GPIOB.12 with pinCMx 29 */
+/* Defines for L_B: GPIOB.12 with pinCMx 29 on package pin 64 */
+#define GPIO_ENCODER_L_B_IIDX                               (DL_GPIO_IIDX_DIO12)
 #define GPIO_ENCODER_L_B_PIN                                    (DL_GPIO_PIN_12)
 #define GPIO_ENCODER_L_B_IOMUX                                   (IOMUX_PINCM29)
-/* Defines for R_A: GPIOB.8 with pinCMx 25 */
+/* Defines for R_A: GPIOB.8 with pinCMx 25 on package pin 60 */
 #define GPIO_ENCODER_R_A_IIDX                                (DL_GPIO_IIDX_DIO8)
 #define GPIO_ENCODER_R_A_PIN                                     (DL_GPIO_PIN_8)
 #define GPIO_ENCODER_R_A_IOMUX                                   (IOMUX_PINCM25)
-/* Defines for R_B: GPIOB.0 with pinCMx 12 */
+/* Defines for R_B: GPIOB.0 with pinCMx 12 on package pin 47 */
+#define GPIO_ENCODER_R_B_IIDX                                (DL_GPIO_IIDX_DIO0)
 #define GPIO_ENCODER_R_B_PIN                                     (DL_GPIO_PIN_0)
 #define GPIO_ENCODER_R_B_IOMUX                                   (IOMUX_PINCM12)
 /* Port definition for Pin Group GPIO_GRAYSCALE */

@@ -151,10 +151,12 @@ void BoardTest_Init(void)
     s_level = 0U;
     s_keyPending = 0U;
     s_periodMs = 0U;
-    s_lastLeftEncTotal  = 0;
-    s_lastRightEncTotal = 0;
 
     StepperMotor_StopAll();
+    StepperMotor_ClearStepCount();
+    s_lastLeftEncTotal  = g_leftEncoderTotal;
+    s_lastRightEncTotal = g_rightEncoderTotal;
+
     BoardTest_PrintBanner();
 }
 
@@ -261,63 +263,44 @@ void BoardTest_Task100ms(void)
     s_periodMs = 0U;
 
     {
-        int32_t leftTgtFreq, rightTgtFreq;
-        int32_t leftCurFreq, rightCurFreq;
-        int32_t leftEncDelta, rightEncDelta;
-        int32_t leftEncTotal, rightEncTotal;
-        uint32_t leftStepCount, rightStepCount;
-        int32_t leftEncExpected, rightEncExpected;
-        int32_t leftEncError, rightEncError;
+        int32_t ltgt, rtgt, lcur, rcur;
+        int32_t lenc, renc, ltot, rtot;
+        int32_t lstep, rstep;
+        int64_t lexp64, rexp64;
+        int32_t lexp, rexp;
 
-        leftTgtFreq  = StepperMotor_GetLeftTargetFrequency();
-        rightTgtFreq = StepperMotor_GetRightTargetFrequency();
-        leftCurFreq  = StepperMotor_GetLeftCurrentFrequency();
-        rightCurFreq = StepperMotor_GetRightCurrentFrequency();
+        ltgt = StepperMotor_GetLeftTargetFrequency();
+        rtgt = StepperMotor_GetRightTargetFrequency();
+        lcur = StepperMotor_GetLeftCurrentFrequency();
+        rcur = StepperMotor_GetRightCurrentFrequency();
 
-        leftStepCount  = StepperMotor_GetLeftStepCount();
-        rightStepCount = StepperMotor_GetRightStepCount();
+        lstep = StepperMotor_GetLeftSignedStepCount();
+        rstep = StepperMotor_GetRightSignedStepCount();
 
-        /* Use encoder total diff to avoid double-consuming deltas
-         * (App_Control_UpdateEncoderSpeed already calls Encoder_Get*Delta
-         *  every 5ms via the main loop). */
-        leftEncTotal  = g_leftEncoderTotal;
-        rightEncTotal = g_rightEncoderTotal;
-        leftEncDelta  = leftEncTotal  - s_lastLeftEncTotal;
-        rightEncDelta = rightEncTotal - s_lastRightEncTotal;
-        s_lastLeftEncTotal  = leftEncTotal;
-        s_lastRightEncTotal = rightEncTotal;
+        ltot = g_leftEncoderTotal;
+        rtot = g_rightEncoderTotal;
+        lenc = ltot - s_lastLeftEncTotal;
+        renc = rtot - s_lastRightEncTotal;
+        s_lastLeftEncTotal  = ltot;
+        s_lastRightEncTotal = rtot;
 
-        /* Expected encoder count = emitted_steps * 4096 / 3200.
-         * Accumulate over the whole interval (not per-tick) so the
-         * ratio is exact for the run-total step counter. */
-        leftEncExpected = (int32_t)(
-            (uint64_t)leftStepCount
-            * (uint64_t)STEPPER_ENC_PER_STEP_NUM
-            / (uint64_t)STEPPER_ENC_PER_STEP_DEN);
-        rightEncExpected = (int32_t)(
-            (uint64_t)rightStepCount
-            * (uint64_t)STEPPER_ENC_PER_STEP_NUM
-            / (uint64_t)STEPPER_ENC_PER_STEP_DEN);
-
-        leftEncError  = leftEncTotal  - leftEncExpected;
-        rightEncError = rightEncTotal - rightEncExpected;
+        lexp64 = (int64_t)lstep * (int64_t)STEPPER_ENC_PER_STEP_NUM
+                 / (int64_t)STEPPER_ENC_PER_STEP_DEN;
+        rexp64 = (int64_t)rstep * (int64_t)STEPPER_ENC_PER_STEP_NUM
+                 / (int64_t)STEPPER_ENC_PER_STEP_DEN;
+        lexp = (int32_t)lexp64;
+        rexp = (int32_t)rexp64;
 
         DebugSerial_Printf(
-            "[step-test,status,"
-            "mode=%u,level=%u,"
-            "ltgt=%ld,lcur=%ld,rtgt=%ld,rcur=%ld,"
-            "lstp=%lu,rstp=%lu,"
-            "lenc=%ld,renc=%ld,ltot=%ld,rtot=%ld,"
-            "lexp=%ld,rexp=%ld,lerr=%ld,rerr=%ld,"
-            "lill=%lu,rill=%lu]\r\n",
+            "[step,m=%u,lv=%u,lt=%ld,lc=%ld,rt=%ld,rc=%ld]\r\n",
             (unsigned int)s_mode, (unsigned int)(s_level + 1U),
-            (long)leftTgtFreq, (long)leftCurFreq,
-            (long)rightTgtFreq, (long)rightCurFreq,
-            (unsigned long)leftStepCount, (unsigned long)rightStepCount,
-            (long)leftEncDelta, (long)rightEncDelta,
-            (long)leftEncTotal, (long)rightEncTotal,
-            (long)leftEncExpected, (long)rightEncExpected,
-            (long)leftEncError, (long)rightEncError,
+            (long)ltgt, (long)lcur, (long)rtgt, (long)rcur);
+        DebugSerial_Printf(
+            "[enc,ls=%ld,rs=%ld,le=%ld,re=%ld,"
+            "lexp=%ld,rexp=%ld,li=%lu,ri=%lu]\r\n",
+            (long)lstep, (long)rstep,
+            (long)ltot, (long)rtot,
+            (long)lexp, (long)rexp,
             (unsigned long)Encoder_GetLeftIllegalCount(),
             (unsigned long)Encoder_GetRightIllegalCount());
     }

@@ -18,8 +18,8 @@ int32_t StepperMotor_GetRightTargetFrequency(void);
 int32_t StepperMotor_GetLeftCurrentFrequency(void);
 int32_t StepperMotor_GetRightCurrentFrequency(void);
 
-uint32_t StepperMotor_GetLeftStepCount(void);
-uint32_t StepperMotor_GetRightStepCount(void);
+int32_t StepperMotor_GetLeftSignedStepCount(void);
+int32_t StepperMotor_GetRightSignedStepCount(void);
 
 uint8_t StepperMotor_IsLeftEnabled(void);
 uint8_t StepperMotor_IsRightEnabled(void);
@@ -29,6 +29,10 @@ void StepperMotor_StopRight(void);
 void StepperMotor_StopAll(void);
 
 void StepperMotor_EmergencyStop(void);
+void StepperMotor_ClearEmergencyStop(void);
+uint8_t StepperMotor_IsEmergencyStopped(void);
+
+void StepperMotor_ClearStepCount(void);
 
 void StepperMotor_Task1ms(void);
 
