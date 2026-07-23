@@ -105,17 +105,16 @@ int main(void)
     }
 #else
     Key_Init();
+    DebugSerial_Init();
     Grayscale_Init();
     Motor_Init();
     Motor_StopAll();
-    StepperMotor_Init();
-    StepperMotor_EnableAll(0U);
     Encoder_Init();
+    StepperMotor_Init();
     BeepLed_Init();
 #if ENABLE_K230
     Serial_Init();
 #endif
-    DebugSerial_Init();
     Servo_Init();
     CarBase_Init();
     F21Car_Init();
@@ -123,16 +122,19 @@ int main(void)
     App_TaskMode_Init();
     App_Radio_Init();
 
-#if CAR_OLED_ENABLE
-    OLED_Init();
-    OLED_Clear();
-#endif
+    /*
+     * OLED disabled in stepper-test mode:
+     * PB08 (OLED_H8_SDA) is now ENC_R_A.
+     * BOARD_OLED_USE_H8_I2C=0 and ECAR_OLED_ENABLE=0.
+     */
 
 #if CAR_BOARD_TEST_MODE
     BoardTest_Init();
 #else
     App_Line_GPIOForceInit();
 #if CAR_OLED_ENABLE
+    OLED_Init();
+    OLED_Clear();
     F21Car_Task200ms();
 #endif
 #endif

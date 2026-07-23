@@ -102,9 +102,8 @@ void BoardTest_Task200ms(void) { }
 
 #elif ECAR_TEST_STEPPER_ENABLE
 
-/*
- * Step-test mode enumeration.
- */
+/* Stepper board test with 500ms status output. */
+
 typedef enum
 {
     STEP_TEST_STOP = 0,
@@ -113,16 +112,6 @@ typedef enum
     STEP_TEST_BOTH
 } StepTestMode_t;
 
-/*
- * Seven-level frequency table (Hz).
- *  1: 2240    (  42 RPM,   7.00 %)
- *  2: 4533    (  85 RPM,  14.17 %)
- *  3: 6827    ( 128 RPM,  21.33 %)
- *  4: 9120    ( 171 RPM,  28.50 %)
- *  5: 11413   ( 214 RPM,  35.67 %)
- *  6: 13707   ( 257 RPM,  42.83 %)
- *  7: 16000   ( 300 RPM,  50.00 %)
- */
 static const uint32_t s_stepFreqTable[STEPPER_SPEED_LEVELS] =
 {
     2240U, 4533U, 6827U, 9120U, 11413U, 13707U, 16000U
@@ -132,27 +121,28 @@ static StepTestMode_t s_mode = STEP_TEST_STOP;
 static uint8_t s_level = 0U;
 static uint8_t s_keyPending = 0U;
 
+static uint16_t s_periodMs = 0U;
+
+static int32_t s_lastLeftEncTotal  = 0;
+static int32_t s_lastRightEncTotal = 0;
+
 static void BoardTest_PrintBanner(void)
 {
     DebugSerial_SendString("\r\n[step-test,start]\r\n");
+    DebugSerial_Printf("[step-test,step_l=PB15,timer=TIMG7_C0]\r\n");
+    DebugSerial_Printf("[step-test,step_r=PB16,timer=TIMG8_C1]\r\n");
+    DebugSerial_Printf("[step-test,dir_l=PB18]\r\n");
+    DebugSerial_Printf("[step-test,dir_r=PB25]\r\n");
+    DebugSerial_Printf("[step-test,enc_l_a=PB05,enc_l_b=PB12]\r\n");
+    DebugSerial_Printf("[step-test,enc_r_a=PB08,enc_r_b=PB00]\r\n");
+    DebugSerial_Printf("[step-test,en=hardware_always_enabled]\r\n");
     DebugSerial_Printf("[step-test,step_per_rev=%u]\r\n",
         (unsigned int)STEPPER_STEP_PER_REV);
-    DebugSerial_Printf("[step-test,enc_per_rev=%u]\r\n",
+    DebugSerial_Printf("[step-test,encoder_count_per_rev=%u]\r\n",
         (unsigned int)ENCODER_COUNT_PER_REV);
-    DebugSerial_Printf("[step-test,full_rpm=%u]\r\n",
-        (unsigned int)STEPPER_FULL_SPEED_RPM);
-    DebugSerial_Printf("[step-test,max_freq=%u_hz]\r\n",
-        (unsigned int)STEPPER_FULL_STEP_FREQ_HZ);
-    DebugSerial_Printf("[step-test,test_max_rpm=%u]\r\n",
-        (unsigned int)STEPPER_TEST_MAX_RPM);
-    DebugSerial_Printf("[step-test,level=%u]\r\n",
-        (unsigned int)(s_level + 1U));
-    DebugSerial_SendString(
-        "[step-test,key,k1=right_only,k2=left_only,"
-        "k3=both_toggle,k4=speed_cycle]\r\n");
-    DebugSerial_Printf(
-        "[step-test,pin,step_l=pa3_timg7,step_r=pa5_timg8,"
-        "dir_l=pb17,dir_r=pb19,en_l=pa16,en_r=pb24]\r\n");
+    DebugSerial_Printf("[step-test,level=%u,target_hz=%lu]\r\n",
+        (unsigned int)(s_level + 1U),
+        (unsigned long)s_stepFreqTable[s_level]);
 }
 
 void BoardTest_Init(void)
@@ -160,10 +150,11 @@ void BoardTest_Init(void)
     s_mode = STEP_TEST_STOP;
     s_level = 0U;
     s_keyPending = 0U;
+    s_periodMs = 0U;
+    s_lastLeftEncTotal  = 0;
+    s_lastRightEncTotal = 0;
 
     StepperMotor_StopAll();
-    StepperMotor_EnableAll(1U);
-
     BoardTest_PrintBanner();
 }
 
@@ -179,14 +170,16 @@ static void BoardTest_ApplyKey(void)
     case 1U:
         s_mode = STEP_TEST_RIGHT_ONLY;
         StepperMotor_StopLeft();
-        StepperMotor_SetRightTargetFrequency((int32_t)freq);
+        StepperMotor_SetRightTargetFrequency(
+            (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
         modeStr = "right_only";
         break;
 
     case 2U:
         s_mode = STEP_TEST_LEFT_ONLY;
         StepperMotor_StopRight();
-        StepperMotor_SetLeftTargetFrequency((int32_t)freq);
+        StepperMotor_SetLeftTargetFrequency(
+            (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
         modeStr = "left_only";
         break;
 
@@ -201,7 +194,8 @@ static void BoardTest_ApplyKey(void)
         {
             s_mode = STEP_TEST_BOTH;
             StepperMotor_SetTargetFrequency(
-                (int32_t)freq, (int32_t)freq);
+                (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN,
+                (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
             modeStr = "both";
         }
         break;
@@ -214,14 +208,17 @@ static void BoardTest_ApplyKey(void)
         switch (s_mode)
         {
         case STEP_TEST_RIGHT_ONLY:
-            StepperMotor_SetRightTargetFrequency((int32_t)freq);
+            StepperMotor_SetRightTargetFrequency(
+                (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
             break;
         case STEP_TEST_LEFT_ONLY:
-            StepperMotor_SetLeftTargetFrequency((int32_t)freq);
+            StepperMotor_SetLeftTargetFrequency(
+                (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
             break;
         case STEP_TEST_BOTH:
             StepperMotor_SetTargetFrequency(
-                (int32_t)freq, (int32_t)freq);
+                (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN,
+                (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
             break;
         default:
             break;
@@ -259,83 +256,74 @@ void BoardTest_Task10ms(void)
 
 void BoardTest_Task100ms(void)
 {
-    int16_t leftDelta;
-    int16_t rightDelta;
-    int32_t leftCurFreq;
-    int32_t rightCurFreq;
-    int32_t leftTgtFreq;
-    int32_t rightTgtFreq;
-    int32_t leftEncExpect;
-    int32_t rightEncExpect;
-    int32_t leftEncError;
-    int32_t rightEncError;
-    int32_t stepRatioNum;
-    int32_t stepRatioDen;
-    int32_t expectPerDiv;
+    s_periodMs += 100U;
+    if (s_periodMs < 500U) { return; }
+    s_periodMs = 0U;
 
-    leftDelta  = Encoder_GetLeftDelta();
-    rightDelta = Encoder_GetRightDelta();
-
-    g_leftEncoderTotal  += leftDelta;
-    g_rightEncoderTotal += rightDelta;
-
-    leftCurFreq   = StepperMotor_GetLeftCurrentFrequency();
-    rightCurFreq  = StepperMotor_GetRightCurrentFrequency();
-    leftTgtFreq   = StepperMotor_GetLeftTargetFrequency();
-    rightTgtFreq  = StepperMotor_GetRightTargetFrequency();
-
-    stepRatioNum = (int32_t)STEPPER_ENC_PER_STEP_NUM;
-    stepRatioDen = (int32_t)STEPPER_ENC_PER_STEP_DEN;
-
-    expectPerDiv = 100;
-    if (leftTgtFreq > 0)
     {
-        leftEncExpect = leftTgtFreq * stepRatioNum / stepRatioDen
-                        * (int32_t)CAR_SERIAL_PLOT_PERIOD_MS / 1000;
-    }
-    else
-    {
-        leftEncExpect = 0;
-    }
-    if (rightTgtFreq > 0)
-    {
-        rightEncExpect = rightTgtFreq * stepRatioNum / stepRatioDen
-                         * (int32_t)CAR_SERIAL_PLOT_PERIOD_MS / 1000;
-    }
-    else
-    {
-        rightEncExpect = 0;
-    }
+        int32_t leftTgtFreq, rightTgtFreq;
+        int32_t leftCurFreq, rightCurFreq;
+        int32_t leftEncDelta, rightEncDelta;
+        int32_t leftEncTotal, rightEncTotal;
+        uint32_t leftStepCount, rightStepCount;
+        int32_t leftEncExpected, rightEncExpected;
+        int32_t leftEncError, rightEncError;
 
-    leftEncError  = (int32_t)leftDelta  - leftEncExpect;
-    rightEncError = (int32_t)rightDelta - rightEncExpect;
+        leftTgtFreq  = StepperMotor_GetLeftTargetFrequency();
+        rightTgtFreq = StepperMotor_GetRightTargetFrequency();
+        leftCurFreq  = StepperMotor_GetLeftCurrentFrequency();
+        rightCurFreq = StepperMotor_GetRightCurrentFrequency();
 
-    DebugSerial_Printf(
-        "[step-test,status,mode=%u,level=%u,"
-        "ltgt=%ld,lcur=%ld,rtgt=%ld,rcur=%ld,"
-        "lenc=%d,renc=%d,ltot=%ld,rtot=%ld,"
-        "lexp=%ld,rexp=%ld,lerr=%ld,rerr=%ld]\r\n",
-        (unsigned int)s_mode, (unsigned int)(s_level + 1U),
-        (long)leftTgtFreq, (long)leftCurFreq,
-        (long)rightTgtFreq, (long)rightCurFreq,
-        (int)leftDelta, (int)rightDelta,
-        (long)g_leftEncoderTotal, (long)g_rightEncoderTotal,
-        (long)leftEncExpect, (long)rightEncExpect,
-        (long)leftEncError, (long)rightEncError);
+        leftStepCount  = StepperMotor_GetLeftStepCount();
+        rightStepCount = StepperMotor_GetRightStepCount();
+
+        /* Use encoder total diff to avoid double-consuming deltas
+         * (App_Control_UpdateEncoderSpeed already calls Encoder_Get*Delta
+         *  every 5ms via the main loop). */
+        leftEncTotal  = g_leftEncoderTotal;
+        rightEncTotal = g_rightEncoderTotal;
+        leftEncDelta  = leftEncTotal  - s_lastLeftEncTotal;
+        rightEncDelta = rightEncTotal - s_lastRightEncTotal;
+        s_lastLeftEncTotal  = leftEncTotal;
+        s_lastRightEncTotal = rightEncTotal;
+
+        /* Expected encoder count = emitted_steps * 4096 / 3200.
+         * Accumulate over the whole interval (not per-tick) so the
+         * ratio is exact for the run-total step counter. */
+        leftEncExpected = (int32_t)(
+            (uint64_t)leftStepCount
+            * (uint64_t)STEPPER_ENC_PER_STEP_NUM
+            / (uint64_t)STEPPER_ENC_PER_STEP_DEN);
+        rightEncExpected = (int32_t)(
+            (uint64_t)rightStepCount
+            * (uint64_t)STEPPER_ENC_PER_STEP_NUM
+            / (uint64_t)STEPPER_ENC_PER_STEP_DEN);
+
+        leftEncError  = leftEncTotal  - leftEncExpected;
+        rightEncError = rightEncTotal - rightEncExpected;
+
+        DebugSerial_Printf(
+            "[step-test,status,"
+            "mode=%u,level=%u,"
+            "ltgt=%ld,lcur=%ld,rtgt=%ld,rcur=%ld,"
+            "lstp=%lu,rstp=%lu,"
+            "lenc=%ld,renc=%ld,ltot=%ld,rtot=%ld,"
+            "lexp=%ld,rexp=%ld,lerr=%ld,rerr=%ld,"
+            "lill=%lu,rill=%lu]\r\n",
+            (unsigned int)s_mode, (unsigned int)(s_level + 1U),
+            (long)leftTgtFreq, (long)leftCurFreq,
+            (long)rightTgtFreq, (long)rightCurFreq,
+            (unsigned long)leftStepCount, (unsigned long)rightStepCount,
+            (long)leftEncDelta, (long)rightEncDelta,
+            (long)leftEncTotal, (long)rightEncTotal,
+            (long)leftEncExpected, (long)rightEncExpected,
+            (long)leftEncError, (long)rightEncError,
+            (unsigned long)Encoder_GetLeftIllegalCount(),
+            (unsigned long)Encoder_GetRightIllegalCount());
+    }
 }
 
-void BoardTest_Task200ms(void)
-{
-    uint8_t raw[8]; uint8_t i;
-    Grayscale_ReadAll(raw);
-    DebugSerial_Printf("[gray,ch=");
-    for (i = 0U; i < 8U; i++)
-    {
-        DebugSerial_Printf("%u", (unsigned int)raw[i]);
-        if (i < 7U) DebugSerial_SendByte(',');
-    }
-    DebugSerial_SendString("]\r\n");
-}
+void BoardTest_Task200ms(void) { }
 
 #else
 

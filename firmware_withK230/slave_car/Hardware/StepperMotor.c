@@ -1,93 +1,33 @@
 #include "StepperMotor.h"
 #include "Board_Config.h"
+#include "app_config.h"
 #include "ti_msp_dl_config.h"
 #include <stdint.h>
 
-/*
- * D36A stepper driver constants.
- * Independent TIMG7 / TIMG8 generate STEP_L / STEP_R hardware square waves.
- * Frequency changes happen via timer load/compare update every 1ms.
- */
+static volatile int32_t s_leftTargetFreq   = 0;
+static volatile int32_t s_rightTargetFreq  = 0;
+static volatile int32_t s_leftCurFreq      = 0;
+static volatile int32_t s_rightCurFreq     = 0;
+static volatile uint8_t s_leftEnabled      = 0U;
+static volatile uint8_t s_rightEnabled     = 0U;
+static volatile uint8_t s_emergencyStop    = 0U;
 
-/* Enable polarity for D36A: 0 = active low, 1 = active high. */
-#ifndef STEPPER_EN_ACTIVE_LEVEL
-#define STEPPER_EN_ACTIVE_LEVEL 0U
-#endif
-
-/* Accel / decel rate per 1ms tick.
- * Smaller = softer ramp, larger = stiffer response. */
-#ifndef STEPPER_ACCEL_HZ_PER_TICK
-#define STEPPER_ACCEL_HZ_PER_TICK 20
-#endif
-#ifndef STEPPER_DECEL_HZ_PER_TICK
-#define STEPPER_DECEL_HZ_PER_TICK 30
-#endif
-
-/* Minimum STEP frequency the timer can produce at BUSCLK / 1 (32 MHz).
- * 32 MHz / 65535 ≈ 488 Hz.  Below this we stop the timer to keep STEP low. */
-#define STEPPER_MIN_TIMER_FREQ_HZ 500
-
-/* Maximum frequency limit (software clamp). */
-#ifndef STEPPER_MAX_FREQ_HZ
-#define STEPPER_MAX_FREQ_HZ 32000
-#endif
-
-#define STEPPER_TIMER_L_INST TIMG7
-#define STEPPER_TIMER_R_INST TIMG8
-#define STEPPER_CC_INDEX     DL_TIMER_CC_0_INDEX
-
-/* PA3 IOMUX for TIMG7 CCP0; PA5 IOMUX for TIMG8 CCP0 (MSPM0G3507). */
-#define STEPPER_STEP_L_IOMUX      (IOMUX_PINCM8)
-#define STEPPER_STEP_L_IOMUX_FUNC  IOMUX_PINCM8_PF_TIMG7_CCP0
-#define STEPPER_STEP_R_IOMUX      (IOMUX_PINCM10)
-#define STEPPER_STEP_R_IOMUX_FUNC  IOMUX_PINCM10_PF_TIMG8_CCP0
-
-static volatile int32_t s_leftTargetFreq  = 0;
-static volatile int32_t s_rightTargetFreq = 0;
-static volatile int32_t s_leftCurFreq     = 0;
-static volatile int32_t s_rightCurFreq    = 0;
-static volatile uint8_t s_leftEnabled     = 0U;
-static volatile uint8_t s_rightEnabled    = 0U;
-static volatile uint8_t s_emergencyStop   = 0U;
-
-static void StepperMotor_SetEN(GPIO_Regs *port, uint32_t pin, uint8_t enable)
-{
-    uint8_t active = (uint8_t)STEPPER_EN_ACTIVE_LEVEL;
-
-    if (enable)
-    {
-        if (active) { DL_GPIO_setPins(port, pin); }
-        else        { DL_GPIO_clearPins(port, pin); }
-    }
-    else
-    {
-        if (active) { DL_GPIO_clearPins(port, pin); }
-        else        { DL_GPIO_setPins(port, pin); }
-    }
-}
+static volatile uint32_t s_leftStepCount  = 0U;
+static volatile uint32_t s_rightStepCount = 0U;
 
 static void StepperMotor_SetDIR(GPIO_Regs *port, uint32_t pin, int32_t freq)
 {
-    if (freq >= 0)
-    {
-        DL_GPIO_setPins(port, pin);
-    }
-    else
-    {
-        DL_GPIO_clearPins(port, pin);
-    }
+    if (freq >= 0) { DL_GPIO_setPins(port, pin); }
+    else           { DL_GPIO_clearPins(port, pin); }
 }
 
-/*
- * Configure one TIMG channel for 50 % duty PWM and route to the STEP pin.
- * Timer is left STOPPED; load = 0, compare = 0 so STEP stays low.
- */
 static void StepperMotor_InitTimerChannel(
     GPTIMER_Regs *timer,
     uint32_t iomux,
     uint32_t iomuxFunc,
     GPIO_Regs *port,
-    uint32_t pinMask)
+    uint32_t pinMask,
+    uint8_t ccIndex)
 {
     DL_TimerG_ClockConfig clockCfg = {
         .clockSel    = DL_TIMER_CLOCK_BUSCLK,
@@ -114,34 +54,29 @@ static void StepperMotor_InitTimerChannel(
         DL_TIMER_CC_OCTL_INIT_VAL_LOW,
         DL_TIMER_CC_OCTL_INV_OUT_DISABLED,
         DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-        DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
+        ccIndex);
 
     DL_TimerG_setCaptCompUpdateMethod(timer,
         DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
-        DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
+        ccIndex);
 
-    DL_TimerG_setCaptureCompareValue(timer, 0U,
-        DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
+    DL_TimerG_setCaptureCompareValue(timer, 0U, ccIndex);
 
-    DL_TimerG_setCCPDirection(timer, DL_TIMER_CC0_OUTPUT);
+    DL_TimerG_setCCPDirection(timer,
+        (ccIndex == DL_TIMER_CC_0_INDEX) ? DL_TIMER_CC0_OUTPUT
+                                         : DL_TIMER_CC1_OUTPUT);
     DL_TimerG_enableClock(timer);
 }
 
-/*
- * Apply a new frequency to a channel (set load value and CC value).
- * freq == 0  → stop timer (STEP stays low).
- * freq != 0  → start / update timer at 50 % duty.
- */
 static void StepperMotor_ApplyFreq(
-    GPTIMER_Regs *timer, int32_t freqAbs)
+    GPTIMER_Regs *timer, int32_t freqAbs, uint8_t ccIndex)
 {
     uint32_t period;
 
     if (freqAbs == 0)
     {
         DL_TimerG_stopCounter(timer);
-        DL_TimerG_setCaptureCompareValue(timer, 0U,
-            DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
+        DL_TimerG_setCaptureCompareValue(timer, 0U, ccIndex);
         return;
     }
 
@@ -154,10 +89,16 @@ static void StepperMotor_ApplyFreq(
     if (period < 2U) { period = 2U; }
     if (period > 65535U) { period = 65535U; }
 
-    DL_TimerG_setLoadValue(timer, period - 1U);
-    DL_TimerG_setCaptureCompareValue(timer,
-        period / 2U, DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
+    /* At very low frequencies, period overflows 16-bit → stop STEP. */
+    if (freqAbs < (int32_t)STEPPER_MIN_TIMER_FREQ_HZ)
+    {
+        DL_TimerG_stopCounter(timer);
+        DL_TimerG_setCaptureCompareValue(timer, 0U, ccIndex);
+        return;
+    }
 
+    DL_TimerG_setLoadValue(timer, period - 1U);
+    DL_TimerG_setCaptureCompareValue(timer, period / 2U, ccIndex);
     DL_TimerG_startCounter(timer);
 }
 
@@ -170,50 +111,42 @@ void StepperMotor_Init(void)
     s_leftEnabled     = 0U;
     s_rightEnabled    = 0U;
     s_emergencyStop   = 0U;
+    s_leftStepCount   = 0U;
+    s_rightStepCount  = 0U;
 
-    /* DIR_L = PB17, DIR_R = PB19 already configured as GPIO output by
-     * SYSCFG_DL_GPIO_init() (former TB6612 L_IN1 / L_IN2).
-     * Set both low initially. */
-    DL_GPIO_clearPins(GPIOB, DL_GPIO_PIN_17 | DL_GPIO_PIN_19);
+    DL_GPIO_clearPins(STEPPER_DIR_L_PORT, STEPPER_DIR_L_PIN);
+    DL_GPIO_clearPins(STEPPER_DIR_R_PORT, STEPPER_DIR_R_PIN);
 
-    /* EN_L = PA16, EN_R = PB24, also already configured as GPIO output.
-     * Force both to inactive (disabled) state. */
-    StepperMotor_SetEN(GPIOA, DL_GPIO_PIN_16, 0U);
-    StepperMotor_SetEN(GPIOB, DL_GPIO_PIN_24, 0U);
+    DL_GPIO_initDigitalOutput(STEPPER_DIR_L_IOMUX);
+    DL_GPIO_initDigitalOutput(STEPPER_DIR_R_IOMUX);
 
-    /* Init STEP timer channels.
-     * STEP_L = PA3 (TIMG7 CCP0), STEP_R = PA5 (TIMG8 CCP0). */
     StepperMotor_InitTimerChannel(
-        STEPPER_TIMER_L_INST,
+        STEPPER_STEP_L_TIMER_INST,
         STEPPER_STEP_L_IOMUX,
         STEPPER_STEP_L_IOMUX_FUNC,
-        GPIOA, DL_GPIO_PIN_3);
+        STEPPER_STEP_L_PORT,
+        STEPPER_STEP_L_PIN,
+        STEPPER_STEP_L_CC_INDEX);
 
     StepperMotor_InitTimerChannel(
-        STEPPER_TIMER_R_INST,
+        STEPPER_STEP_R_TIMER_INST,
         STEPPER_STEP_R_IOMUX,
         STEPPER_STEP_R_IOMUX_FUNC,
-        GPIOA, DL_GPIO_PIN_5);
+        STEPPER_STEP_R_PORT,
+        STEPPER_STEP_R_PIN,
+        STEPPER_STEP_R_CC_INDEX);
 }
 
 void StepperMotor_EnableLeft(uint8_t enable)
 {
     s_leftEnabled = enable;
-    StepperMotor_SetEN(GPIOA, DL_GPIO_PIN_16, enable);
-    if (!enable)
-    {
-        s_leftTargetFreq = 0;
-    }
+    if (!enable) { s_leftTargetFreq = 0; }
 }
 
 void StepperMotor_EnableRight(uint8_t enable)
 {
     s_rightEnabled = enable;
-    StepperMotor_SetEN(GPIOB, DL_GPIO_PIN_24, enable);
-    if (!enable)
-    {
-        s_rightTargetFreq = 0;
-    }
+    if (!enable) { s_rightTargetFreq = 0; }
 }
 
 void StepperMotor_EnableAll(uint8_t enable)
@@ -248,51 +181,18 @@ void StepperMotor_SetTargetFrequency(int32_t leftFreqHz, int32_t rightFreqHz)
     StepperMotor_SetRightTargetFrequency(rightFreqHz);
 }
 
-int32_t StepperMotor_GetLeftTargetFrequency(void)
-{
-    return s_leftTargetFreq;
-}
+int32_t StepperMotor_GetLeftTargetFrequency(void)  { return s_leftTargetFreq; }
+int32_t StepperMotor_GetRightTargetFrequency(void) { return s_rightTargetFreq; }
+int32_t StepperMotor_GetLeftCurrentFrequency(void) { return s_leftCurFreq; }
+int32_t StepperMotor_GetRightCurrentFrequency(void){ return s_rightCurFreq; }
+uint32_t StepperMotor_GetLeftStepCount(void)       { return s_leftStepCount; }
+uint32_t StepperMotor_GetRightStepCount(void)      { return s_rightStepCount; }
+uint8_t StepperMotor_IsLeftEnabled(void)           { return s_leftEnabled; }
+uint8_t StepperMotor_IsRightEnabled(void)          { return s_rightEnabled; }
 
-int32_t StepperMotor_GetRightTargetFrequency(void)
-{
-    return s_rightTargetFreq;
-}
-
-int32_t StepperMotor_GetLeftCurrentFrequency(void)
-{
-    return s_leftCurFreq;
-}
-
-int32_t StepperMotor_GetRightCurrentFrequency(void)
-{
-    return s_rightCurFreq;
-}
-
-uint8_t StepperMotor_IsLeftEnabled(void)
-{
-    return s_leftEnabled;
-}
-
-uint8_t StepperMotor_IsRightEnabled(void)
-{
-    return s_rightEnabled;
-}
-
-void StepperMotor_StopLeft(void)
-{
-    s_leftTargetFreq = 0;
-}
-
-void StepperMotor_StopRight(void)
-{
-    s_rightTargetFreq = 0;
-}
-
-void StepperMotor_StopAll(void)
-{
-    s_leftTargetFreq = 0;
-    s_rightTargetFreq = 0;
-}
+void StepperMotor_StopLeft(void)  { s_leftTargetFreq = 0; }
+void StepperMotor_StopRight(void) { s_rightTargetFreq = 0; }
+void StepperMotor_StopAll(void)   { s_leftTargetFreq = 0; s_rightTargetFreq = 0; }
 
 void StepperMotor_EmergencyStop(void)
 {
@@ -302,16 +202,13 @@ void StepperMotor_EmergencyStop(void)
     s_leftCurFreq     = 0;
     s_rightCurFreq    = 0;
 
-    DL_TimerG_stopCounter(STEPPER_TIMER_L_INST);
-    DL_TimerG_setCaptureCompareValue(STEPPER_TIMER_L_INST, 0U,
-        DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
+    DL_TimerG_stopCounter(STEPPER_STEP_L_TIMER_INST);
+    DL_TimerG_setCaptureCompareValue(
+        STEPPER_STEP_L_TIMER_INST, 0U, STEPPER_STEP_L_CC_INDEX);
 
-    DL_TimerG_stopCounter(STEPPER_TIMER_R_INST);
-    DL_TimerG_setCaptureCompareValue(STEPPER_TIMER_R_INST, 0U,
-        DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
-
-    StepperMotor_SetEN(GPIOA, DL_GPIO_PIN_16, 0U);
-    StepperMotor_SetEN(GPIOB, DL_GPIO_PIN_24, 0U);
+    DL_TimerG_stopCounter(STEPPER_STEP_R_TIMER_INST);
+    DL_TimerG_setCaptureCompareValue(
+        STEPPER_STEP_R_TIMER_INST, 0U, STEPPER_STEP_R_CC_INDEX);
 
     s_emergencyStop = 0U;
 }
@@ -328,39 +225,22 @@ static int32_t StepperMotor_RampOne(
     absTarget = (target >= 0) ? target : -target;
     if (absTarget < (int32_t)STEPPER_MIN_TIMER_FREQ_HZ && target != 0)
     {
-        /*
-         * Clamp very low non-zero targets to the minimum timer frequency.
-         * Below ~500 Hz the 16-bit period overflows; force to 0 so
-         * STEP stays low instead of producing a glitch frequency.
-         */
+        /* Clamp to minimum timer frequency; actual freq floor is enforced
+         * in ApplyFreq where sub-minimum stops the timer.  The ramp drives
+         * current toward the floor so the transition into/out of motion is
+         * clean. */
         if (target > 0) { target = (int32_t)STEPPER_MIN_TIMER_FREQ_HZ; }
         else            { target = -(int32_t)STEPPER_MIN_TIMER_FREQ_HZ; }
     }
 
     diff = target - current;
-    if (diff > 0)
-    {
-        step = accelStep;
-    }
-    else
-    {
-        step = decelStep;
-        diff = -diff;
-    }
+    if (diff > 0) { step = accelStep; }
+    else          { step = decelStep; diff = -diff; }
 
-    if ((int32_t)step >= diff)
-    {
-        return target;
-    }
+    if ((int32_t)step >= diff) { return target; }
 
-    if (target > current)
-    {
-        return current + (int32_t)step;
-    }
-    else
-    {
-        return current - (int32_t)step;
-    }
+    if (target > current) { return current + (int32_t)step; }
+    else                  { return current - (int32_t)step; }
 }
 
 void StepperMotor_Task1ms(void)
@@ -368,8 +248,6 @@ void StepperMotor_Task1ms(void)
     int32_t targetL, targetR;
     int32_t curL, curR;
     int32_t newL, newR;
-    int32_t freqAbsL, freqAbsR;
-    uint8_t enableL, enableR;
 
     if (s_emergencyStop) { return; }
 
@@ -377,11 +255,9 @@ void StepperMotor_Task1ms(void)
     targetR = s_rightTargetFreq;
     curL    = s_leftCurFreq;
     curR    = s_rightCurFreq;
-    enableL = s_leftEnabled;
-    enableR = s_rightEnabled;
 
-    if (!enableL && targetL != 0) { targetL = 0; }
-    if (!enableR && targetR != 0) { targetR = 0; }
+    if (!s_leftEnabled  && targetL != 0) { targetL = 0; }
+    if (!s_rightEnabled && targetR != 0) { targetR = 0; }
 
     newL = StepperMotor_RampOne(targetL, curL,
         (int32_t)STEPPER_ACCEL_HZ_PER_TICK,
@@ -391,29 +267,54 @@ void StepperMotor_Task1ms(void)
         (int32_t)STEPPER_ACCEL_HZ_PER_TICK,
         (int32_t)STEPPER_DECEL_HZ_PER_TICK);
 
-    /*  Direction change safety: keep freq at 0 until we can switch DIR. */
+    /* Direction change: only flip DIR when current freq has reached 0.
+     * DIR is set based on *target* sign, so it's correct before motion starts. */
     if (newL != 0 && curL == 0 && targetL != 0)
     {
-        StepperMotor_SetDIR(GPIOB, DL_GPIO_PIN_17, targetL);
+        StepperMotor_SetDIR(STEPPER_DIR_L_PORT,
+            STEPPER_DIR_L_PIN, targetL);
     }
     if (newR != 0 && curR == 0 && targetR != 0)
     {
-        StepperMotor_SetDIR(GPIOB, DL_GPIO_PIN_19, targetR);
+        StepperMotor_SetDIR(STEPPER_DIR_R_PORT,
+            STEPPER_DIR_R_PIN, targetR);
     }
 
     if (newL != curL)
     {
-        freqAbsL = (newL >= 0) ? newL : -newL;
-        StepperMotor_ApplyFreq(STEPPER_TIMER_L_INST,
-            (newL >= 0) ? freqAbsL : freqAbsL);
+        int32_t absL = (newL >= 0) ? newL : -newL;
+        StepperMotor_ApplyFreq(STEPPER_STEP_L_TIMER_INST,
+            absL, STEPPER_STEP_L_CC_INDEX);
         s_leftCurFreq = newL;
+
+        /* Accumulate emitted STEP count.
+         * current_freq_hz = steps/second → steps/ms = freq/1000.
+         * Use a fixed-point phase accumulator for precision. */
+        {
+            static uint32_t phaseL = 0U;
+            phaseL += (uint32_t)((newL >= 0) ? newL : -newL);
+            while (phaseL >= 1000U) {
+                s_leftStepCount++;
+                phaseL -= 1000U;
+            }
+        }
     }
+    /* When stopped, step count is frozen; phase accumulation stops. */
 
     if (newR != curR)
     {
-        freqAbsR = (newR >= 0) ? newR : -newR;
-        StepperMotor_ApplyFreq(STEPPER_TIMER_R_INST,
-            (newR >= 0) ? freqAbsR : freqAbsR);
+        int32_t absR = (newR >= 0) ? newR : -newR;
+        StepperMotor_ApplyFreq(STEPPER_STEP_R_TIMER_INST,
+            absR, STEPPER_STEP_R_CC_INDEX);
         s_rightCurFreq = newR;
+
+        {
+            static uint32_t phaseR = 0U;
+            phaseR += (uint32_t)((newR >= 0) ? newR : -newR);
+            while (phaseR >= 1000U) {
+                s_rightStepCount++;
+                phaseR -= 1000U;
+            }
+        }
     }
 }

@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-/* 4× quadrature encoder counts per wheel revolution (measured). */
 #define ENCODER_4X_COUNT_PER_REV 4096U
 
 void Encoder_Init(void);
@@ -13,10 +12,9 @@ int16_t Encoder_GetRightDelta(void);
 
 void Encoder_ClearAll(void);
 
-/*
- * Diagnostic accessors return real values only when ENCODER_DIAG_ENABLE = 1.
- * When disabled, they return 0 and debug print functions report diag disabled.
- */
+uint32_t Encoder_GetLeftIllegalCount(void);
+uint32_t Encoder_GetRightIllegalCount(void);
+
 uint32_t Encoder_GetRightIsrCount(void);
 uint32_t Encoder_GetRightSameAIgnored(void);
 uint32_t Encoder_GetRightStatusCount(void);

@@ -1,17 +1,29 @@
 /**
- * Revised local SysConfig script for the MSPM0G3507 E-car slave car.
+ * Revised local SysConfig script for the MSPM0G3507 slave car.
  *
  * MOTOR MIGRATION (2026-07): DC + TB6612 → Stepper + D36A.
- * - TB6612 L_IN1/L_IN2/R_IN1/R_IN2 GPIOs REMOVED from active pin map.
- *   PB17/PB19/PA16/PB24 now serve as DIR_L/DIR_R/EN_L/EN_R (GPIO out).
- * - TIMG0 PWM_MOTOR PA12/PA13 RETAINED in SysConfig but unused at runtime.
- *   Not removed to avoid breaking SYSCFG_DL_init() structure.
- * - STEP_L = PA3 (TIMG7 CCP0), STEP_R = PA5 (TIMG8 CCP0).
- *   These are initialized manually in StepperMotor.c, NOT via SysConfig.
+ * - TB6612 L_IN1/L_IN2/R_IN1/R_IN2 GPIOs RETAINED as legacy output.
+ *   PB17/PB19/PA16/PB24 are no longer used for DIR/EN.
+ * - TIMG0 PWM_MOTOR PA12/PA13 RETAINED but unused at runtime.
+ *
+ * Stepper pins (initialized manually in StepperMotor.c):
+ *   STEP_L = PB15 (TIMG7 CCP0, IOMUX_PINCM32 func6)
+ *   STEP_R = PB16 (TIMG8 CCP1, IOMUX_PINCM33 func5)
+ *   DIR_L  = PB18 (GPIO output, IOMUX_PINCM44)
+ *   DIR_R  = PB25 (GPIO output, IOMUX_PINCM56)
+ *   EN1/EN2 = hardware always enabled, no MCU GPIO.
+ *
+ * Encoder pins (initialized in Encoder.c):
+ *   ENC_L_A = PB05 (IOMUX_PINCM18), ENC_L_B = PB12 (IOMUX_PINCM29)
+ *   ENC_R_A = PB08 (IOMUX_PINCM25), ENC_R_B = PB00 (IOMUX_PINCM12)
+ *   All on GPIOB, RISE_FALL interrupts, 4x quadrature.
+ *
+ * PB08 conflict: also H8 OLED SDA.  Set BOARD_OLED_USE_H8_I2C=0,
+ * ECAR_OLED_ENABLE=0 when using stepper encoder.
  *
  * This file mirrors the checked-in ti_msp_dl_config.c/h logical names.
- * If SysConfig regenerates different macro names, keep App/Hardware code
- * mapped through Hardware/Board_Config.h.
+ * If SysConfig regenerates, keep App/Hardware code mapped through
+ * Hardware/Board_Config.h.
  */
 //@cliArgs --device "MSPM0G350X" --package "LQFP-64(PM)" --part "Default"
 //@v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)"
@@ -38,9 +50,9 @@ const SYSCTL = scripting.addModule("/ti/driverlib/SYSCTL");
 const Board = scripting.addModule("/ti/driverlib/Board", {}, false);
 
 /*
- * TB6612:
- * PWMA = TIMG0-C0, PWMB = TIMG0-C1.
- * STBY is tied to 5V and is intentionally not configured as an MCU GPIO.
+ * TB6612 motor GPIO (legacy, retained to keep SYSCFG_DL_GPIO_init stable):
+ * L_IN1=PB17, L_IN2=PB19, R_IN1=PA16, R_IN2=PB24.
+ * Not used in stepper mode.
  */
 GPIO1.$name = "GPIO_MOTOR";
 GPIO1.associatedPins.create(4);
@@ -66,52 +78,51 @@ GPIO1.associatedPins[3].pin.$assign  = "PB24";
 GPIO1.associatedPins[3].initialValue = "CLEARED";
 
 /*
- * Encoder first pass:
- * M1 = left, M2 = right.  A phase is rising-edge interrupt input,
- * B phase is sampled for direction.
- * ENC_L_A/ENC_L_B = PA26/PA27, ENC_R_A/ENC_R_B = PA25/PA14.
- * PA25/PA26/PA27/PA14 do not accept SysConfig forced hysteresis on this
- * package, so keep internal pull-ups and enable the GPIO digital filter.
+ * Encoder pins (GPIOB only, 4x quadrature).
+ * Pin group kept as GPIO_ENCODER on PORTB for interrupt dispatch.
+ * Actual pin init done in Encoder.c via Board_Config.h macros.
  */
 GPIO2.$name = "GPIO_ENCODER";
 GPIO2.associatedPins.create(4);
 GPIO2.associatedPins[0].$name            = "L_A";
-GPIO2.associatedPins[0].assignedPort     = "PORTA";
-GPIO2.associatedPins[0].assignedPin      = "26";
-GPIO2.associatedPins[0].pin.$assign      = "PA26";
+GPIO2.associatedPins[0].assignedPort     = "PORTB";
+GPIO2.associatedPins[0].assignedPin      = "5";
+GPIO2.associatedPins[0].pin.$assign      = "PB5";
 GPIO2.associatedPins[0].direction        = "INPUT";
 GPIO2.associatedPins[0].internalResistor = "PULL_UP";
 GPIO2.associatedPins[0].inputFilter      = "8_CYCLES";
 GPIO2.associatedPins[0].interruptEn      = true;
 GPIO2.associatedPins[0].polarity         = "RISE_FALL";
 GPIO2.associatedPins[1].$name            = "L_B";
-GPIO2.associatedPins[1].assignedPort     = "PORTA";
-GPIO2.associatedPins[1].assignedPin      = "27";
-GPIO2.associatedPins[1].pin.$assign      = "PA27";
+GPIO2.associatedPins[1].assignedPort     = "PORTB";
+GPIO2.associatedPins[1].assignedPin      = "12";
+GPIO2.associatedPins[1].pin.$assign      = "PB12";
 GPIO2.associatedPins[1].direction        = "INPUT";
 GPIO2.associatedPins[1].internalResistor = "PULL_UP";
 GPIO2.associatedPins[1].inputFilter      = "8_CYCLES";
+GPIO2.associatedPins[1].interruptEn      = true;
+GPIO2.associatedPins[1].polarity         = "RISE_FALL";
 GPIO2.associatedPins[2].$name            = "R_A";
-GPIO2.associatedPins[2].assignedPort     = "PORTA";
-GPIO2.associatedPins[2].assignedPin      = "25";
-GPIO2.associatedPins[2].pin.$assign      = "PA25";
+GPIO2.associatedPins[2].assignedPort     = "PORTB";
+GPIO2.associatedPins[2].assignedPin      = "8";
+GPIO2.associatedPins[2].pin.$assign      = "PB8";
 GPIO2.associatedPins[2].direction        = "INPUT";
 GPIO2.associatedPins[2].internalResistor = "PULL_UP";
 GPIO2.associatedPins[2].inputFilter      = "8_CYCLES";
 GPIO2.associatedPins[2].interruptEn      = true;
 GPIO2.associatedPins[2].polarity         = "RISE_FALL";
 GPIO2.associatedPins[3].$name            = "R_B";
-GPIO2.associatedPins[3].assignedPort     = "PORTA";
-GPIO2.associatedPins[3].assignedPin      = "14";
-GPIO2.associatedPins[3].pin.$assign      = "PA14";
+GPIO2.associatedPins[3].assignedPort     = "PORTB";
+GPIO2.associatedPins[3].assignedPin      = "0";
+GPIO2.associatedPins[3].pin.$assign      = "PB0";
 GPIO2.associatedPins[3].direction        = "INPUT";
 GPIO2.associatedPins[3].internalResistor = "PULL_UP";
 GPIO2.associatedPins[3].inputFilter      = "8_CYCLES";
+GPIO2.associatedPins[3].interruptEn      = true;
+GPIO2.associatedPins[3].polarity         = "RISE_FALL";
 
 /*
- * 8-channel grayscale module:
- * VCC = 5V.  GRAY_OUT must be divided/level-shifted to <= 3.3V before PB01.
- * Software cannot make a direct 5V GPIO input safe.
+ * 8-channel grayscale module.
  */
 GPIO3.$name = "GPIO_GRAYSCALE";
 GPIO3.associatedPins.create(4);
@@ -187,10 +198,6 @@ PWM1.PWM_CHANNEL_0.dutyCycle    = 0;
 PWM1.PWM_CHANNEL_1.$name        = "MOTOR_C1";
 PWM1.PWM_CHANNEL_1.dutyCycle    = 0;
 
-/*
- * Servo PWM: TIMA0-C0..C3, 50Hz.  Physical H7/H15/H8/H14 connector routing
- * must be confirmed on the actual board before enabling ECAR_TEST_SERVO_ENABLE.
- */
 PWM2.$name                      = "PWM_SERVO";
 PWM2.ccIndex                    = [0,1,2,3];
 PWM2.clockPrescale              = 32;

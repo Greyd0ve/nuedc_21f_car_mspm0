@@ -4,19 +4,12 @@
 #include "ti_msp_dl_config.h"
 
 /*
- * Board pin map for the MSPM0G3507 car wiring.
+ * Board pin map for the MSPM0G3507 slave car (stepper + D36A).
  *
  * Keep application code using these names.  SysConfig-generated names stay
  * below this file and can be changed without touching App/Control logic.
  */
 
-/*
- * ECAR_REAR_LINE_SENSOR_MODE:
- *   0 = original front sensor module layout;
- *   1 = rear sensor module layout, new heading is reversed.
- *       Original right wheel becomes logical left wheel,
- *       original left wheel becomes logical right wheel.
- */
 #ifndef ECAR_REAR_LINE_SENSOR_MODE
 #define ECAR_REAR_LINE_SENSOR_MODE 1U
 #endif
@@ -55,79 +48,45 @@
 #define GPIO_BEEP_IOMUX                 GPIO_BOARD_IO_BEEP_IOMUX
 #endif
 
-#if !defined(GPIO_ENCODER_L_A_PORT) && defined(GPIO_ENCODER_PORT)
-#define GPIO_ENCODER_L_A_PORT           GPIO_ENCODER_PORT
-#define GPIO_ENCODER_L_B_PORT           GPIO_ENCODER_PORT
-#define GPIO_ENCODER_R_A_PORT           GPIO_ENCODER_PORT
-#define GPIO_ENCODER_R_B_PORT           GPIO_ENCODER_PORT
-#endif
-
-#if !defined(GPIO_ENCODER_INT_IRQN) && defined(GPIO_ENCODER_GPIOA_INT_IRQN)
-#define GPIO_ENCODER_INT_IRQN           GPIO_ENCODER_GPIOA_INT_IRQN
-#elif !defined(GPIO_ENCODER_INT_IRQN) && defined(GPIO_ENCODER_GPIOB_INT_IRQN)
-#define GPIO_ENCODER_INT_IRQN           GPIO_ENCODER_GPIOB_INT_IRQN
-#endif
-
-/* ---------------- TB6612 motor driver ----------------
- * PWMA -> TIMG0-C0, PWMB -> TIMG0-C1.
- * STBY is tied to 5V on the current PCB.  There is no MCU STBY control.
- */
+/* ---------------- TB6612 motor driver (legacy, not used in stepper config) ---- */
 #define MOTOR_USE_STBY                  0U
 #define MOTOR_STBY_TIED_TO_5V           1U
 #define MOTOR_PWM_TIMER_INST            PWM_MOTOR_INST
 
 #if ECAR_REAR_LINE_SENSOR_MODE
-
-/* Rear sensor / reversed heading mode:
- * original right wheel is logical left wheel;
- * original left wheel is logical right wheel.
- */
 #define MOTOR_L_PWM_CC_INDEX            GPIO_PWM_MOTOR_C1_IDX
 #define MOTOR_R_PWM_CC_INDEX            GPIO_PWM_MOTOR_C0_IDX
-
-#define MOTOR_L_IN1_PORT                GPIO_MOTOR_R_IN1_PORT   /* PA16 */
+#define MOTOR_L_IN1_PORT                GPIO_MOTOR_R_IN1_PORT
 #define MOTOR_L_IN1_PIN                 GPIO_MOTOR_R_IN1_PIN
 #define MOTOR_L_IN1                     MOTOR_L_IN1_PIN
-#define MOTOR_L_IN2_PORT                GPIO_MOTOR_R_IN2_PORT   /* B24 */
+#define MOTOR_L_IN2_PORT                GPIO_MOTOR_R_IN2_PORT
 #define MOTOR_L_IN2_PIN                 GPIO_MOTOR_R_IN2_PIN
 #define MOTOR_L_IN2                     MOTOR_L_IN2_PIN
-#define MOTOR_R_IN1_PORT                GPIO_MOTOR_L_IN1_PORT   /* B17 */
+#define MOTOR_R_IN1_PORT                GPIO_MOTOR_L_IN1_PORT
 #define MOTOR_R_IN1_PIN                 GPIO_MOTOR_L_IN1_PIN
 #define MOTOR_R_IN1                     MOTOR_R_IN1_PIN
-#define MOTOR_R_IN2_PORT                GPIO_MOTOR_L_IN2_PORT   /* B19 */
+#define MOTOR_R_IN2_PORT                GPIO_MOTOR_L_IN2_PORT
 #define MOTOR_R_IN2_PIN                 GPIO_MOTOR_L_IN2_PIN
 #define MOTOR_R_IN2                     MOTOR_R_IN2_PIN
-
-/*
- * Measured: positive PWM drives both wheels backward in rear mode.
- * Motor direction signs are inverted so Motor_SetPWM(+150,+150)
- * drives the car toward the new front.
- */
 #define LEFT_MOTOR_DIR                  (+1)
 #define RIGHT_MOTOR_DIR                 (-1)
-
 #else
-
-/* Original front sensor mode. */
 #define MOTOR_L_PWM_CC_INDEX            GPIO_PWM_MOTOR_C0_IDX
 #define MOTOR_R_PWM_CC_INDEX            GPIO_PWM_MOTOR_C1_IDX
-
-#define MOTOR_L_IN1_PORT                GPIO_MOTOR_L_IN1_PORT   /* B17 */
+#define MOTOR_L_IN1_PORT                GPIO_MOTOR_L_IN1_PORT
 #define MOTOR_L_IN1_PIN                 GPIO_MOTOR_L_IN1_PIN
 #define MOTOR_L_IN1                     MOTOR_L_IN1_PIN
-#define MOTOR_L_IN2_PORT                GPIO_MOTOR_L_IN2_PORT   /* B19 */
+#define MOTOR_L_IN2_PORT                GPIO_MOTOR_L_IN2_PORT
 #define MOTOR_L_IN2_PIN                 GPIO_MOTOR_L_IN2_PIN
 #define MOTOR_L_IN2                     MOTOR_L_IN2_PIN
-#define MOTOR_R_IN1_PORT                GPIO_MOTOR_R_IN1_PORT   /* A16 */
+#define MOTOR_R_IN1_PORT                GPIO_MOTOR_R_IN1_PORT
 #define MOTOR_R_IN1_PIN                 GPIO_MOTOR_R_IN1_PIN
 #define MOTOR_R_IN1                     MOTOR_R_IN1_PIN
-#define MOTOR_R_IN2_PORT                GPIO_MOTOR_R_IN2_PORT   /* B24 */
+#define MOTOR_R_IN2_PORT                GPIO_MOTOR_R_IN2_PORT
 #define MOTOR_R_IN2_PIN                 GPIO_MOTOR_R_IN2_PIN
 #define MOTOR_R_IN2                     MOTOR_R_IN2_PIN
-
 #define LEFT_MOTOR_DIR                  (+1)
 #define RIGHT_MOTOR_DIR                 (-1)
-
 #endif
 
 #define MOTOR_L_PWM                     MOTOR_L_PWM_CC_INDEX
@@ -135,8 +94,6 @@
 #define MOTOR_PWM_LEFT_CC_INDEX         MOTOR_L_PWM_CC_INDEX
 #define MOTOR_PWM_RIGHT_CC_INDEX        MOTOR_R_PWM_CC_INDEX
 #define MOTOR_PWM_PERIOD_COUNTS         1600U
-
-/* Legacy aliases kept for older modules during transition. */
 #define MOTOR_AIN1_PORT                 MOTOR_L_IN1_PORT
 #define MOTOR_AIN1_PIN                  MOTOR_L_IN1_PIN
 #define MOTOR_AIN2_PORT                 MOTOR_L_IN2_PORT
@@ -145,101 +102,89 @@
 #define MOTOR_BIN1_PIN                  MOTOR_R_IN1_PIN
 #define MOTOR_BIN2_PORT                 MOTOR_R_IN2_PORT
 #define MOTOR_BIN2_PIN                  MOTOR_R_IN2_PIN
-
 #define LEFT_MOTOR_DIR_SIGN             LEFT_MOTOR_DIR
 #define RIGHT_MOTOR_DIR_SIGN            RIGHT_MOTOR_DIR
 
-/* ---------------- D36A dual stepper driver ----------------
- * STEP_L  = TIMG7 CCP0 → PA3
- * STEP_R  = TIMG8 CCP0 → PA5
- * DIR_L   = PB17 (was TB6612 L_IN1)
- * DIR_R   = PB19 (was TB6612 L_IN2)
- * EN_L    = PA16 (was TB6612 R_IN1)
- * EN_R    = PB24 (was TB6612 R_IN2)
+/* ===================================================================
+ * D36A dual stepper driver — NO EN GPIO (hardware always enabled)
+ * ===================================================================
  *
- * EN polarity: 0=active low (D36A typical), configure via
- * STEPPER_EN_ACTIVE_LEVEL in StepperMotor.c.
- * STEP pulses are hardware-generated by TIMG7/TIMG8 at 50 % duty.
+ * STEP_L = PB15 / TIMG7 CC0
+ * STEP_R = PB16 / TIMG8 CC1
+ * DIR_L  = PB18 / GPIO output
+ * DIR_R  = PB25 / GPIO output
+ *
+ * EN1/EN2 are hardware-tied active.  No MCU GPIO.
  */
-#define STEPPER_STEP_L_PORT             GPIOA
-#define STEPPER_STEP_L_PIN              DL_GPIO_PIN_3
-#define STEPPER_STEP_L_IOMUX            (IOMUX_PINCM8)
-#define STEPPER_STEP_L_IOMUX_FUNC       IOMUX_PINCM8_PF_TIMG7_CCP0
+#define STEPPER_HAS_ENABLE_GPIO 0U
 
-#define STEPPER_STEP_R_PORT             GPIOA
-#define STEPPER_STEP_R_PIN              DL_GPIO_PIN_5
-#define STEPPER_STEP_R_IOMUX            (IOMUX_PINCM10)
-#define STEPPER_STEP_R_IOMUX_FUNC       IOMUX_PINCM10_PF_TIMG8_CCP0
+#define STEPPER_STEP_L_PORT             GPIOB
+#define STEPPER_STEP_L_PIN              DL_GPIO_PIN_15
+#define STEPPER_STEP_L_IOMUX            (IOMUX_PINCM32)
+#define STEPPER_STEP_L_IOMUX_FUNC       IOMUX_PINCM32_PF_TIMG7_CCP0
+#define STEPPER_STEP_L_TIMER_INST       TIMG7
+#define STEPPER_STEP_L_CC_INDEX         DL_TIMER_CC_0_INDEX
+
+#define STEPPER_STEP_R_PORT             GPIOB
+#define STEPPER_STEP_R_PIN              DL_GPIO_PIN_16
+#define STEPPER_STEP_R_IOMUX            (IOMUX_PINCM33)
+#define STEPPER_STEP_R_IOMUX_FUNC       IOMUX_PINCM33_PF_TIMG8_CCP1
+#define STEPPER_STEP_R_TIMER_INST       TIMG8
+#define STEPPER_STEP_R_CC_INDEX         DL_TIMER_CC_1_INDEX
 
 #define STEPPER_DIR_L_PORT              GPIOB
-#define STEPPER_DIR_L_PIN               DL_GPIO_PIN_17
-#define STEPPER_DIR_R_PORT              GPIOB
-#define STEPPER_DIR_R_PIN               DL_GPIO_PIN_19
+#define STEPPER_DIR_L_PIN               DL_GPIO_PIN_18
+#define STEPPER_DIR_L_IOMUX             (IOMUX_PINCM44)
 
-#define STEPPER_EN_L_PORT               GPIOA
-#define STEPPER_EN_L_PIN                DL_GPIO_PIN_16
-#define STEPPER_EN_R_PORT               GPIOB
-#define STEPPER_EN_R_PIN                DL_GPIO_PIN_24
+#define STEPPER_DIR_R_PORT              GPIOB
+#define STEPPER_DIR_R_PIN               DL_GPIO_PIN_25
+#define STEPPER_DIR_R_IOMUX             (IOMUX_PINCM56)
 
 /*
  * Direction sign correction.
- * Set to +1 or -1 so that positive frequency = logical forward.
+ * Positive logical frequency must drive the car forward.
+ * Real values determined by test: lift wheels, run forward,
+ * verify both encoders count positive.
  */
 #define LEFT_STEPPER_DIR_SIGN           (+1)
 #define RIGHT_STEPPER_DIR_SIGN          (-1)
 
-/* ---------------- Encoders ----------------
- * First version uses A-phase GPIO interrupt and B-phase level sampling.
- * ENC_L_A -> PA26, ENC_L_B -> PA27
- * ENC_R_A -> PA25, ENC_R_B -> PA14
- * A phases are on GPIOA, so GROUP1 GPIOA dispatch handles both counters.
+/* ===================================================================
+ * Encoders — 4× quadrature, all on GPIOB
+ * ===================================================================
+ *
+ * ENC_L_A = PB05, ENC_L_B = PB12
+ * ENC_R_A = PB08, ENC_R_B = PB00
+ *
+ * All four share GPIOB interrupt (GPIOB_INT_IRQn).
+ * A/B both configured RISE_FALL for 4× quadrature decoding.
  */
-#if ECAR_REAR_LINE_SENSOR_MODE
 
-/* Rear sensor / reversed heading mode:
- * original right encoder is logical left encoder;
- * original left encoder is logical right encoder.
- */
-#define ENC_L_A_PORT                    GPIO_ENCODER_R_A_PORT
-#define ENC_L_A_PIN                     GPIO_ENCODER_R_A_PIN
-#define ENC_L_B_PORT                    GPIO_ENCODER_R_B_PORT
-#define ENC_L_B_PIN                     GPIO_ENCODER_R_B_PIN
-#define ENC_R_A_PORT                    GPIO_ENCODER_L_A_PORT
-#define ENC_R_A_PIN                     GPIO_ENCODER_L_A_PIN
-#define ENC_R_B_PORT                    GPIO_ENCODER_L_B_PORT
-#define ENC_R_B_PIN                     GPIO_ENCODER_L_B_PIN
+#define ENC_L_A_PORT                    GPIOB
+#define ENC_L_A_PIN                     DL_GPIO_PIN_5
+#define ENC_L_A_IOMUX                   (IOMUX_PINCM18)
 
-/*
- * Verify by pushing car toward new front:
- * g_leftEncoderDelta > 0, g_rightEncoderDelta > 0,
- * g_forwardEncoderTotal increases.
- */
-#define LEFT_ENCODER_DIR                (-1)
-#define RIGHT_ENCODER_DIR               (+1)
+#define ENC_L_B_PORT                    GPIOB
+#define ENC_L_B_PIN                     DL_GPIO_PIN_12
+#define ENC_L_B_IOMUX                   (IOMUX_PINCM29)
 
-#else
+#define ENC_R_A_PORT                    GPIOB
+#define ENC_R_A_PIN                     DL_GPIO_PIN_8
+#define ENC_R_A_IOMUX                   (IOMUX_PINCM25)
 
-/* Original front sensor mode. */
-#define ENC_L_A_PORT                    GPIO_ENCODER_L_A_PORT
-#define ENC_L_A_PIN                     GPIO_ENCODER_L_A_PIN
-#define ENC_L_B_PORT                    GPIO_ENCODER_L_B_PORT
-#define ENC_L_B_PIN                     GPIO_ENCODER_L_B_PIN
-#define ENC_R_A_PORT                    GPIO_ENCODER_R_A_PORT
-#define ENC_R_A_PIN                     GPIO_ENCODER_R_A_PIN
-#define ENC_R_B_PORT                    GPIO_ENCODER_R_B_PORT
-#define ENC_R_B_PIN                     GPIO_ENCODER_R_B_PIN
+#define ENC_R_B_PORT                    GPIOB
+#define ENC_R_B_PIN                     DL_GPIO_PIN_0
+#define ENC_R_B_IOMUX                   (IOMUX_PINCM12)
 
-#define LEFT_ENCODER_DIR                (-1)
-#define RIGHT_ENCODER_DIR               (+1)
+#define ENCODER_GPIO_PORT               GPIOB
+#define ENCODER_GPIO_IRQN               GPIOB_INT_IRQn
+#define ENCODER_GPIO_INT_IIDX           DL_INTERRUPT_GROUP1_IIDX_GPIOB
 
-#endif
-
+/* Legacy aliases for older code. */
 #define ENC_L_A                         ENC_L_A_PIN
 #define ENC_L_B                         ENC_L_B_PIN
 #define ENC_R_A                         ENC_R_A_PIN
 #define ENC_R_B                         ENC_R_B_PIN
-
-#define ENCODER_GPIO_IRQN               GPIO_ENCODER_INT_IRQN
 
 #define ENCODER_LEFT_A_PORT             ENC_L_A_PORT
 #define ENCODER_LEFT_A_PIN              ENC_L_A_PIN
@@ -250,19 +195,21 @@
 #define ENCODER_RIGHT_B_PORT            ENC_R_B_PORT
 #define ENCODER_RIGHT_B_PIN             ENC_R_B_PIN
 
-#define LEFT_ENCODER_SIGN               LEFT_ENCODER_DIR
-#define RIGHT_ENCODER_SIGN              RIGHT_ENCODER_DIR
-
-/* ---------------- 8-channel grayscale module ----------------
- * P3-1 VCC = 5V, P3-6 GND.
- * GRAY_AD2 -> PB23, GRAY_AD1 -> PB10, GRAY_AD0 -> PB13, GRAY_OUT -> PB01.
- *
- * Hardware warning:
- * The grayscale board is powered from 5V.  GRAY_OUT must be divided or level
- * shifted to <= 3.3V before it reaches MSPM0 PB01.  Software cannot make a
- * direct 5V GPIO input safe.  AD0/AD1/AD2 are normal 3.3V MSPM0 outputs; if
- * the 5V module does not recognize 3.3V high reliably, fix it in hardware.
+/*
+ * Encoder direction sign:
+ * When wheel turns forward, delta must be positive.
+ * Verify by pushing car forward after wiring.
  */
+#define LEFT_ENCODER_DIR_SIGN           (+1)
+#define RIGHT_ENCODER_DIR_SIGN          (+1)
+
+/* Backward compat aliases for Encoder.c internal use. */
+#define LEFT_ENCODER_DIR                LEFT_ENCODER_DIR_SIGN
+#define RIGHT_ENCODER_DIR               RIGHT_ENCODER_DIR_SIGN
+#define LEFT_ENCODER_SIGN               LEFT_ENCODER_DIR_SIGN
+#define RIGHT_ENCODER_SIGN              RIGHT_ENCODER_DIR_SIGN
+
+/* ---------------- 8-channel grayscale module ---------------- */
 #define GRAY_AD0_PORT                   GPIO_GRAYSCALE_AD0_PORT
 #define GRAY_AD0_PIN                    GPIO_GRAYSCALE_AD0_PIN
 #define GRAY_AD0                        GRAY_AD0_PIN
@@ -285,11 +232,7 @@
 #define GRAYSCALE_OUT_PORT              GRAY_OUT_PORT
 #define GRAYSCALE_OUT_PIN               GRAY_OUT_PIN
 
-/* ---------------- I2C0 shared bus ----------------
- * Use 3.3V power and pull SDA/SCL up to 3.3V.  Do not pull I2C to 5V.
- * MPU6050 I2C0-SDA -> PA28
- * MPU6050 I2C0-SCL -> PA31
- */
+/* ---------------- I2C0 shared bus ---------------- */
 #define I2C0_SCL_PORT                   GPIO_I2C0_SCL_PORT
 #define I2C0_SCL_PIN                    GPIO_I2C0_SCL_PIN
 #define I2C0_SCL                        I2C0_SCL_PIN
@@ -308,19 +251,16 @@
 #define MPU6050_I2C_INST                BOARD_I2C0_INST
 
 /* ---------------- Tianmengxing H8 OLED header ----------------
- * Tianmengxing H8 1x8 display header:
  * H8-1 GND, H8-2 3V3, H8-3 SCL/PB9, H8-4 SDA/PB8,
  * H8-5 RES/PB10, H8-6 DC/PB11, H8-7 CS/PB14.
  *
- * Current display wiring is a 4-pin IIC OLED plugged into H8 first 4 pins:
- * GND, VCC, SCL/SKC, SDA -> PB9/PB8 through software I2C.
- *
- * H8 IIC mode only uses PB9/PB8. H8 SPI mode also takes PB10/PB11/PB14,
- * so grayscale AD1 and KEY1/KEY2 cannot be used at the same time unless
- * those signals are rewired.
+ * IMPORTANT: In stepper-test mode, PB08 is used as ENC_R_A.
+ * Set BOARD_OLED_USE_H8_I2C=0 and ECAR_OLED_ENABLE=0
+ * when using the onboard encoder pins.  PB08 must not be
+ * shared between OLED SDA and encoder input.
  */
 #ifndef BOARD_OLED_USE_H8_I2C
-#define BOARD_OLED_USE_H8_I2C           1U
+#define BOARD_OLED_USE_H8_I2C           0U
 #endif
 #ifndef BOARD_OLED_USE_H8_SPI
 #define BOARD_OLED_USE_H8_SPI           0U
@@ -332,41 +272,39 @@
 #define BOARD_OLED_H8_SPI_OWNS_KEY12    BOARD_OLED_USE_H8_SPI
 
 #define OLED_H8_PORT                    GPIOB
-#define OLED_H8_SCL_PIN                 DL_GPIO_PIN_9    /* H8-3, SCL/SCK */
+#define OLED_H8_SCL_PIN                 DL_GPIO_PIN_9
 #define OLED_H8_SCL_IOMUX               IOMUX_PINCM26
-#define OLED_H8_SDA_PIN                 DL_GPIO_PIN_8    /* H8-4, SDA/MOSI */
+#define OLED_H8_SDA_PIN                 DL_GPIO_PIN_8
 #define OLED_H8_SDA_IOMUX               IOMUX_PINCM25
-#define OLED_H8_RES_PIN                 DL_GPIO_PIN_10   /* H8-5 */
+#define OLED_H8_RES_PIN                 DL_GPIO_PIN_10
 #define OLED_H8_RES_IOMUX               IOMUX_PINCM27
-#define OLED_H8_DC_PIN                  DL_GPIO_PIN_11   /* H8-6 */
+#define OLED_H8_DC_PIN                  DL_GPIO_PIN_11
 #define OLED_H8_DC_IOMUX                IOMUX_PINCM28
-#define OLED_H8_CS_PIN                  DL_GPIO_PIN_14   /* H8-7 */
+#define OLED_H8_CS_PIN                  DL_GPIO_PIN_14
 #define OLED_H8_CS_IOMUX                IOMUX_PINCM31
 #define OLED_H8_PIN_MASK                (OLED_H8_SCL_PIN | OLED_H8_SDA_PIN | \
                                          OLED_H8_RES_PIN | OLED_H8_DC_PIN | \
                                          OLED_H8_CS_PIN)
 
 /* ---------------- Beeper and user LED ---------------- */
-#define BEEP_PORT                       GPIO_BEEP_PORT       /* A07 */
+#define BEEP_PORT                       GPIO_BEEP_PORT
 #define BEEP_PIN                        GPIO_BEEP_PIN
 #define BEEP                            BEEP_PIN
-#define LED_USER_PORT                   GPIO_LED_USER_PORT   /* B04 */
+#define LED_USER_PORT                   GPIO_LED_USER_PORT
 #define LED_USER_PIN                    GPIO_LED_USER_PIN
 #define LED_USER                        LED_USER_PIN
 
-/* If LED2 uses a 10k series resistor, visible brightness may be low. */
-
 /* ---------------- Keys, active low with internal pull-up ---------------- */
-#define KEY1_PORT                       GPIO_KEYS_KEY1_PORT  /* B14 / SW1 */
+#define KEY1_PORT                       GPIO_KEYS_KEY1_PORT
 #define KEY1_PIN                        GPIO_KEYS_KEY1_PIN
 #define KEY1                            KEY1_PIN
-#define KEY2_PORT                       GPIO_KEYS_KEY2_PORT  /* B11 / SW2 */
+#define KEY2_PORT                       GPIO_KEYS_KEY2_PORT
 #define KEY2_PIN                        GPIO_KEYS_KEY2_PIN
 #define KEY2                            KEY2_PIN
-#define KEY3_PORT                       GPIO_KEYS_KEY3_PORT  /* B27 / SW3 */
+#define KEY3_PORT                       GPIO_KEYS_KEY3_PORT
 #define KEY3_PIN                        GPIO_KEYS_KEY3_PIN
 #define KEY3                            KEY3_PIN
-#define KEY4_PORT                       GPIO_KEYS_KEY4_PORT  /* B26 / SW4 */
+#define KEY4_PORT                       GPIO_KEYS_KEY4_PORT
 #define KEY4_PIN                        GPIO_KEYS_KEY4_PIN
 #define KEY4                            KEY4_PIN
 
@@ -379,14 +317,7 @@
 #define KEY_K4_PORT                     KEY4_PORT
 #define KEY_K4_PIN                      KEY4_PIN
 
-/* ---------------- Servo PWM ----------------
- * TIMA0 C0..C3, 50Hz, 20ms period, default output disabled unless test macro
- * enables a center pulse.
- * SERVO1_PWM -> PA21 / TIMA0-C0, SERVO2_PWM -> PA22 / TIMA0-C1,
- * SERVO3_PWM -> PA15 / TIMA0-C2, SERVO4_PWM -> PA17 / TIMA0-C3.
- * Use an independent high-current servo supply and common ground with the
- * MSPM0 board.
- */
+/* ---------------- Servo PWM ---------------- */
 #define SERVO_PWM_TIMER_INST            PWM_SERVO_INST
 #define SERVO_PWM_PERIOD_US             20000U
 #define SERVO_MIN_PULSE_US              500U
@@ -401,11 +332,7 @@
 #define SERVO3_PWM                      SERVO3_PWM_CC_INDEX
 #define SERVO4_PWM                      SERVO4_PWM_CC_INDEX
 
-/* ---------------- UARTs ----------------
- * UART_DEBUG  = UART1, PB6/PB7, 9600   for debug/bluetooth.
- * UART_K230   = UART0, PA0/PA1, 115200 for K230 vision.
- * UART2 (PA23/PA24) is unused.
- */
+/* ---------------- UARTs ---------------- */
 #define SERIAL_UART_INST                UART_K230_INST
 #define SERIAL_UART_IRQN                UART_K230_INST_INT_IRQN
 #define SERIAL_BAUD_RATE                UART_K230_BAUD_RATE
@@ -413,14 +340,5 @@
 /* ---------------- System tick ---------------- */
 #define SYSTEM_TIMER_INST               TIMER_SYS_INST
 #define SYSTEM_TIMER_IRQN               TIMER_SYS_INST_INT_IRQN
-
-/*
- * SWDIO/SWCLK are not configured as GPIO here.  Future hardware should route
- * RST to the SWD connector.
- *
- * Reserved headers:
- * H1: B05, B15, A10, B16, A11, B12.  B05 is a future TB6612_STBY candidate.
- * H3: B25, B18, B21, B22, A30, B00.
- */
 
 #endif
