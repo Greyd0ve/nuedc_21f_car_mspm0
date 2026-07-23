@@ -6,7 +6,7 @@
 #include "Motor.h"
 #include <stdint.h>
 
-static VisionTrackState_t s_state   = VISION_TRACK_IDLE;
+static VisionTrackState_t s_state = VISION_TRACK_IDLE;
 
 static int16_t  s_lastEy    = 0;
 static uint8_t  s_hasLastEy = 0U;
@@ -21,6 +21,13 @@ static uint32_t s_lastOverflowCount = 0U;
 
 static VisionTrackFrame_t s_curFrame;
 
+static int16_t Vision_CentiDegToDeciDeg(int16_t value)
+{
+    if (value >= 0)
+        return (int16_t)((value + 5) / 10);
+    return (int16_t)((value - 5) / 10);
+}
+
 static float LimitFloat(float v, float lo, float hi)
 {
     if (v < lo) return lo;
@@ -30,14 +37,9 @@ static float LimitFloat(float v, float lo, float hi)
 
 static uint8_t IsVisionDataValid(const VisionTrackFrame_t *f)
 {
-    if (!f->frameValid) return 0U;
-
+    if (!f->transportValid) return 0U;
+    if (!f->visionValid) return 0U;
     if (App_VisionLink_GetFrameAgeMs() > VISION_TRACK_FRESH_LIMIT_MS) return 0U;
-
-    if (f->flags & 0x80U) return 0U;
-    if ((f->flags & 0x03U) != 0x03U) return 0U;
-    if (f->confidence < VISION_TRACK_MIN_CONFIDENCE) return 0U;
-
     return 1U;
 }
 
@@ -64,7 +66,8 @@ void App_VisionTrack_Init(void)
     s_lostRecoverCount = 0U;
     s_lastRecoverSeq   = 0xFFFFU;
     s_lastOverflowCount = 0U;
-    s_curFrame.frameValid = 0U;
+    s_curFrame.transportValid = 0U;
+    s_curFrame.visionValid    = 0U;
 
     SafeStop();
 }
@@ -73,15 +76,15 @@ void App_VisionTrack_Task10ms(void)
 {
     uint8_t  isNewSeq;
     uint8_t  dataValid;
-    int16_t  ey;
-    int16_t  ea;
+    int16_t  eyControl;
+    int16_t  eaControl;
     float    turnCmd;
     float    dEy;
     uint32_t curOverflow;
 
     (void)App_VisionLink_GetLatest(&s_curFrame);
-    isNewSeq   = App_VisionLink_HasNewFrame();
-    dataValid  = IsVisionDataValid(&s_curFrame);
+    isNewSeq    = App_VisionLink_HasNewFrame();
+    dataValid   = IsVisionDataValid(&s_curFrame);
     curOverflow = App_VisionLink_GetRxOverflowCount();
 
     switch (s_state)
@@ -97,9 +100,9 @@ void App_VisionTrack_Task10ms(void)
             s_acquireCount   = 0U;
             s_lastAcquireSeq = 0xFFFFU;
         }
-        else if (isNewSeq && s_curFrame.seq != s_lastAcquireSeq)
+        else if (isNewSeq && s_curFrame.sequence != s_lastAcquireSeq)
         {
-            s_lastAcquireSeq = s_curFrame.seq;
+            s_lastAcquireSeq = s_curFrame.sequence;
             s_acquireCount++;
             if (s_acquireCount >= VISION_TRACK_ACQUIRE_FRAMES)
             {
@@ -124,20 +127,20 @@ void App_VisionTrack_Task10ms(void)
             break;
         }
 
-        ey = s_curFrame.lateralErrorQ1000;
-        ea = s_curFrame.headingErrorDeciDeg;
+        eyControl = s_curFrame.lateralErrorDeciMm;
+        eaControl = Vision_CentiDegToDeciDeg(s_curFrame.headingErrorCentiDeg);
 
         if (isNewSeq)
         {
             if (s_hasLastEy)
             {
-                dEy = (float)(ey - s_lastEy);
+                dEy = (float)(eyControl - s_lastEy);
             }
             else
             {
                 dEy = 0.0f;
             }
-            s_lastEy    = ey;
+            s_lastEy    = eyControl;
             s_hasLastEy = 1U;
         }
         else
@@ -146,8 +149,8 @@ void App_VisionTrack_Task10ms(void)
         }
 
         turnCmd = VISION_TRACK_TURN_SIGN *
-            (VISION_TRACK_KY * (float)ey +
-             VISION_TRACK_KA * (float)ea +
+            (VISION_TRACK_KY * (float)eyControl +
+             VISION_TRACK_KA * (float)eaControl +
              VISION_TRACK_KD * dEy);
 
         turnCmd = LimitFloat(turnCmd,
@@ -162,9 +165,9 @@ void App_VisionTrack_Task10ms(void)
 
     case VISION_TRACK_LOST:
         SafeStop();
-        if (dataValid && isNewSeq && s_curFrame.seq != s_lastRecoverSeq)
+        if (dataValid && isNewSeq && s_curFrame.sequence != s_lastRecoverSeq)
         {
-            s_lastRecoverSeq = s_curFrame.seq;
+            s_lastRecoverSeq = s_curFrame.sequence;
             s_lostRecoverCount++;
             if (s_lostRecoverCount >= VISION_TRACK_ACQUIRE_FRAMES)
             {
