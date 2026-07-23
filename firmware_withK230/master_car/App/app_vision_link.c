@@ -195,15 +195,23 @@ void App_VisionLink_Task10ms(void)
         if (byte == ']')
         {
             VisionTrackFrame_t tmp;
-            tmp.frameValid = 0U;
 
-            if (s_rxIdx < (VISION_RX_FRAME_SIZE - 1U))
+            if (s_rxIdx >= (VISION_RX_FRAME_SIZE - 1U))
             {
-                s_rxBuf[s_rxIdx++] = (char)byte;
-                s_rxBuf[s_rxIdx]   = '\0';
+                s_inFrame = 0U;
+                s_rxIdx   = 0U;
+                s_rxBuf[0] = '\0';
+                s_parseErrorCount++;
+                continue;
             }
+
+            s_rxBuf[s_rxIdx++] = (char)byte;
+            s_rxBuf[s_rxIdx]   = '\0';
+
             s_inFrame = 0U;
             s_rxIdx   = 0U;
+
+            tmp.frameValid = 0U;
 
             if (IsTrk1Frame(s_rxBuf))
             {
@@ -260,10 +268,26 @@ void App_VisionLink_Task10ms(void)
     }
 }
 
+#define VISION_RESET_FLUSH_MAX_BYTES 128U
+
 void App_VisionLink_Reset(void)
 {
+    uint8_t  byte;
+    uint16_t flushed = 0U;
+
     s_rxIdx   = 0U;
     s_inFrame = 0U;
+    s_rxBuf[0] = '\0';
+
+    while ((flushed < VISION_RESET_FLUSH_MAX_BYTES) &&
+           Serial_ReadByte(&byte))
+    {
+        flushed++;
+    }
+
+    s_rxIdx   = 0U;
+    s_inFrame = 0U;
+    s_rxBuf[0] = '\0';
 
     s_latest.frameValid = 0U;
     s_latest.seq        = 0U;
