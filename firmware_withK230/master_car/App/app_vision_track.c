@@ -17,6 +17,8 @@ static uint16_t s_lastAcquireSeq = 0xFFFFU;
 static uint8_t  s_lostRecoverCount = 0U;
 static uint16_t s_lastRecoverSeq   = 0xFFFFU;
 
+static uint8_t  s_invalidFrameCount = 0U;
+
 static uint32_t s_lastOverflowCount = 0U;
 
 static VisionTrackFrame_t s_curFrame;
@@ -35,7 +37,14 @@ static float LimitFloat(float v, float lo, float hi)
     return v;
 }
 
-static uint8_t IsVisionDataValid(const VisionTrackFrame_t *f)
+static uint8_t IsTransportOk(const VisionTrackFrame_t *f)
+{
+    if (!f->transportValid) return 0U;
+    if (App_VisionLink_GetFrameAgeMs() > VISION_TRACK_FRESH_LIMIT_MS) return 0U;
+    return 1U;
+}
+
+static uint8_t IsVisionValid(const VisionTrackFrame_t *f)
 {
     if (!f->transportValid) return 0U;
     if (!f->visionValid) return 0U;
@@ -65,6 +74,7 @@ void App_VisionTrack_Init(void)
     s_lastAcquireSeq = 0xFFFFU;
     s_lostRecoverCount = 0U;
     s_lastRecoverSeq   = 0xFFFFU;
+    s_invalidFrameCount = 0U;
     s_lastOverflowCount = 0U;
     s_curFrame.transportValid = 0U;
     s_curFrame.visionValid    = 0U;
@@ -75,7 +85,8 @@ void App_VisionTrack_Init(void)
 void App_VisionTrack_Task10ms(void)
 {
     uint8_t  isNewSeq;
-    uint8_t  dataValid;
+    uint8_t  transportOk;
+    uint8_t  visionValid;
     int16_t  eyControl;
     int16_t  eaControl;
     float    turnCmd;
@@ -83,9 +94,10 @@ void App_VisionTrack_Task10ms(void)
     uint32_t curOverflow;
 
     (void)App_VisionLink_GetLatest(&s_curFrame);
-    isNewSeq    = App_VisionLink_HasNewFrame();
-    dataValid   = IsVisionDataValid(&s_curFrame);
-    curOverflow = App_VisionLink_GetRxOverflowCount();
+    isNewSeq     = App_VisionLink_HasNewFrame();
+    transportOk  = IsTransportOk(&s_curFrame);
+    visionValid  = IsVisionValid(&s_curFrame);
+    curOverflow  = App_VisionLink_GetRxOverflowCount();
 
     switch (s_state)
     {
@@ -95,7 +107,7 @@ void App_VisionTrack_Task10ms(void)
 
     case VISION_TRACK_ACQUIRE:
         SafeStop();
-        if (!dataValid)
+        if (!visionValid)
         {
             s_acquireCount   = 0U;
             s_lastAcquireSeq = 0xFFFFU;
@@ -107,6 +119,7 @@ void App_VisionTrack_Task10ms(void)
             if (s_acquireCount >= VISION_TRACK_ACQUIRE_FRAMES)
             {
                 s_hasLastEy = 0U;
+                s_invalidFrameCount = 0U;
                 s_lastOverflowCount = App_VisionLink_GetRxOverflowCount();
                 EnterState(VISION_TRACK_RUN);
             }
@@ -114,16 +127,55 @@ void App_VisionTrack_Task10ms(void)
         break;
 
     case VISION_TRACK_RUN:
-        if (!dataValid || (curOverflow != s_lastOverflowCount))
+        if (curOverflow != s_lastOverflowCount)
         {
             SafeStop();
             s_lostRecoverCount = 0U;
             s_lastRecoverSeq   = 0xFFFFU;
-            if (curOverflow != s_lastOverflowCount)
-            {
-                App_VisionLink_Reset();
-            }
+            s_invalidFrameCount = 0U;
+            App_VisionLink_Reset();
             EnterState(VISION_TRACK_LOST);
+            break;
+        }
+
+        if (!transportOk)
+        {
+            SafeStop();
+            s_lostRecoverCount = 0U;
+            s_lastRecoverSeq   = 0xFFFFU;
+            s_invalidFrameCount = 0U;
+            EnterState(VISION_TRACK_LOST);
+            break;
+        }
+
+        if (isNewSeq)
+        {
+            if (s_curFrame.visionValid)
+            {
+                s_invalidFrameCount = 0U;
+            }
+            else
+            {
+                s_invalidFrameCount++;
+            }
+        }
+
+        if (s_invalidFrameCount >= VISION_TRACK_INVALID_CONFIRM_FRAMES)
+        {
+            SafeStop();
+            s_lostRecoverCount = 0U;
+            s_lastRecoverSeq   = 0xFFFFU;
+            s_invalidFrameCount = 0U;
+            EnterState(VISION_TRACK_LOST);
+            break;
+        }
+
+        if (!s_curFrame.visionValid)
+        {
+            g_targetForwardSpeed = VISION_TRACK_DEGRADED_SPEED_CMPS;
+            g_targetTurnSpeed    = 0.0f;
+            g_carEnable = 1U;
+            App_Control_ApplyMotorOutput();
             break;
         }
 
@@ -165,7 +217,7 @@ void App_VisionTrack_Task10ms(void)
 
     case VISION_TRACK_LOST:
         SafeStop();
-        if (dataValid && isNewSeq && s_curFrame.sequence != s_lastRecoverSeq)
+        if (visionValid && isNewSeq && s_curFrame.sequence != s_lastRecoverSeq)
         {
             s_lastRecoverSeq = s_curFrame.sequence;
             s_lostRecoverCount++;
@@ -174,11 +226,12 @@ void App_VisionTrack_Task10ms(void)
                 s_hasLastEy = 0U;
                 s_lostRecoverCount = 0U;
                 s_lastRecoverSeq   = 0xFFFFU;
+                s_invalidFrameCount = 0U;
                 s_lastOverflowCount = App_VisionLink_GetRxOverflowCount();
                 EnterState(VISION_TRACK_RUN);
             }
         }
-        else if (!dataValid)
+        else if (!visionValid)
         {
             s_lostRecoverCount = 0U;
         }
@@ -220,6 +273,7 @@ void App_VisionTrack_HandleKey(uint8_t key)
     case 3U:
         SafeStop();
         App_VisionLink_SendIdleMode();
+        s_invalidFrameCount = 0U;
         EnterState(VISION_TRACK_STOP);
         break;
 
