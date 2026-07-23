@@ -3,14 +3,14 @@
 
 #include <stdint.h>
 
-/* 清空待处理增量后，使能编码器 GPIO 中断。 */
+/* 4× quadrature encoder counts per wheel revolution (measured). */
+#define ENCODER_4X_COUNT_PER_REV 4096U
+
 void Encoder_Init(void);
 
-/* 返回并清零对应车轮累计的有符号 A 相边沿计数。 */
 int16_t Encoder_GetLeftDelta(void);
 int16_t Encoder_GetRightDelta(void);
 
-/* 清空左右编码器待处理增量累计值。 */
 void Encoder_ClearAll(void);
 
 /*

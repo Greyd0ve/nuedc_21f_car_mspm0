@@ -8,9 +8,13 @@ static volatile int32_t s_leftDelta = 0;
 static volatile int32_t s_rightDelta = 0;
 static volatile uint8_t s_leftALast = 0U;
 static volatile uint8_t s_rightALast = 0U;
+static volatile uint8_t s_leftBLast = 0U;
+static volatile uint8_t s_rightBLast = 0U;
 
+/* 4× quadrature: count every A/B edge on both channels.
+ * ENCODER_COUNT_A_RISE_ONLY kept as 0 to enable 4× mode. */
 #ifndef ENCODER_COUNT_A_RISE_ONLY
-#define ENCODER_COUNT_A_RISE_ONLY 1U
+#define ENCODER_COUNT_A_RISE_ONLY 0U
 #endif
 
 #ifndef ENCODER_DIAG_ENABLE
@@ -185,6 +189,8 @@ void Encoder_Init(void)
     __disable_irq();
     s_leftALast = Encoder_ReadLevel(ENC_L_A_PORT, ENC_L_A_PIN);
     s_rightALast = Encoder_ReadLevel(ENC_R_A_PORT, ENC_R_A_PIN);
+    s_leftBLast = Encoder_ReadLevel(ENC_L_B_PORT, ENC_L_B_PIN);
+    s_rightBLast = Encoder_ReadLevel(ENC_R_B_PORT, ENC_R_B_PIN);
     s_leftDelta = 0;
     s_rightDelta = 0;
 #if ENCODER_DIAG_ENABLE
@@ -203,14 +209,26 @@ void Encoder_Init(void)
 
     DL_GPIO_clearInterruptStatus(ENC_L_A_PORT, ENC_L_A_PIN);
     DL_GPIO_clearInterruptStatus(ENC_R_A_PORT, ENC_R_A_PIN);
+    DL_GPIO_clearInterruptStatus(ENC_L_B_PORT, ENC_L_B_PIN);
+    DL_GPIO_clearInterruptStatus(ENC_R_B_PORT, ENC_R_B_PIN);
     NVIC_ClearPendingIRQ(ENCODER_GPIO_IRQN);
+
+    /* Set B-phase interrupt polarity: RISE_FALL for 4× quadrature.
+     * L_B = PA27 (upper), R_B = PA14 (lower). */
+    DL_GPIO_setUpperPinsPolarity(GPIOA, DL_GPIO_PIN_27_EDGE_RISE_FALL);
+    DL_GPIO_setLowerPinsPolarity(GPIOA, DL_GPIO_PIN_14_EDGE_RISE_FALL);
+
 #if ENCODER_DEBUG_DISABLE_GPIO_IRQ
     DL_GPIO_disableInterrupt(ENC_L_A_PORT, ENC_L_A_PIN);
     DL_GPIO_disableInterrupt(ENC_R_A_PORT, ENC_R_A_PIN);
+    DL_GPIO_disableInterrupt(ENC_L_B_PORT, ENC_L_B_PIN);
+    DL_GPIO_disableInterrupt(ENC_R_B_PORT, ENC_R_B_PIN);
     NVIC_DisableIRQ(ENCODER_GPIO_IRQN);
 #else
     DL_GPIO_enableInterrupt(ENC_L_A_PORT, ENC_L_A_PIN);
     DL_GPIO_enableInterrupt(ENC_R_A_PORT, ENC_R_A_PIN);
+    DL_GPIO_enableInterrupt(ENC_L_B_PORT, ENC_L_B_PIN);
+    DL_GPIO_enableInterrupt(ENC_R_B_PORT, ENC_R_B_PIN);
     NVIC_EnableIRQ(ENCODER_GPIO_IRQN);
 #endif
 
@@ -232,10 +250,14 @@ void Encoder_Init(void)
 
 		DL_GPIO_clearInterruptStatus(ENC_L_A_PORT, ENC_L_A_PIN);
 		DL_GPIO_clearInterruptStatus(ENC_R_A_PORT, ENC_R_A_PIN);
+		DL_GPIO_clearInterruptStatus(ENC_L_B_PORT, ENC_L_B_PIN);
+		DL_GPIO_clearInterruptStatus(ENC_R_B_PORT, ENC_R_B_PIN);
 		NVIC_ClearPendingIRQ(ENCODER_GPIO_IRQN);
 
 		s_leftALast = Encoder_ReadLevel(ENC_L_A_PORT, ENC_L_A_PIN);
 		s_rightALast = Encoder_ReadLevel(ENC_R_A_PORT, ENC_R_A_PIN);
+		s_leftBLast = Encoder_ReadLevel(ENC_L_B_PORT, ENC_L_B_PIN);
+		s_rightBLast = Encoder_ReadLevel(ENC_R_B_PORT, ENC_R_B_PIN);
 
 		s_leftDelta = 0;
 		s_rightDelta = 0;
@@ -457,23 +479,44 @@ static void Encoder_HandleRightA(void)
     s_rightDelta += dir * RIGHT_ENCODER_DIR;
 }
 
+static void Encoder_HandleLeftB(void)
+{
+    uint8_t b = Encoder_ReadLevel(ENC_L_B_PORT, ENC_L_B_PIN);
+    uint8_t a;
+    int32_t dir;
+
+    if (b == s_leftBLast) { return; }
+    s_leftBLast = b;
+
+    a = Encoder_ReadLevel(ENC_L_A_PORT, ENC_L_A_PIN);
+    dir = (a == b) ? -1 : 1;
+    s_leftDelta += dir * LEFT_ENCODER_DIR;
+}
+
+static void Encoder_HandleRightB(void)
+{
+    uint8_t b = Encoder_ReadLevel(ENC_R_B_PORT, ENC_R_B_PIN);
+    uint8_t a;
+    int32_t dir;
+
+    if (b == s_rightBLast) { return; }
+    s_rightBLast = b;
+
+    a = Encoder_ReadLevel(ENC_R_A_PORT, ENC_R_A_PIN);
+    dir = (a == b) ? -1 : 1;
+    s_rightDelta += dir * RIGHT_ENCODER_DIR;
+}
+
 static void Encoder_ServicePort(GPIO_Regs *port)
 {
     uint32_t mask = 0U;
     uint32_t status;
 
-    if (ENC_L_A_PORT == port)
-    {
-        mask |= ENC_L_A_PIN;
-    }
-    if (ENC_R_A_PORT == port)
-    {
-        mask |= ENC_R_A_PIN;
-    }
-    if (mask == 0U)
-    {
-        return;
-    }
+    if (ENC_L_A_PORT == port) { mask |= ENC_L_A_PIN; }
+    if (ENC_R_A_PORT == port) { mask |= ENC_R_A_PIN; }
+    if (ENC_L_B_PORT == port) { mask |= ENC_L_B_PIN; }
+    if (ENC_R_B_PORT == port) { mask |= ENC_R_B_PIN; }
+    if (mask == 0U) { return; }
 
     status = DL_GPIO_getEnabledInterruptStatus(port, mask);
     DL_GPIO_clearInterruptStatus(port, status);
@@ -491,6 +534,14 @@ static void Encoder_ServicePort(GPIO_Regs *port)
         s_rightStatusCount++;
 #endif
         Encoder_HandleRightA();
+    }
+    if ((ENC_L_B_PORT == port) && ((status & ENC_L_B_PIN) != 0U))
+    {
+        Encoder_HandleLeftB();
+    }
+    if ((ENC_R_B_PORT == port) && ((status & ENC_R_B_PIN) != 0U))
+    {
+        Encoder_HandleRightB();
     }
 }
 

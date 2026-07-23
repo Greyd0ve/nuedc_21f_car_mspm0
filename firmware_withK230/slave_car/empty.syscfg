@@ -1,5 +1,13 @@
 /**
- * Revised local SysConfig script for the MSPM0G3507 E-car board.
+ * Revised local SysConfig script for the MSPM0G3507 E-car slave car.
+ *
+ * MOTOR MIGRATION (2026-07): DC + TB6612 → Stepper + D36A.
+ * - TB6612 L_IN1/L_IN2/R_IN1/R_IN2 GPIOs REMOVED from active pin map.
+ *   PB17/PB19/PA16/PB24 now serve as DIR_L/DIR_R/EN_L/EN_R (GPIO out).
+ * - TIMG0 PWM_MOTOR PA12/PA13 RETAINED in SysConfig but unused at runtime.
+ *   Not removed to avoid breaking SYSCFG_DL_init() structure.
+ * - STEP_L = PA3 (TIMG7 CCP0), STEP_R = PA5 (TIMG8 CCP0).
+ *   These are initialized manually in StepperMotor.c, NOT via SysConfig.
  *
  * This file mirrors the checked-in ti_msp_dl_config.c/h logical names.
  * If SysConfig regenerates different macro names, keep App/Hardware code

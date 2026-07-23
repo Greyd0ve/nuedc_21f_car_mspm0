@@ -3,6 +3,15 @@
 
 #include <stdint.h>
 
+/*
+ * Select motor type for slave car.
+ * 0 = DC motor + TB6612 (legacy)
+ * 1 = Stepper motor + D36A dual-channel driver
+ */
+#ifndef ECAR_MOTOR_TYPE_STEPPER
+#define ECAR_MOTOR_TYPE_STEPPER 1
+#endif
+
 /* Neutral CAR_ aliases for template layer use.
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
@@ -14,6 +23,11 @@
 #define CAR_SERIAL_PLOT_PERIOD_MS       ECAR_SERIAL_PLOT_PERIOD_MS
 #define CAR_OLED_REFRESH_PERIOD_MS      ECAR_OLED_REFRESH_PERIOD_MS
 #define CAR_TASK_COUNT_MAX              ECAR_TASK_COUNT_MAX
+
+/* Board-test stepper mode enable. Only takes effect when board-test is on. */
+#ifndef ECAR_TEST_STEPPER_ENABLE
+#define ECAR_TEST_STEPPER_ENABLE 1
+#endif
 
 /* CarBase template behaviour switches. */
 #ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
@@ -33,7 +47,7 @@
 #define CAR_ID                                  2
 #endif
 #ifndef ENABLE_K230
-#define ENABLE_K230                             0
+#define ENABLE_K230                             1
 #endif
 
 #ifndef RADIO_DEBUG_ENABLE
@@ -139,5 +153,80 @@
 #ifndef ECAR_BOARD_TEST_PWM_LIMIT
 #define ECAR_BOARD_TEST_PWM_LIMIT               260
 #endif
+
+/* =================== Stepper motor / D36A configuration ================= */
+
+/* D36A micro-step: 3200 STEP pulses = 1 motor revolution. */
+#define STEPPER_STEP_PER_REV            3200U
+
+/* Encoder counts per wheel revolution.
+ * Measured with 4× quadrature decoding on the stepper encoder. */
+#define ENCODER_COUNT_PER_REV           4096U
+
+/*
+ * Ratio for health checks: encoder_counts / step_pulses.
+ * 4096 / 3200 = 1.28 encoder counts per STEP pulse.
+ */
+#define STEPPER_ENC_PER_STEP_NUM        4096U
+#define STEPPER_ENC_PER_STEP_DEN        3200U
+
+/* Software full-speed RPM. */
+#ifndef STEPPER_FULL_SPEED_RPM
+#define STEPPER_FULL_SPEED_RPM          600U
+#endif
+
+/* Full-speed STEP frequency = RPM * STEP_PER_REV / 60. */
+#define STEPPER_FULL_STEP_FREQ_HZ \
+    ((uint32_t)(STEPPER_FULL_SPEED_RPM) * STEPPER_STEP_PER_REV / 60U)
+/* 600 * 3200 / 60 = 32000 Hz */
+
+/* Software max STEP frequency (Hz). Same as full-speed by default. */
+#ifndef STEPPER_MAX_FREQ_HZ
+#define STEPPER_MAX_FREQ_HZ STEPPER_FULL_STEP_FREQ_HZ
+#endif
+
+/* Accel / decel rate per 1ms tick for stepper ramp.
+ * Smaller = softer ramp, larger = stiffer response. */
+#ifndef STEPPER_ACCEL_HZ_PER_TICK
+#define STEPPER_ACCEL_HZ_PER_TICK 20
+#endif
+#ifndef STEPPER_DECEL_HZ_PER_TICK
+#define STEPPER_DECEL_HZ_PER_TICK 30
+#endif
+
+/* Minimum STEP frequency the 16-bit timer can represent at BUSCLK/1.
+ * Below ~488 Hz the period overflows 65535; clamp to this floor. */
+#ifndef STEPPER_MIN_TIMER_FREQ_HZ
+#define STEPPER_MIN_TIMER_FREQ_HZ 500
+#endif
+
+/*
+ * Board test runs at 50 % of full speed max.
+ * 300 RPM → 16000 Hz.
+ */
+#define STEPPER_TEST_MAX_RPM            ((STEPPER_FULL_SPEED_RPM) / 2U)
+#define STEPPER_TEST_MAX_FREQ_HZ        ((STEPPER_FULL_STEP_FREQ_HZ) / 2U)
+
+/* Seven-level frequency table (linear from 7 % to 50 % of full speed).
+ * Level:  1      2      3      4      5      6      7
+ * %:       7.00  14.17  21.33  28.50  35.67  42.83  50.00
+ * RPM:     42     85    128    171    214    257    300
+ * Hz:    2240   4533   6827   9120  11413  13707  16000
+ */
+#define STEPPER_SPEED_LEVELS 7U
+
+/*
+ * Encoder cm-per-pulse with 4× quadrature. Override the legacy 1× value.
+ */
+#if ECAR_MOTOR_TYPE_STEPPER
+#undef  ECAR_ENCODER_PULSE_PER_REV
+#define ECAR_ENCODER_PULSE_PER_REV \
+    ((float)(ENCODER_COUNT_PER_REV))  /* 4096.0f */
+#endif
+
+/* Legacy re-compute after redefining ECAR_ENCODER_PULSE_PER_REV. */
+#undef  ECAR_CM_PER_PULSE
+#define ECAR_CM_PER_PULSE \
+    (ECAR_WHEEL_CIRCUMFERENCE_CM / ECAR_ENCODER_PULSE_PER_REV)
 
 #endif

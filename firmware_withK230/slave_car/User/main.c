@@ -13,6 +13,7 @@
 #include "Grayscale.h"
 #include "Key.h"
 #include "Motor.h"
+#include "StepperMotor.h"
 #include "OLED.h"
 #include "Serial.h"
 #include "DebugSerial.h"
@@ -107,6 +108,8 @@ int main(void)
     Grayscale_Init();
     Motor_Init();
     Motor_StopAll();
+    StepperMotor_Init();
+    StepperMotor_EnableAll(0U);
     Encoder_Init();
     BeepLed_Init();
 #if ENABLE_K230

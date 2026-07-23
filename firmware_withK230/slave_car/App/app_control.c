@@ -5,12 +5,37 @@
 #include "Encoder.h"
 #include "Motor.h"
 #include "PWM.h"
+#include "StepperMotor.h"
 #include "pid.h"
 #include <stdint.h>
 
 #define APP_PWM_LIMIT_MIN          0.0f
 #define APP_FORWARD_I_LIMIT        260.0f
 #define APP_TURN_I_LIMIT           220.0f
+
+/*
+ * Stepper control: target speed (cm/s) → step frequency (Hz).
+ *
+ * wheel_rev_per_sec = speed_cmps / wheel_circumference_cm
+ * step_freq_hz = wheel_rev_per_sec * STEP_PER_REV
+ *
+ * First version uses direct conversion as feed-forward.
+ * Encoder PI correction can be enabled by setting g_stepperSpeedKp > 0.
+ */
+#if ECAR_MOTOR_TYPE_STEPPER
+#ifndef STEPPER_SPEED_FF_ENABLE
+#define STEPPER_SPEED_FF_ENABLE 1
+#endif
+#ifndef STEPPER_SPEED_KP
+#define STEPPER_SPEED_KP        0.0f
+#endif
+#ifndef STEPPER_SPEED_KI
+#define STEPPER_SPEED_KI        0.0f
+#endif
+#ifndef STEPPER_SPEED_I_LIMIT_HZ
+#define STEPPER_SPEED_I_LIMIT_HZ 500.0f
+#endif
+#endif
 
 static PID_TypeDef ForwardPID;
 static PID_TypeDef TurnPID;
@@ -103,6 +128,37 @@ static float App_Control_SpeedFeedForward(float targetSpeed)
     return pwm;
 }
 
+#if ECAR_MOTOR_TYPE_STEPPER
+/*
+ * Convert wheel speed (cm/s) to step frequency (Hz).
+ * Positive = forward, negative = backward.
+ */
+static int32_t App_Control_SpeedToStepFreqHz(float speedCmps)
+{
+    float revPerSec;
+    float freq;
+
+    if (speedCmps > -0.01f && speedCmps < 0.01f)
+    {
+        return 0;
+    }
+
+    revPerSec = speedCmps / ECAR_WHEEL_CIRCUMFERENCE_CM;
+    freq = revPerSec * (float)STEPPER_STEP_PER_REV;
+
+    if (freq > (float)STEPPER_MAX_FREQ_HZ)
+    {
+        freq = (float)STEPPER_MAX_FREQ_HZ;
+    }
+    else if (freq < -(float)STEPPER_MAX_FREQ_HZ)
+    {
+        freq = -(float)STEPPER_MAX_FREQ_HZ;
+    }
+
+    return (int32_t)freq;
+}
+#endif
+
 void App_Control_Init(void)
 {
     /*
@@ -144,7 +200,11 @@ void App_Control_ForcePWMZero(void)
 
     g_carEnable = 0U;
 
+#if ECAR_MOTOR_TYPE_STEPPER
+    StepperMotor_StopAll();
+#else
     Motor_StopAll();
+#endif
     App_Control_ResetPID();
 }
 
@@ -216,6 +276,15 @@ void App_Control_ApplyMotorOutput(void)
     int16_t targetLeftPwm;
     int16_t targetRightPwm;
 
+#if ECAR_MOTOR_TYPE_STEPPER
+    int32_t leftFreqHz;
+    int32_t rightFreqHz;
+    float leftFreqFF;
+    float rightFreqFF;
+    float leftFreqCorr;
+    float rightFreqCorr;
+#endif
+
     if (!g_carEnable || g_pwmLimit <= 0.5f)
     {
         g_forwardSpeedError = g_targetForwardSpeed - g_forwardSpeed;
@@ -229,7 +298,11 @@ void App_Control_ApplyMotorOutput(void)
         s_leftSpeedI = 0.0f;
         s_rightSpeedI = 0.0f;
 
+#if ECAR_MOTOR_TYPE_STEPPER
+        StepperMotor_StopAll();
+#else
         Motor_StopAll();
+#endif
         App_Control_ResetPID();
         return;
     }
@@ -239,12 +312,6 @@ void App_Control_ApplyMotorOutput(void)
                                       (float)PWM_MAX_DUTY);
     pwmLimitI16 = (int16_t)pwmLimit;
 
-    /*
-     * g_targetForwardSpeed：车体前进速度，cm/s
-     * g_targetTurnSpeed：左右轮差速修正，cm/s
-     *
-     * turn 为正时：右轮目标速度更高，左轮更低。
-     */
     leftTarget = g_targetForwardSpeed - g_targetTurnSpeed;
     rightTarget = g_targetForwardSpeed + g_targetTurnSpeed;
 
@@ -254,6 +321,54 @@ void App_Control_ApplyMotorOutput(void)
     rightTarget = App_Control_LimitFloat(rightTarget,
                                          -TUNE_WHEEL_TARGET_LIMIT_CMPS,
                                          TUNE_WHEEL_TARGET_LIMIT_CMPS);
+
+#if ECAR_MOTOR_TYPE_STEPPER
+
+    leftErr = leftTarget - g_leftSpeed;
+    rightErr = rightTarget - g_rightSpeed;
+
+    s_leftSpeedI += leftErr;
+    s_rightSpeedI += rightErr;
+
+    s_leftSpeedI = App_Control_LimitFloat(s_leftSpeedI,
+                                          -STEPPER_SPEED_I_LIMIT_HZ,
+                                          STEPPER_SPEED_I_LIMIT_HZ);
+    s_rightSpeedI = App_Control_LimitFloat(s_rightSpeedI,
+                                           -STEPPER_SPEED_I_LIMIT_HZ,
+                                           STEPPER_SPEED_I_LIMIT_HZ);
+
+    leftFreqFF  = (float)App_Control_SpeedToStepFreqHz(leftTarget);
+    rightFreqFF = (float)App_Control_SpeedToStepFreqHz(rightTarget);
+
+    leftFreqCorr = leftFreqFF
+                   + STEPPER_SPEED_KP * leftErr
+                   + STEPPER_SPEED_KI * s_leftSpeedI;
+    rightFreqCorr = rightFreqFF
+                    + STEPPER_SPEED_KP * rightErr
+                    + STEPPER_SPEED_KI * s_rightSpeedI;
+
+    if (leftFreqCorr > (float)STEPPER_MAX_FREQ_HZ)
+        { leftFreqCorr = (float)STEPPER_MAX_FREQ_HZ; }
+    else if (leftFreqCorr < -(float)STEPPER_MAX_FREQ_HZ)
+        { leftFreqCorr = -(float)STEPPER_MAX_FREQ_HZ; }
+
+    if (rightFreqCorr > (float)STEPPER_MAX_FREQ_HZ)
+        { rightFreqCorr = (float)STEPPER_MAX_FREQ_HZ; }
+    else if (rightFreqCorr < -(float)STEPPER_MAX_FREQ_HZ)
+        { rightFreqCorr = -(float)STEPPER_MAX_FREQ_HZ; }
+
+    leftFreqHz  = (int32_t)(leftFreqCorr * LEFT_STEPPER_DIR_SIGN);
+    rightFreqHz = (int32_t)(rightFreqCorr * RIGHT_STEPPER_DIR_SIGN);
+
+    StepperMotor_SetTargetFrequency(leftFreqHz, rightFreqHz);
+
+    g_leftPwm  = 0;
+    g_rightPwm = 0;
+    g_speedPwm = (float)(leftFreqHz + rightFreqHz) * 0.5f;
+    g_diffPwm  = (float)(rightFreqHz - leftFreqHz) * 0.5f;
+    g_forwardSpeedError = g_targetForwardSpeed - g_forwardSpeed;
+
+#else
 
     leftErr = leftTarget - g_leftSpeed;
     rightErr = rightTarget - g_rightSpeed;
@@ -293,4 +408,5 @@ void App_Control_ApplyMotorOutput(void)
     g_forwardSpeedError = g_targetForwardSpeed - g_forwardSpeed;
 
     Motor_SetPWM(g_leftPwm, g_rightPwm);
+#endif
 }

@@ -7,7 +7,7 @@
 
   <Targets>
     <Target>
-      <TargetName>slave_car</TargetName>
+      <TargetName>slave_car_withK230</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <pCCUsed>6210000::V6.21::ARMCLANG</pCCUsed>
@@ -49,7 +49,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\Objects\</OutputDirectory>
-          <OutputName>slave_car</OutputName>
+          <OutputName>slave_car_withK230</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
@@ -481,6 +481,11 @@
               <FileName>Motor.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Hardware\Motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>StepperMotor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\StepperMotor.c</FilePath>
             </File>
             <File>
               <FileName>Encoder.c</FileName>
