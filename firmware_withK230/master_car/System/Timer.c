@@ -21,6 +21,13 @@ static void Timer_SaturatingInc(volatile uint8_t *counter)
     }
 }
 
+static volatile uint32_t s_systemMillis = 0U;
+
+uint32_t Timer_GetMillis(void)
+{
+    return s_systemMillis;
+}
+
 void Timer_Init(void)
 {
     DL_TimerG_clearInterruptStatus(SYSTEM_TIMER_INST, DL_TIMER_INTERRUPT_ZERO_EVENT);
@@ -50,6 +57,8 @@ void TIMG6_IRQHandler(void)
             App_TaskMode_Tick1ms();
 
             Timer_SaturatingInc(&g_task_1ms_count);
+
+            s_systemMillis++;
 
             div5ms++;
             if (div5ms >= CAR_ENCODER_SPEED_PERIOD_MS)

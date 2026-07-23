@@ -1,52 +1,92 @@
 #include "app_vision_link.h"
 #include "Serial.h"
+#include "Timer.h"
 #include <stdint.h>
 
-static char            s_rxBuf[VISION_RX_FRAME_SIZE];
-static uint8_t         s_rxIdx = 0U;
-static uint8_t         s_inFrame = 0U;
+static char    s_rxBuf[VISION_RX_FRAME_SIZE];
+static uint8_t s_rxIdx   = 0U;
+static uint8_t s_inFrame = 0U;
 
 static VisionTrackFrame_t s_latest;
 static uint8_t             s_hasNewFrame = 0U;
 
-static uint32_t s_validFrameCount  = 0U;
-static uint32_t s_parseErrorCount  = 0U;
-static uint32_t s_systemTimeMs     = 0U;
+static uint32_t s_validFrameCount    = 0U;
+static uint32_t s_parseErrorCount    = 0U;
+static uint32_t s_duplicateFrameCount = 0U;
+static uint32_t s_unknownFrameCount   = 0U;
 
 static uint16_t s_lastProcessedSeq = 0xFFFFU;
 static uint8_t  s_lastSeqValid     = 0U;
 
-static int32_t  ParseInt32(const char *p, const char **endp)
+static int32_t ParseInt32(const char *p, const char **endp, uint8_t *ok)
 {
-    int32_t val = 0;
-    uint8_t neg = 0U;
+    int32_t  val = 0;
+    uint8_t  neg = 0U;
+    uint8_t  hasDigit = 0U;
+
+    *ok = 0U;
 
     if (*p == '-')
     {
         neg = 1U;
         p++;
     }
+
+    if (*p < '0' || *p > '9')
+    {
+        return 0;
+    }
+
     while (*p >= '0' && *p <= '9')
     {
-        val = val * 10 + (int32_t)(*p - '0');
+        int32_t digit = (int32_t)(*p - '0');
+
+        if (neg)
+        {
+            if (val < (INT32_MIN + digit) / 10)
+            {
+                return 0;
+            }
+            val = val * 10 - digit;
+        }
+        else
+        {
+            if (val > (INT32_MAX - digit) / 10)
+            {
+                return 0;
+            }
+            val = val * 10 + digit;
+        }
+
+        hasDigit = 1U;
         p++;
     }
+
+    if (!hasDigit) return 0;
     if (endp) *endp = p;
-    return neg ? -val : val;
+    *ok = 1U;
+    return val;
 }
 
-static const char *SkipField(const char *p)
+static uint8_t IsTrk1Frame(const char *buf)
 {
-    while (*p >= '0' && *p <= '9') p++;
-    if (*p == '-') p++;
-    while (*p >= '0' && *p <= '9') p++;
-    return p;
+    return (buf[0] == '[' &&
+            buf[1] == 't' && buf[2] == 'r' && buf[3] == 'k' && buf[4] == '1' &&
+            buf[5] == ',') ? 1U : 0U;
+}
+
+static uint8_t IsReadyFrame(const char *buf)
+{
+    return (buf[0] == '[' &&
+            buf[1] == 'r' && buf[2] == 'e' && buf[3] == 'a' && buf[4] == 'd' &&
+            buf[5] == 'y' && buf[6] == ',') ? 1U : 0U;
 }
 
 static uint8_t ParseFields(const char *buf, VisionTrackFrame_t *f)
 {
     const char *p = buf;
-    uint32_t fldCount = 0U;
+    int32_t v;
+    uint8_t ok;
 
     if (p[0] != '[') return 0U;
     p++;
@@ -55,55 +95,46 @@ static uint8_t ParseFields(const char *buf, VisionTrackFrame_t *f)
     p += 4;
     if (*p != ',') return 0U;
     p++;
-    fldCount = 1U;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < 0 || v > 65535) return 0U;
-        f->seq = (uint16_t)v;
-    }
-    if (*p == ',') p++; else return 0U;
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < 0 || v > 65535) return 0U;
+    f->seq = (uint16_t)v;
+    if (*p != ',') return 0U;
+    p++;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < -1000 || v > 1000) return 0U;
-        f->lateralErrorQ1000 = (int16_t)v;
-    }
-    if (*p == ',') p++; else return 0U;
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < -1000 || v > 1000) return 0U;
+    f->lateralErrorQ1000 = (int16_t)v;
+    if (*p != ',') return 0U;
+    p++;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < -1800 || v > 1800) return 0U;
-        f->headingErrorDeciDeg = (int16_t)v;
-    }
-    if (*p == ',') p++; else return 0U;
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < -1800 || v > 1800) return 0U;
+    f->headingErrorDeciDeg = (int16_t)v;
+    if (*p != ',') return 0U;
+    p++;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < 0 || v > 5000) return 0U;
-        f->laneWidthQ1000 = (uint16_t)v;
-    }
-    if (*p == ',') p++; else return 0U;
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < 0 || v > 5000) return 0U;
+    f->laneWidthQ1000 = (uint16_t)v;
+    if (*p != ',') return 0U;
+    p++;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < 0 || v > 255) return 0U;
-        f->flags = (uint8_t)v;
-    }
-    if (*p == ',') p++; else return 0U;
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < 0 || v > 255) return 0U;
+    f->flags = (uint8_t)v;
+    if (*p != ',') return 0U;
+    p++;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < 0 || v > 65535) return 0U;
-        f->junctionDistanceMm = (uint16_t)v;
-    }
-    if (*p == ',') p++; else return 0U;
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < 0 || v > 65535) return 0U;
+    f->junctionDistanceMm = (uint16_t)v;
+    if (*p != ',') return 0U;
+    p++;
 
-    {
-        int32_t v = ParseInt32(p, &p);
-        if (v < 0 || v > 100) return 0U;
-        f->confidence = (uint8_t)v;
-    }
+    v = ParseInt32(p, &p, &ok);
+    if (!ok || v < 0 || v > 100) return 0U;
+    f->confidence = (uint8_t)v;
 
     if (*p != ']') return 0U;
 
@@ -120,11 +151,13 @@ void App_VisionLink_Init(void)
     s_latest.seq        = 0U;
     s_hasNewFrame       = 0U;
 
-    s_validFrameCount   = 0U;
-    s_parseErrorCount   = 0U;
-    s_systemTimeMs      = 0U;
-    s_lastProcessedSeq  = 0xFFFFU;
-    s_lastSeqValid      = 0U;
+    s_validFrameCount    = 0U;
+    s_parseErrorCount    = 0U;
+    s_duplicateFrameCount = 0U;
+    s_unknownFrameCount   = 0U;
+
+    s_lastProcessedSeq = 0xFFFFU;
+    s_lastSeqValid     = 0U;
 }
 
 void App_VisionLink_Task10ms(void)
@@ -132,7 +165,6 @@ void App_VisionLink_Task10ms(void)
     uint8_t byte;
 
     s_hasNewFrame = 0U;
-    s_systemTimeMs += 10U;
 
     while (Serial_ReadByte(&byte))
     {
@@ -145,6 +177,16 @@ void App_VisionLink_Task10ms(void)
         {
             s_rxIdx   = 0U;
             s_inFrame = 1U;
+            if (s_rxIdx < (VISION_RX_FRAME_SIZE - 1U))
+            {
+                s_rxBuf[s_rxIdx++] = (char)byte;
+            }
+            else
+            {
+                s_inFrame = 0U;
+                s_rxIdx   = 0U;
+                s_parseErrorCount++;
+            }
             continue;
         }
 
@@ -153,34 +195,54 @@ void App_VisionLink_Task10ms(void)
         if (byte == ']')
         {
             VisionTrackFrame_t tmp;
-            if (s_rxIdx < VISION_RX_FRAME_SIZE)
+            tmp.frameValid = 0U;
+
+            if (s_rxIdx < (VISION_RX_FRAME_SIZE - 1U))
             {
-                s_rxBuf[s_rxIdx] = '\0';
+                s_rxBuf[s_rxIdx++] = (char)byte;
+                s_rxBuf[s_rxIdx]   = '\0';
             }
             s_inFrame = 0U;
             s_rxIdx   = 0U;
 
-            tmp.frameValid = 0U;
-            if (ParseFields(s_rxBuf, &tmp))
+            if (IsTrk1Frame(s_rxBuf))
             {
-                uint8_t isNewSeq;
-                tmp.receiveTimeMs = s_systemTimeMs;
-                tmp.frameValid    = 1U;
+                if (ParseFields(s_rxBuf, &tmp))
+                {
+                    uint8_t isNewSeq;
 
-                s_latest = tmp;
+                    isNewSeq = s_lastSeqValid
+                        ? ((tmp.seq != s_lastProcessedSeq) ? 1U : 0U)
+                        : 1U;
 
-                isNewSeq = s_lastSeqValid
-                    ? ((tmp.seq != s_lastProcessedSeq) ? 1U : 0U)
-                    : 1U;
-                s_lastProcessedSeq = tmp.seq;
-                s_lastSeqValid     = 1U;
+                    if (isNewSeq)
+                    {
+                        tmp.receiveTimeMs = Timer_GetMillis();
+                        tmp.frameValid    = 1U;
 
-                s_hasNewFrame = isNewSeq ? 1U : 0U;
-                if (isNewSeq) s_validFrameCount++;
+                        s_latest            = tmp;
+                        s_hasNewFrame       = 1U;
+                        s_validFrameCount++;
+                        s_lastProcessedSeq  = tmp.seq;
+                        s_lastSeqValid      = 1U;
+                    }
+                    else
+                    {
+                        s_duplicateFrameCount++;
+                    }
+                }
+                else
+                {
+                    s_parseErrorCount++;
+                }
+            }
+            else if (IsReadyFrame(s_rxBuf))
+            {
+                s_unknownFrameCount++;
             }
             else
             {
-                s_parseErrorCount++;
+                s_unknownFrameCount++;
             }
             continue;
         }
@@ -200,11 +262,15 @@ void App_VisionLink_Task10ms(void)
 
 void App_VisionLink_Reset(void)
 {
+    s_rxIdx   = 0U;
+    s_inFrame = 0U;
+
     s_latest.frameValid = 0U;
     s_latest.seq        = 0U;
     s_hasNewFrame       = 0U;
-    s_lastProcessedSeq  = 0xFFFFU;
-    s_lastSeqValid      = 0U;
+
+    s_lastProcessedSeq = 0xFFFFU;
+    s_lastSeqValid     = 0U;
 }
 
 uint8_t App_VisionLink_GetLatest(VisionTrackFrame_t *frame)
@@ -227,9 +293,11 @@ uint8_t App_VisionLink_IsFresh(uint32_t maxAgeMs)
 
 uint32_t App_VisionLink_GetFrameAgeMs(void)
 {
+    uint32_t now;
     if (!s_latest.frameValid) return 0xFFFFFFFFUL;
-    if (s_latest.receiveTimeMs > s_systemTimeMs) return 0U;
-    return s_systemTimeMs - s_latest.receiveTimeMs;
+    now = Timer_GetMillis();
+    if (s_latest.receiveTimeMs > now) return 0U;
+    return now - s_latest.receiveTimeMs;
 }
 
 uint32_t App_VisionLink_GetValidFrameCount(void)
@@ -240,6 +308,21 @@ uint32_t App_VisionLink_GetValidFrameCount(void)
 uint32_t App_VisionLink_GetParseErrorCount(void)
 {
     return s_parseErrorCount;
+}
+
+uint32_t App_VisionLink_GetDuplicateFrameCount(void)
+{
+    return s_duplicateFrameCount;
+}
+
+uint32_t App_VisionLink_GetUnknownFrameCount(void)
+{
+    return s_unknownFrameCount;
+}
+
+uint32_t App_VisionLink_GetRxOverflowCount(void)
+{
+    return Serial_GetRxOverflowCount();
 }
 
 void App_VisionLink_SendTrackMode(void)

@@ -32,6 +32,9 @@ uint32_t App_VisionLink_GetFrameAgeMs(void);
 
 uint32_t App_VisionLink_GetValidFrameCount(void);
 uint32_t App_VisionLink_GetParseErrorCount(void);
+uint32_t App_VisionLink_GetDuplicateFrameCount(void);
+uint32_t App_VisionLink_GetUnknownFrameCount(void);
+uint32_t App_VisionLink_GetRxOverflowCount(void);
 
 void App_VisionLink_SendTrackMode(void);
 void App_VisionLink_SendIdleMode(void);
