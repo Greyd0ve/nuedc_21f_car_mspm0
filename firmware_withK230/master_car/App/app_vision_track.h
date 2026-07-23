@@ -8,7 +8,7 @@
 #define VISION_TRACK_KY                0.004f
 #define VISION_TRACK_KA                0.02f
 #define VISION_TRACK_KD                0.001f
-#define VISION_TRACK_TURN_SIGN        -1.0f
+#define VISION_TRACK_TURN_SIGN         1.0f
 #define VISION_TRACK_FRESH_LIMIT_MS    150U
 #define VISION_TRACK_ACQUIRE_FRAMES    3U
 
