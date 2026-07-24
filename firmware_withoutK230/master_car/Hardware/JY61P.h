@@ -18,6 +18,11 @@
  * Suitable for short-term heading correction, NOT long-term absolute heading.
  */
 
+#define JY61P_LINK_TIMEOUT_MS   500U
+#define JY61P_ANGLE_TIMEOUT_MS  500U
+#define JY61P_GYRO_TIMEOUT_MS   500U
+#define JY61P_AGE_UNKNOWN_MS    ((uint32_t)0xFFFFFFFFUL)
+
 typedef struct
 {
     int16_t roll_x100;
@@ -33,8 +38,14 @@ typedef struct
     uint32_t gyro_frame_count;
     uint32_t checksum_error_count;
     uint32_t sync_error_count;
+    uint32_t unsupported_frame_count;
     uint32_t rx_overflow_count;
     uint32_t last_valid_frame_ms;
+    uint32_t last_angle_frame_ms;
+    uint32_t last_gyro_frame_ms;
+    uint32_t link_age_ms;
+    uint32_t angle_age_ms;
+    uint32_t gyro_age_ms;
 
     uint8_t angle_valid;
     uint8_t gyro_valid;

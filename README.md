@@ -1,6 +1,6 @@
 # mspm0_car_base
 
-MSPM0G3507 小车底层驱动模板工程。保留 MSPM0G3507 小车底层驱动、IO 映射、速度闭环、灰度读取、串口、按键、OLED、IMU、舵机、板级测试能力。
+MSPM0G3507 小车底层驱动模板工程。保留 MSPM0G3507 小车底层驱动、IO 映射、速度闭环、灰度读取、串口、按键、OLED、JY61P、舵机、板级测试能力。
 
 **本工程不包含 E 题/F 题业务状态机。** 开发新题目时，在 `App/` 层新建业务状态机，不要修改底层驱动。
 
@@ -148,7 +148,8 @@ STBY 直接接 5V，软件只能通过 PWM=0 和方向脚安全状态停车。
 | 外设 | 映射 |
 | --- | --- |
 | OLED (I2C, H8) | SCL=PB9, SDA=PB8, 4针 IIC SSD1306 |
-| I2C0 (MPU6050) | PA31 SCL / PA28 SDA |
+| I2C0（预留） | PA31 SCL / PA28 SDA |
+| JY61P | UART0, TX=PA0, RX=PA1, 9600 8N1 |
 | BEEP | A07 |
 | LED_USER | B04 |
 | KEY1~KEY4 | B14 / B11 / B27 / B26, 输入上拉 |
@@ -161,14 +162,29 @@ STBY 直接接 5V，软件只能通过 PWM=0 和方向脚安全状态停车。
 ## 板级测试模式
 
 ```c
-#define ECAR_BOARD_TEST_MODE       0
-#define ECAR_TEST_MOTOR_ENABLE     0
-#define ECAR_TEST_IMU_ENABLE       0
+#define ECAR_BOARD_TEST_MODE              1
+#define ECAR_TEST_RADIO_ENABLE            0
+#define ECAR_TEST_STEPPER_ENCODER_ENABLE   0
+#define ECAR_TEST_JY61P_ENABLE             1
 ```
 
-- 默认不进入 board test。
-- 电机不会自动启动。
-- 如需板级 IMU 测试，改为 `ECAR_BOARD_TEST_MODE = 1`, `ECAR_TEST_IMU_ENABLE = 1`。
+以上配置用于 JY61P 板级测试；仓库默认仍为 `ECAR_BOARD_TEST_MODE = 0`、`ECAR_TEST_JY61P_ENABLE = 0`，不会进入板测或自动启动电机。板测子模式互斥，只能同时开启一个。
+
+JY61P 接线：
+
+- JY61P TX -> PA1 / UART0_RX。
+- JY61P RX -> PA0 / UART0_TX。
+- JY61P 与 MSPM0 必须共地，供电按实际模块要求连接。
+- 上电前确认 UART 逻辑电平与 MSPM0 的 3.3V IO 兼容；不允许把 5V UART 信号直接送入 MSPM0。
+
+JY61P 板测按键：
+
+- K1：软件航向角归零；角度帧过期时拒绝归零。
+- K2：暂停/恢复周期串口打印。
+- K3：切换角度页/诊断页。
+- K4：清除帧数与错误统计，不清除姿态数据、零点和新鲜度时间戳。
+
+驱动内部角度单位为 0.01°，角速度单位为 0.1°/s，均使用定点整数。JY61P 六轴 yaw 由陀螺仪积分得到，会随时间漂移，适合短时间转角、90°/180° 转弯和短期航向修正，不适合长期绝对航向定位。
 
 ## CarBase 模板入口
 
