@@ -201,8 +201,17 @@ int32_t StepperMotor_SetLeftTargetFrequency(int32_t hz)
     if (hz > (int32_t)STEPPER_MAX_FREQ_HZ) hz = (int32_t)STEPPER_MAX_FREQ_HZ;
     if (hz < -(int32_t)STEPPER_MAX_FREQ_HZ) hz = -(int32_t)STEPPER_MAX_FREQ_HZ;
     s_leftTargetFreq = hz;
-    s_leftPendingTarget = 0;
-    s_leftDirState = DIR_STATE_NORMAL;
+
+    if (hz == 0)
+    {
+        s_leftPendingTarget = 0;
+        s_leftDirState = DIR_STATE_NORMAL;
+    }
+    else if (s_leftDirState != DIR_STATE_NORMAL)
+    {
+        s_leftPendingTarget = hz;
+    }
+
     return hz;
 }
 
@@ -211,8 +220,17 @@ int32_t StepperMotor_SetRightTargetFrequency(int32_t hz)
     if (hz > (int32_t)STEPPER_MAX_FREQ_HZ) hz = (int32_t)STEPPER_MAX_FREQ_HZ;
     if (hz < -(int32_t)STEPPER_MAX_FREQ_HZ) hz = -(int32_t)STEPPER_MAX_FREQ_HZ;
     s_rightTargetFreq = hz;
-    s_rightPendingTarget = 0;
-    s_rightDirState = DIR_STATE_NORMAL;
+
+    if (hz == 0)
+    {
+        s_rightPendingTarget = 0;
+        s_rightDirState = DIR_STATE_NORMAL;
+    }
+    else if (s_rightDirState != DIR_STATE_NORMAL)
+    {
+        s_rightPendingTarget = hz;
+    }
+
     return hz;
 }
 
@@ -365,6 +383,16 @@ static void StepperMotor_StepChannel(
         }
     }
 
+    /*
+     * Once a reversal has started, keep ramping to zero even if the 10 ms
+     * control task refreshes or changes the non-zero target.  The setter
+     * keeps pendingTarget current and the new direction is applied at zero.
+     */
+    if (*dirState == DIR_STATE_RAMP_TO_ZERO)
+    {
+        effectiveTarget = 0;
+    }
+
     if (*dirState == DIR_STATE_RAMP_TO_ZERO && *cur == 0)
     {
         /* Reached zero — stop timer, switch DIR, wait 1 tick */
@@ -399,13 +427,16 @@ static void StepperMotor_StepChannel(
         *cur = newCur;
     }
 
-    /* Accumulate signed STEP count every 1ms regardless of whether
-     * frequency changed.  steady-state rate = abs(cur) steps/ms. */
+    /*
+     * Accumulate only while the timer can physically emit STEP pulses.
+     * Below STEPPER_MIN_TIMER_FREQ_HZ ApplyFreq() stops the timer, so
+     * counting a theoretical phase increment would create false distance.
+     */
     {
         int32_t absCur = (*cur >= 0) ? *cur : -*cur;
         int32_t sign   = (*cur >= 0) ? 1 : -1;
 
-        if (absCur > 0)
+        if (absCur >= (int32_t)STEPPER_MIN_TIMER_FREQ_HZ)
         {
             *phase += (uint32_t)absCur;
             while (*phase >= 1000U)

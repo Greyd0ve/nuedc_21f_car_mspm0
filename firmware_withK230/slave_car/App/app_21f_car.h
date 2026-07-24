@@ -7,18 +7,22 @@
 #define F21_CROSS_CONFIRM_MS            20U
 
 /*
- * Cross advance: distance from line sensor to drive axle = 17.7 cm.
- * Add trim for black-line width / detection advance / tyre slip.
+ * Cross advance is an empirically verified state-machine distance after
+ * detecting a cross.  It is intentionally independent of the 17.7 cm
+ * sensor-to-axle mechanical dimension in app_config.h.
  */
+#define F21_CROSS_ADVANCE_BASE_CM       6.0f
+#define F21_FAR_CROSS_ADVANCE_BASE_CM   3.0f
 #define F21_CROSS_ADVANCE_TRIM_CM       0.0f
 #define F21_FAR_CROSS_ADVANCE_TRIM_CM   0.0f
 
 #define F21_CROSS_ADVANCE_CM \
-    (ECAR_LINE_SENSOR_AXLE_OFFSET_CM + F21_CROSS_ADVANCE_TRIM_CM)
+    (F21_CROSS_ADVANCE_BASE_CM + F21_CROSS_ADVANCE_TRIM_CM)
 #define F21_FAR_CROSS_ADVANCE_CM \
-    (ECAR_LINE_SENSOR_AXLE_OFFSET_CM + F21_FAR_CROSS_ADVANCE_TRIM_CM)
+    (F21_FAR_CROSS_ADVANCE_BASE_CM + F21_FAR_CROSS_ADVANCE_TRIM_CM)
 
 #define F21_UNLOAD_WAIT_MS              2000U
+#define F21_STEPPER_STOP_TIMEOUT_MS      500U
 
 #define F21_SIDE_CROSS_BLACK_MIN        4U
 #define F21_SIDE_CROSS_LEFT_MASK        0x3FU
@@ -37,10 +41,16 @@
  *   90°:  ECAR_TURN_90_ENCODER_COUNT_THEORY  = 2505
  *   180°: ECAR_TURN_180_ENCODER_COUNT_THEORY = 5010
  *
- * These must be calibrated by real 90°/180° pivot tests.
+ * Control initial values preserve the verified withoutK230 behavior, scaled
+ * independently from 367 to 4096 encoder counts/revolution:
+ *   90°:  180 * 4096 / 367 ~= 2009 -> 2010
+ *   180°: 440 * 4096 / 367 ~= 4911 -> 4910
+ *
+ * These are not measured values for this chassis.  Calibrate the 90° and
+ * 180° thresholds independently on the real vehicle.
  */
-#define F21_TURN_90_PULSE               ECAR_TURN_90_ENCODER_COUNT_THEORY
-#define F21_TURN_180_PULSE              ECAR_TURN_180_ENCODER_COUNT_THEORY
+#define F21_TURN_90_PULSE               2010U
+#define F21_TURN_180_PULSE              4910U
 
 /* [legacy] F21_TURN_PWM was raw PWM direct drive; replaced by speed closed-loop. */
 #define F21_TURN_PWM                    140
@@ -70,6 +80,7 @@ typedef enum
     F21_CAR_RETURN_FINAL_RUN,
     F21_CAR_RETURN_FINAL_TURN_AROUND,
 
+    F21_CAR_WAIT_STEPPER_STOP,
     F21_CAR_FINISH,
     F21_CAR_STOP,
     F21_CAR_FAULT

@@ -35,7 +35,12 @@ volatile int32_t g_rightEncoderTotal = 0;
 volatile int32_t g_forwardEncoderTotal = 0;
 volatile int32_t g_turnEncoderTotal = 0;
 
-volatile float g_lineBlackLevelF = 0.0f;
+/*
+ * Logic level reported by the grayscale sensor for a black line.
+ * Keep the value proven by firmware_withoutK230; g_lineRawMask can be
+ * inspected over the debug serial port if the sensor hardware changes.
+ */
+volatile float g_lineBlackLevelF = 1.0f;
 
 #if ECAR_REAR_LINE_SENSOR_MODE
 volatile float g_lineReverseOrderF = 1.0f;

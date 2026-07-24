@@ -10,6 +10,7 @@
 #include "Motor.h"
 #include "OLED.h"
 #include "Serial.h"
+#include "StepperMotor.h"
 #include "cmsis_compiler.h"
 #include <stdint.h>
 
@@ -88,6 +89,9 @@ static const F21FarReturnRoute_t s_farReturnRoutes[4] =
 };
 
 static volatile F21CarState_t s_state = F21_CAR_IDLE;
+static volatile F21CarState_t s_stateAfterStop = F21_CAR_IDLE;
+static volatile uint8_t s_captureTurnStartAfterStop = 0U;
+static volatile uint16_t s_stopWaitMs = 0U;
 static volatile uint8_t s_targetRoom = 1U;
 static volatile uint8_t s_faultCode = 0U;
 
@@ -208,6 +212,73 @@ static void F21_EnterFault(uint8_t code, const char *msg)
     F21_SafeStop();
     s_faultCode = code;
     s_state = F21_CAR_FAULT;
+}
+
+static void F21_BeginStopTransition(
+    F21CarState_t nextState, uint8_t captureTurnStart)
+{
+    App_Control_ForcePWMZero();
+    s_stateAfterStop = nextState;
+    s_captureTurnStartAfterStop = captureTurnStart ? 1U : 0U;
+    s_stopWaitMs = 0U;
+    s_state = F21_CAR_WAIT_STEPPER_STOP;
+}
+
+static uint8_t F21_StateStartsDistanceRun(F21CarState_t state)
+{
+    switch (state)
+    {
+    case F21_CAR_AFTER_FIRST_TURN_RUN:
+    case F21_CAR_FINAL_ROOM_RUN:
+    case F21_CAR_RETURN_MAIN_LINE_RUN:
+    case F21_CAR_RETURN_FINAL_RUN:
+        return 1U;
+
+    default:
+        return 0U;
+    }
+}
+
+static void F21_HandleWaitStepperStop(void)
+{
+    F21CarState_t nextState;
+
+    App_Control_ForcePWMZero();
+
+    if (StepperMotor_GetLeftCurrentFrequency() == 0 &&
+        StepperMotor_GetRightCurrentFrequency() == 0)
+    {
+        nextState = s_stateAfterStop;
+
+        if (s_captureTurnStartAfterStop)
+        {
+            s_turnStartPulse = g_turnEncoderTotal;
+        }
+
+        App_Line_ResetState();
+        App_Control_ResetPID();
+        s_crossConfirmCnt = 0U;
+        s_farLostConfirmCnt = 0U;
+        s_returnSideConfirmCnt = 0U;
+        s_crossMonitoring = 0U;
+
+        if (F21_StateStartsDistanceRun(nextState))
+        {
+            s_stateStartPulse = g_forwardEncoderTotal;
+        }
+
+        s_captureTurnStartAfterStop = 0U;
+        s_stopWaitMs = 0U;
+        s_stateMs = 0U;
+        s_state = nextState;
+        return;
+    }
+
+    s_stopWaitMs += CAR_CONTROL_PERIOD_MS;
+    if (s_stopWaitMs >= F21_STEPPER_STOP_TIMEOUT_MS)
+    {
+        F21_EnterFault(5U, "stepper_stop_timeout");
+    }
 }
 
 /* ---- encoder total clearing ---- */
@@ -386,6 +457,9 @@ static void F21_CancelLedDisplay(void)
 void F21Car_Init(void)
 {
     s_state = F21_CAR_IDLE;
+    s_stateAfterStop = F21_CAR_IDLE;
+    s_captureTurnStartAfterStop = 0U;
+    s_stopWaitMs = 0U;
     s_targetRoom = 1U;
     s_faultCode = 0U;
     F21_SafeStop();
@@ -417,6 +491,9 @@ static void F21_ResetRunData(void)
     s_returnSideConfirmCnt = 0U;
     s_farReturnSecondDetectStartPulse = 0;
     s_farReturnSecondTurnDir = F21_TURN_LEFT;
+    s_stateAfterStop = F21_CAR_IDLE;
+    s_captureTurnStartAfterStop = 0U;
+    s_stopWaitMs = 0U;
 }
 
 static void F21_StartSelectedRoomTask(const char *source)
@@ -515,6 +592,12 @@ uint8_t F21Car_IsModeSwitchAllowed(void)
 {
     uint8_t idleState = (s_state == F21_CAR_IDLE || s_state == F21_CAR_WAIT_START) ? 1U : 0U;
     uint8_t motorStopped = (g_carEnable == 0U && g_leftPwm == 0 && g_rightPwm == 0) ? 1U : 0U;
+
+    if (StepperMotor_GetLeftCurrentFrequency() != 0 ||
+        StepperMotor_GetRightCurrentFrequency() != 0)
+    {
+        motorStopped = 0U;
+    }
 
     if (!idleState) return 0U;
     if (!motorStopped) return 0U;
@@ -722,8 +805,7 @@ static void F21_HandleFirstCrossAdvance(void)
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
     {
         s_firstAdvanceEntered = 0U;
-        s_state = F21_CAR_FIRST_TURN;
-        s_turnStartPulse = g_turnEncoderTotal;
+        F21_BeginStopTransition(F21_CAR_FIRST_TURN, 1U);
     }
 }
 
@@ -740,20 +822,17 @@ static void F21_HandleFirstTurn(void)
 
     if (F21_IsTurnComplete())
     {
-        F21_SafeStop();
         s_firstTurnDone = 1U;
         if (s_routeType == F21_ROUTE_SIMPLE)
         {
-            s_stateStartPulse = g_forwardEncoderTotal;
-            s_state = F21_CAR_FINAL_ROOM_RUN;
+            F21_BeginStopTransition(F21_CAR_FINAL_ROOM_RUN, 0U);
         }
         else
         {
-            s_stateStartPulse = g_forwardEncoderTotal;
             s_crossMonitoring = 0U;
             s_crossConfirmCnt = 0U;
             s_farLostConfirmCnt = 0U;
-            s_state = F21_CAR_AFTER_FIRST_TURN_RUN;
+            F21_BeginStopTransition(F21_CAR_AFTER_FIRST_TURN_RUN, 0U);
         }
     }
 }
@@ -783,8 +862,7 @@ static void F21_HandleSecondCrossAdvance(void)
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetCurrentCrossAdvanceCm()))
     {
         s_secondAdvanceEntered = 0U;
-        s_state = F21_CAR_SECOND_TURN;
-        s_turnStartPulse = g_turnEncoderTotal;
+        F21_BeginStopTransition(F21_CAR_SECOND_TURN, 1U);
     }
 }
 
@@ -801,9 +879,7 @@ static void F21_HandleSecondTurn(void)
 
     if (F21_IsTurnComplete())
     {
-        F21_SafeStop();
-        s_stateStartPulse = g_forwardEncoderTotal;
-        s_state = F21_CAR_FINAL_ROOM_RUN;
+        F21_BeginStopTransition(F21_CAR_FINAL_ROOM_RUN, 0U);
     }
 }
 
@@ -811,9 +887,7 @@ static void F21_HandleFinalRoomRun(void)
 {
     if (F21_GetDistanceFromPulse(s_stateStartPulse) >= s_finalRunPulse)
     {
-        F21_SafeStop();
-        s_state = F21_CAR_ARRIVED_ROOM;
-        s_stateMs = 0U;
+        F21_BeginStopTransition(F21_CAR_ARRIVED_ROOM, 0U);
         return;
     }
 
@@ -843,8 +917,6 @@ static void F21_HandleTurnAround(void)
 
     if (F21_IsTurnPulseComplete(F21_TURN_180_PULSE))
     {
-        F21_SafeStop();
-
         if (s_targetRoom >= 1U && s_targetRoom <= 4U)
         {
             if (F21_ApplyReturnRoute(s_targetRoom))
@@ -852,12 +924,12 @@ static void F21_HandleTurnAround(void)
                 s_crossMonitoring = 0U;
                 s_crossConfirmCnt = 0U;
                 s_returnSideConfirmCnt = 0U;
-                s_stateStartPulse = g_forwardEncoderTotal;
-                s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
+                F21_BeginStopTransition(
+                    F21_CAR_RETURN_MAIN_LINE_RUN, 0U);
             }
             else
             {
-                s_state = F21_CAR_FINISH;
+                F21_BeginStopTransition(F21_CAR_FINISH, 0U);
             }
         }
         else if (s_targetRoom >= 5U && s_targetRoom <= 8U)
@@ -867,17 +939,17 @@ static void F21_HandleTurnAround(void)
                 s_crossMonitoring = 0U;
                 s_crossConfirmCnt = 0U;
                 s_returnSideConfirmCnt = 0U;
-                s_stateStartPulse = g_forwardEncoderTotal;
-                s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
+                F21_BeginStopTransition(
+                    F21_CAR_RETURN_MAIN_LINE_RUN, 0U);
             }
             else
             {
-                s_state = F21_CAR_FINISH;
+                F21_BeginStopTransition(F21_CAR_FINISH, 0U);
             }
         }
         else
         {
-            s_state = F21_CAR_FINISH;
+            F21_BeginStopTransition(F21_CAR_FINISH, 0U);
         }
     }
 }
@@ -925,8 +997,7 @@ static void F21_HandleReturnCrossAdvance(void)
     if (F21_GetDistanceFromPulse(s_crossPulse) >= F21_CmToPulse(F21_GetReturnCrossAdvanceCm()))
     {
         s_returnAdvanceEntered = 0U;
-        s_state = F21_CAR_RETURN_TURN;
-        s_turnStartPulse = g_turnEncoderTotal;
+        F21_BeginStopTransition(F21_CAR_RETURN_TURN, 1U);
     }
 }
 
@@ -943,25 +1014,22 @@ static void F21_HandleReturnTurn(void)
 
     if (F21_IsTurnComplete())
     {
-        F21_SafeStop();
-
         if (s_returnMode == F21_RETURN_MODE_FAR && s_returnStage == 1U)
         {
             s_returnStage = 2U;
             s_returnDetectStartPulse = s_farReturnSecondDetectStartPulse;
             s_returnTurnDir = s_farReturnSecondTurnDir;
 
-            s_stateStartPulse = g_forwardEncoderTotal;
             s_crossMonitoring = 0U;
             s_crossConfirmCnt = 0U;
             s_returnSideConfirmCnt = 0U;
 
-            s_state = F21_CAR_RETURN_MAIN_LINE_RUN;
+            F21_BeginStopTransition(
+                F21_CAR_RETURN_MAIN_LINE_RUN, 0U);
         }
         else
         {
-            s_stateStartPulse = g_forwardEncoderTotal;
-            s_state = F21_CAR_RETURN_FINAL_RUN;
+            F21_BeginStopTransition(F21_CAR_RETURN_FINAL_RUN, 0U);
         }
     }
 }
@@ -977,9 +1045,8 @@ static void F21_HandleReturnFinalRun(void)
 
     if (F21_GetDistanceFromPulse(s_stateStartPulse) >= s_returnFinalRunPulse)
     {
-        F21_SafeStop();
-        s_turnStartPulse = g_turnEncoderTotal;
-        s_state = F21_CAR_RETURN_FINAL_TURN_AROUND;
+        F21_BeginStopTransition(
+            F21_CAR_RETURN_FINAL_TURN_AROUND, 1U);
     }
     else
     {
@@ -1010,8 +1077,7 @@ static void F21_HandleReturnFinalTurnAround(void)
 
     if (F21_IsTurnPulseComplete(F21_TURN_180_PULSE))
     {
-        F21_SafeStop();
-        s_state = F21_CAR_FINISH;
+        F21_BeginStopTransition(F21_CAR_FINISH, 0U);
     }
 }
 
@@ -1130,8 +1196,7 @@ void F21Car_Task10ms(void)
         F21_SafeStop();
         if (s_stateMs >= F21_UNLOAD_WAIT_MS)
         {
-            s_turnStartPulse = g_turnEncoderTotal;
-            s_state = F21_CAR_TURN_AROUND;
+            F21_BeginStopTransition(F21_CAR_TURN_AROUND, 1U);
         }
         break;
 
@@ -1157,6 +1222,10 @@ void F21Car_Task10ms(void)
 
     case F21_CAR_RETURN_FINAL_TURN_AROUND:
         F21_HandleReturnFinalTurnAround();
+        break;
+
+    case F21_CAR_WAIT_STEPPER_STOP:
+        F21_HandleWaitStepperStop();
         break;
 
     case F21_CAR_FINISH:
