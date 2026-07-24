@@ -57,7 +57,7 @@
 #define ECAR_ENABLE_REMOTE_START                0
 #endif
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    1
+#define ECAR_BOARD_TEST_MODE                    0
 #endif
 #ifndef ECAR_TEST_MOTOR_ENABLE
 #define ECAR_TEST_MOTOR_ENABLE                  0
@@ -90,6 +90,28 @@
 #define ECAR_PI_F                               3.1415926f
 #define ECAR_WHEEL_DIAMETER_CM                 6.5f
 #define ECAR_WHEEL_CIRCUMFERENCE_CM            (ECAR_WHEEL_DIAMETER_CM * ECAR_PI_F)
+
+/* Chassis mechanical parameters (mm → cm). */
+#define ECAR_TRACK_WIDTH_CM                    15.9f
+#define ECAR_LINE_SENSOR_AXLE_OFFSET_CM        17.7f
+
+/*
+ * Turn theory: encoder counts for 90° / 180° pivot turn.
+ *
+ *   arc_length = (track_width / 2) * theta_rad
+ *   enc_counts = arc_length / wheel_circumference * ENCODER_COUNT_PER_REV
+ *
+ * For 90° (pi/2 rad):
+ *   enc = (15.9/2) * (pi/2) / (6.5*pi) * 4096
+ *       = 15.9 / (4 * 6.5) * 4096 ≈ 2504.86 → 2505
+ *
+ * For 180° (pi rad):
+ *   ≈ 5010
+ *
+ * These are theoretical initial values; must be calibrated on real track.
+ */
+#define ECAR_TURN_90_ENCODER_COUNT_THEORY       2505U
+#define ECAR_TURN_180_ENCODER_COUNT_THEORY      5010U
 
 #define ECAR_ENCODER_PULSE_PER_REV             367.0f
 #define ECAR_CM_PER_PULSE                      (ECAR_WHEEL_CIRCUMFERENCE_CM / ECAR_ENCODER_PULSE_PER_REV)

@@ -278,8 +278,10 @@ void App_Control_ApplyMotorOutput(void)
     int16_t targetRightPwm;
 
 #if ECAR_MOTOR_TYPE_STEPPER
-    int32_t leftFreqHz;
-    int32_t rightFreqHz;
+    int32_t logicalLeftFreqHz;
+    int32_t logicalRightFreqHz;
+    int32_t stepLChannelFreqHz;
+    int32_t stepRChannelFreqHz;
     float leftFreqFF;
     float rightFreqFF;
     float leftFreqCorr;
@@ -358,15 +360,29 @@ void App_Control_ApplyMotorOutput(void)
     else if (rightFreqCorr < -(float)STEPPER_MAX_FREQ_HZ)
         { rightFreqCorr = -(float)STEPPER_MAX_FREQ_HZ; }
 
-    leftFreqHz  = (int32_t)(leftFreqCorr * LEFT_STEPPER_DIR_SIGN);
-    rightFreqHz = (int32_t)(rightFreqCorr * RIGHT_STEPPER_DIR_SIGN);
+    logicalLeftFreqHz  = (int32_t)leftFreqCorr;
+    logicalRightFreqHz = (int32_t)rightFreqCorr;
 
-    StepperMotor_SetTargetFrequency(leftFreqHz, rightFreqHz);
+    /*
+     * Hardware channel cross-mapping:
+     *   STEP_L/DIR_L (PB15/PB18) → physical RIGHT motor
+     *   STEP_R/DIR_R (PB16/PB25) → physical LEFT  motor
+     *
+     * So the logical right target goes to the STEP_L channel,
+     * and the logical left  target goes to the STEP_R channel.
+     */
+    stepLChannelFreqHz =
+        logicalRightFreqHz * LEFT_STEPPER_DIR_SIGN;
+    stepRChannelFreqHz =
+        logicalLeftFreqHz  * RIGHT_STEPPER_DIR_SIGN;
+
+    StepperMotor_SetTargetFrequency(
+        stepLChannelFreqHz, stepRChannelFreqHz);
 
     g_leftPwm  = 0;
     g_rightPwm = 0;
-    g_speedPwm = (float)(leftFreqHz + rightFreqHz) * 0.5f;
-    g_diffPwm  = (float)(rightFreqHz - leftFreqHz) * 0.5f;
+    g_speedPwm = (float)(logicalLeftFreqHz + logicalRightFreqHz) * 0.5f;
+    g_diffPwm  = (float)(logicalRightFreqHz - logicalLeftFreqHz) * 0.5f;
     g_forwardSpeedError = g_targetForwardSpeed - g_forwardSpeed;
 
 #else

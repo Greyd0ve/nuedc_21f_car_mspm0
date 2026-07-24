@@ -2,10 +2,22 @@
 #define __APP_21F_CAR_H
 
 #include <stdint.h>
+#include "app_config.h"
 
 #define F21_CROSS_CONFIRM_MS            20U
-#define F21_CROSS_ADVANCE_CM            4.0f
-#define F21_FAR_CROSS_ADVANCE_CM        3.0f
+
+/*
+ * Cross advance: distance from line sensor to drive axle = 17.7 cm.
+ * Add trim for black-line width / detection advance / tyre slip.
+ */
+#define F21_CROSS_ADVANCE_TRIM_CM       0.0f
+#define F21_FAR_CROSS_ADVANCE_TRIM_CM   0.0f
+
+#define F21_CROSS_ADVANCE_CM \
+    (ECAR_LINE_SENSOR_AXLE_OFFSET_CM + F21_CROSS_ADVANCE_TRIM_CM)
+#define F21_FAR_CROSS_ADVANCE_CM \
+    (ECAR_LINE_SENSOR_AXLE_OFFSET_CM + F21_FAR_CROSS_ADVANCE_TRIM_CM)
+
 #define F21_UNLOAD_WAIT_MS              2000U
 
 #define F21_SIDE_CROSS_BLACK_MIN        4U
@@ -18,9 +30,17 @@
 #define F21_CROSS_ADVANCE_SPEED_CMPS    12.0f
 #define F21_TURN_SPEED_CMPS             12.0f
 
-/* F21_TURN_90_PULSE: referenced from E-car corner_turn_pulse = 90U */
-#define F21_TURN_90_PULSE               180U
-#define F21_TURN_180_PULSE              440U
+/*
+ * Turn encoder count thresholds.
+ *
+ * Theoretical values based on chassis geometry:
+ *   90°:  ECAR_TURN_90_ENCODER_COUNT_THEORY  = 2505
+ *   180°: ECAR_TURN_180_ENCODER_COUNT_THEORY = 5010
+ *
+ * These must be calibrated by real 90°/180° pivot tests.
+ */
+#define F21_TURN_90_PULSE               ECAR_TURN_90_ENCODER_COUNT_THEORY
+#define F21_TURN_180_PULSE              ECAR_TURN_180_ENCODER_COUNT_THEORY
 
 /* [legacy] F21_TURN_PWM was raw PWM direct drive; replaced by speed closed-loop. */
 #define F21_TURN_PWM                    140
