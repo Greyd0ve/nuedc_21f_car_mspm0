@@ -284,15 +284,21 @@ extern "C" {
 #define GPIO_NRF_NRF_MISO_PORT                                           (GPIOA)
 #define GPIO_NRF_NRF_MISO_PIN                                   (DL_GPIO_PIN_10)
 #define GPIO_NRF_NRF_MISO_IOMUX                                  (IOMUX_PINCM21)
+/* Port definition for Pin Group GPIO_STEPPER_ENCODER */
+#define GPIO_STEPPER_ENCODER_PORT                                        (GPIOB)
 
-#define GPIO_STEPPER_ENCODER_X_A_PIN                        (DL_GPIO_PIN_15)
-#define GPIO_STEPPER_ENCODER_X_A_IOMUX                      (IOMUX_PINCM32)
-#define GPIO_STEPPER_ENCODER_X_B_PIN                        (DL_GPIO_PIN_16)
-#define GPIO_STEPPER_ENCODER_X_B_IOMUX                      (IOMUX_PINCM33)
-#define GPIO_STEPPER_ENCODER_Y_A_PIN                         (DL_GPIO_PIN_0)
-#define GPIO_STEPPER_ENCODER_Y_A_IOMUX                      (IOMUX_PINCM12)
-#define GPIO_STEPPER_ENCODER_Y_B_PIN                        (DL_GPIO_PIN_18)
-#define GPIO_STEPPER_ENCODER_Y_B_IOMUX                      (IOMUX_PINCM44)
+/* Defines for X_A: GPIOB.15 with pinCMx 32 on package pin 3 */
+#define GPIO_STEPPER_ENCODER_X_A_PIN                            (DL_GPIO_PIN_15)
+#define GPIO_STEPPER_ENCODER_X_A_IOMUX                           (IOMUX_PINCM32)
+/* Defines for X_B: GPIOB.16 with pinCMx 33 on package pin 4 */
+#define GPIO_STEPPER_ENCODER_X_B_PIN                            (DL_GPIO_PIN_16)
+#define GPIO_STEPPER_ENCODER_X_B_IOMUX                           (IOMUX_PINCM33)
+/* Defines for Y_A: GPIOB.0 with pinCMx 12 on package pin 47 */
+#define GPIO_STEPPER_ENCODER_Y_A_PIN                             (DL_GPIO_PIN_0)
+#define GPIO_STEPPER_ENCODER_Y_A_IOMUX                           (IOMUX_PINCM12)
+/* Defines for Y_B: GPIOB.18 with pinCMx 44 on package pin 15 */
+#define GPIO_STEPPER_ENCODER_Y_B_PIN                            (DL_GPIO_PIN_18)
+#define GPIO_STEPPER_ENCODER_Y_B_IOMUX                           (IOMUX_PINCM44)
 
 /* clang-format on */
 

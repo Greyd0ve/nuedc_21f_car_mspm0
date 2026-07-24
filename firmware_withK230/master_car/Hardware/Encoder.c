@@ -204,15 +204,15 @@ void Encoder_Init(void)
 
     DL_GPIO_clearInterruptStatus(ENC_L_A_PORT, ENC_L_A_PIN);
     DL_GPIO_clearInterruptStatus(ENC_R_A_PORT, ENC_R_A_PIN);
-    NVIC_ClearPendingIRQ(ENCODER_GPIO_IRQN);
+    NVIC_ClearPendingIRQ(ECAR_ENCODER_IRQN);
 #if ENCODER_DEBUG_DISABLE_GPIO_IRQ
     DL_GPIO_disableInterrupt(ENC_L_A_PORT, ENC_L_A_PIN);
     DL_GPIO_disableInterrupt(ENC_R_A_PORT, ENC_R_A_PIN);
-    NVIC_DisableIRQ(ENCODER_GPIO_IRQN);
+    NVIC_DisableIRQ(ECAR_ENCODER_IRQN);
 #else
     DL_GPIO_enableInterrupt(ENC_L_A_PORT, ENC_L_A_PIN);
     DL_GPIO_enableInterrupt(ENC_R_A_PORT, ENC_R_A_PIN);
-    NVIC_EnableIRQ(ENCODER_GPIO_IRQN);
+    NVIC_EnableIRQ(ECAR_ENCODER_IRQN);
 #endif
 
 		if (primask == 0U)
@@ -233,7 +233,7 @@ void Encoder_Init(void)
 
 		DL_GPIO_clearInterruptStatus(ENC_L_A_PORT, ENC_L_A_PIN);
 		DL_GPIO_clearInterruptStatus(ENC_R_A_PORT, ENC_R_A_PIN);
-		NVIC_ClearPendingIRQ(ENCODER_GPIO_IRQN);
+		NVIC_ClearPendingIRQ(ECAR_ENCODER_IRQN);
 
 		s_leftALast = Encoder_ReadLevel(ENC_L_A_PORT, ENC_L_A_PIN);
 		s_rightALast = Encoder_ReadLevel(ENC_R_A_PORT, ENC_R_A_PIN);

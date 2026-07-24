@@ -149,7 +149,7 @@
  *   STEP_R/DIR_R (PB16/PB25) → physically LEFT motor
  * Both motors require DIR=LOW for forward rotation.
  */
-#define LEFT_STEPPER_DIR_SIGN           (-1)
+#define LEFT_STEPPER_DIR_SIGN           (+1)
 #define RIGHT_STEPPER_DIR_SIGN          (-1)
 
 /* ===================================================================

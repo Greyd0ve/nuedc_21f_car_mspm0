@@ -99,7 +99,7 @@
 #define CAR_ID                                  1
 #endif
 #ifndef ENABLE_K230
-#define ENABLE_K230                             1
+#define ENABLE_K230                             0
 #endif
 
 #ifndef RADIO_DEBUG_ENABLE

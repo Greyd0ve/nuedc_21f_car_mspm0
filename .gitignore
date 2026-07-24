@@ -1,3 +1,4 @@
+
 # Keep important source and project files visible.
 !README.md
 !.gitignore
@@ -54,3 +55,9 @@ session-*.md
 *.orig
 Thumbs.db
 Desktop.ini
+
+# Backup files (not part of active build)
+*_backup_before_breath_pwm.*
+
+# Build output logs
+*.build_log.htm
