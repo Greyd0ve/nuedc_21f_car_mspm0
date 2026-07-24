@@ -5,6 +5,7 @@
 #include "app_control.h"
 #include "StepperEncoder.h"
 #include "DebugSerial.h"
+#include "JY61P.h"
 #include "Key.h"
 #include "Motor.h"
 #include <stdint.h>
@@ -273,6 +274,234 @@ void BoardTest_Task200ms(void)
     DebugSerial_Printf("[step-enc,x=%ld,x_win=%ld,x_rev=%ld,x_rem=%ld,x_bad=%lu,y=%ld,y_win=%ld,y_rev=%ld,y_rem=%ld,y_bad=%lu]\r\n",
         (long)snap.xCount, (long)xWin, (long)xRev, (long)xRem, (unsigned long)snap.xBad,
         (long)snap.yCount, (long)yWin, (long)yRev, (long)yRem, (unsigned long)snap.yBad);
+}
+
+#elif CAR_TEST_JY61P_ENABLE
+
+#include "OLED.h"
+
+#define JY61P_PRINT_PERIOD_MS  200U
+
+static uint32_t s_jy61pTestMs = 0U;
+static uint32_t s_jy61pPrintTimer = 0U;
+static uint8_t s_jy61pPrintPaused = 0U;
+static uint8_t s_jy61pPage = 0U;
+static uint8_t s_jy61pPrevOnline = 0U;
+static uint8_t s_jy61pYawZeroDone = 0U;
+
+void BoardTest_Init(void)
+{
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+
+    s_jy61pTestMs = 0U;
+    s_jy61pPrintTimer = 0U;
+    s_jy61pPrintPaused = 0U;
+    s_jy61pPage = 0U;
+    s_jy61pPrevOnline = 0U;
+    s_jy61pYawZeroDone = 0U;
+
+    JY61P_Init();
+
+    DebugSerial_SendString("[board-test,start]\r\n");
+    DebugSerial_SendString("[board-test,mode=jy61p]\r\n");
+    DebugSerial_SendString("[jy61p,uart=uart0,tx=pa0,rx=pa1,baud=9600]\r\n");
+    DebugSerial_SendString("[jy61p,key,k1=yaw_zero,k2=print_pause,k3=page,k4=clear_stats]\r\n");
+}
+
+void BoardTest_Task10ms(void)
+{
+    uint8_t key;
+    JY61P_Data_t jdata;
+    uint8_t online;
+
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+
+    s_jy61pTestMs += 10U;
+
+    JY61P_Task10ms();
+
+    JY61P_GetData(&jdata);
+    online = JY61P_IsOnline();
+
+    if (!s_jy61pYawZeroDone && online && jdata.angle_valid)
+    {
+        if (JY61P_ResetRelativeYaw())
+        {
+            DebugSerial_Printf("[jy61p,yaw_zero,ok,raw_x100=%d]\r\n",
+                (int)jdata.yaw_x100);
+        }
+        else
+        {
+            DebugSerial_SendString("[jy61p,yaw_zero,rejected,no_valid_angle]\r\n");
+        }
+        s_jy61pYawZeroDone = 1U;
+    }
+
+    if (online && !s_jy61pPrevOnline)
+    {
+        DebugSerial_SendString("[jy61p,status,online,recovered]\r\n");
+    }
+    else if (!online && s_jy61pPrevOnline)
+    {
+        DebugSerial_SendString("[jy61p,status,offline,timeout_ms=500]\r\n");
+    }
+    s_jy61pPrevOnline = online;
+
+    key = Key_GetNum();
+    switch (key)
+    {
+        case 1U:
+            {
+                JY61P_Data_t zdata;
+                JY61P_GetData(&zdata);
+                if (JY61P_ResetRelativeYaw())
+                {
+                    DebugSerial_Printf("[jy61p,yaw_zero,ok,raw_x100=%d]\r\n",
+                        (int)zdata.yaw_x100);
+                }
+                else
+                {
+                    DebugSerial_SendString("[jy61p,yaw_zero,rejected,no_valid_angle]\r\n");
+                }
+            }
+            break;
+        case 2U:
+            s_jy61pPrintPaused ^= 1U;
+            if (s_jy61pPrintPaused)
+            {
+                DebugSerial_SendString("[jy61p,print,paused]\r\n");
+            }
+            else
+            {
+                DebugSerial_SendString("[jy61p,print,resumed]\r\n");
+            }
+            break;
+        case 3U:
+            s_jy61pPage ^= 1U;
+            if (s_jy61pPage == 0U)
+            {
+                DebugSerial_SendString("[jy61p,page=angle]\r\n");
+            }
+            else
+            {
+                DebugSerial_SendString("[jy61p,page=diagnostic]\r\n");
+            }
+            break;
+        case 4U:
+            JY61P_ClearStatistics();
+            DebugSerial_SendString("[jy61p,stats,cleared]\r\n");
+            break;
+        default:
+            break;
+    }
+}
+
+void BoardTest_Task100ms(void) { }
+
+void BoardTest_Task200ms(void)
+{
+    JY61P_Data_t jdata;
+    uint32_t ageMs;
+
+    JY61P_GetData(&jdata);
+
+    if (s_jy61pPrintPaused)
+    {
+        return;
+    }
+
+    ageMs = (s_jy61pTestMs > jdata.last_valid_frame_ms)
+        ? (s_jy61pTestMs - jdata.last_valid_frame_ms) : 0U;
+
+    DebugSerial_Printf("[jy61p,online=%u,age_ms=%lu]\r\n",
+        (unsigned int)JY61P_IsOnline(), (unsigned long)ageMs);
+
+    if (s_jy61pPage == 0U)
+    {
+        DebugSerial_Printf("[jy61p,roll_x100=%d,pitch_x100=%d,yaw_x100=%d,relative_yaw_x100=%d]\r\n",
+            (int)jdata.roll_x100, (int)jdata.pitch_x100,
+            (int)jdata.yaw_x100, (int)jdata.relative_yaw_x100);
+        DebugSerial_Printf("[jy61p,gz_dps_x10=%d]\r\n",
+            (int)jdata.gyro_z_dps_x10);
+    }
+    else
+    {
+        DebugSerial_Printf("[jy61p,angle_frames=%lu,gyro_frames=%lu,checksum_err=%lu,sync_err=%lu,overflow=%lu]\r\n",
+            (unsigned long)jdata.angle_frame_count,
+            (unsigned long)jdata.gyro_frame_count,
+            (unsigned long)jdata.checksum_error_count,
+            (unsigned long)jdata.sync_error_count,
+            (unsigned long)jdata.rx_overflow_count);
+        DebugSerial_Printf("[jy61p,online=%u,angle_valid=%u,gyro_valid=%u,age_ms=%lu]\r\n",
+            (unsigned int)JY61P_IsOnline(),
+            (unsigned int)jdata.angle_valid,
+            (unsigned int)jdata.gyro_valid,
+            (unsigned long)ageMs);
+    }
+
+#if CAR_OLED_ENABLE
+    JY61P_Data_t odata;
+    JY61P_GetData(&odata);
+
+    OLED_Clear();
+    if (s_jy61pPage == 0U)
+    {
+        char buf[17];
+        int32_t r, p, y;
+        uint8_t neg;
+
+        OLED_ShowString(0, 0, "JY61P OK", OLED_6X8);
+
+        r = (int32_t)odata.roll_x100;
+        neg = 0U;
+        if (r < 0) { neg = 1U; r = -r; }
+        buf[0] = 'R'; buf[1] = ':'; buf[2] = ' ';
+        buf[3] = neg ? '-' : ' ';
+        buf[4] = (char)('0' + (uint8_t)((r / 100) % 10));
+        buf[5] = '.';
+        buf[6] = (char)('0' + (uint8_t)((r / 10) % 10));
+        buf[7] = (char)('0' + (uint8_t)(r % 10));
+        buf[8] = '\0';
+        OLED_ShowString(0, 2, buf, OLED_6X8);
+
+        p = (int32_t)odata.pitch_x100;
+        neg = 0U;
+        if (p < 0) { neg = 1U; p = -p; }
+        buf[0] = 'P'; buf[1] = ':'; buf[2] = ' ';
+        buf[3] = neg ? '-' : ' ';
+        buf[4] = (char)('0' + (uint8_t)((p / 100) % 10));
+        buf[5] = '.';
+        buf[6] = (char)('0' + (uint8_t)((p / 10) % 10));
+        buf[7] = (char)('0' + (uint8_t)(p % 10));
+        buf[8] = '\0';
+        OLED_ShowString(0, 4, buf, OLED_6X8);
+
+        y = (int32_t)odata.relative_yaw_x100;
+        neg = 0U;
+        if (y < 0) { neg = 1U; y = -y; }
+        buf[0] = 'Y'; buf[1] = ':'; buf[2] = ' ';
+        buf[3] = neg ? '-' : ' ';
+        buf[4] = (char)('0' + (uint8_t)((y / 100) % 10));
+        buf[5] = '.';
+        buf[6] = (char)('0' + (uint8_t)((y / 10) % 10));
+        buf[7] = (char)('0' + (uint8_t)(y % 10));
+        buf[8] = '\0';
+        OLED_ShowString(0, 6, buf, OLED_6X8);
+    }
+    else
+    {
+        OLED_ShowString(0, 0, "ANG:", OLED_6X8);
+        OLED_ShowNum(32, 0, odata.angle_frame_count, 4, OLED_6X8);
+        OLED_ShowString(0, 2, "GYR:", OLED_6X8);
+        OLED_ShowNum(32, 2, odata.gyro_frame_count, 4, OLED_6X8);
+        OLED_ShowString(0, 4, "ERR:", OLED_6X8);
+        OLED_ShowNum(32, 4, odata.checksum_error_count, 4, OLED_6X8);
+        OLED_ShowString(0, 6, "AGE:", OLED_6X8);
+        OLED_ShowNum(32, 6, ageMs, 4, OLED_6X8);
+    }
+#endif
 }
 
 #else
