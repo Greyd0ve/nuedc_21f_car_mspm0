@@ -144,10 +144,11 @@
  * Direction sign correction.
  * Positive logical frequency must drive the car forward.
  *
- * Measured 2026-07: D36A channels are cross-wired to motors.
+ * Measured 2026-07 with D36A cross-wired channels:
  *   STEP_L/DIR_L (PB15/PB18) → physically RIGHT motor
  *   STEP_R/DIR_R (PB16/PB25) → physically LEFT motor
- * Both motors require DIR=LOW for forward rotation.
+ *   RIGHT motor: DIR_L=HIGH forward, DIR_L=LOW backward
+ *   LEFT  motor: DIR_R=LOW  forward, DIR_R=HIGH backward
  */
 #define LEFT_STEPPER_DIR_SIGN           (+1)
 #define RIGHT_STEPPER_DIR_SIGN          (-1)

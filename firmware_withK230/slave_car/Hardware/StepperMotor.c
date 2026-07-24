@@ -150,6 +150,9 @@ void StepperMotor_Init(void)
     StepperMotor_SetDIR(STEPPER_DIR_R_PORT, STEPPER_DIR_R_PIN,
         (int32_t)RIGHT_STEPPER_DIR_SIGN);
 
+    DL_GPIO_enableOutput(STEPPER_DIR_L_PORT, STEPPER_DIR_L_PIN);
+    DL_GPIO_enableOutput(STEPPER_DIR_R_PORT, STEPPER_DIR_R_PIN);
+
     StepperMotor_InitTimerChannel(
         STEPPER_STEP_L_TIMER_INST,
         STEPPER_STEP_L_IOMUX,
@@ -336,8 +339,17 @@ static void StepperMotor_StepChannel(
 
     effectiveTarget = target;
 
-    /* Direction change: if target is opposite sign from current,
-     * go through a ramp-to-zero → switch DIR → ramp-from-zero sequence. */
+    /* Start from stop: set DIR based on target sign, then hold 1 tick. */
+    if (*cur == 0 && target != 0 && *dirState == DIR_STATE_NORMAL)
+    {
+        *pendingTarget = target;
+        StepperMotor_ApplyFreq(timer, 0, ccIndex);
+        StepperMotor_SetDIR(dirPort, dirPin, target);
+        *dirState = DIR_STATE_HOLD_ZERO;
+        return;
+    }
+
+    /* In-flight direction change: opposite signs → ramp to zero first. */
     if (*cur != 0 && target != 0 &&
         ((target > 0 && *cur < 0) || (target < 0 && *cur > 0)))
     {

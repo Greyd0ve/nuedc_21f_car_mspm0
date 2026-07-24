@@ -131,14 +131,14 @@ static void BoardTest_PrintBanner(void)
     DebugSerial_SendString("\r\n[step-test,start]\r\n");
     DebugSerial_Printf("[step-test,step_l=PB15,timer=TIMG7_C0]\r\n");
     DebugSerial_Printf("[step-test,step_r=PB16,timer=TIMG8_C1]\r\n");
-    DebugSerial_Printf("[step-test,dir_l=PB18]\r\n");
-    DebugSerial_Printf("[step-test,dir_r=PB25]\r\n");
-    DebugSerial_Printf("[step-test,enc_l_a=PB05,enc_l_b=PB12]\r\n");
-    DebugSerial_Printf("[step-test,enc_r_a=PB08,enc_r_b=PB00]\r\n");
+    DebugSerial_Printf("[step-test,dir_l=PB18,dir_r=PB25]\r\n");
+    DebugSerial_Printf("[step-test,enc_l=PB05/PB12,enc_r=PB08/PB00]\r\n");
     DebugSerial_Printf("[step-test,en=hardware_always_enabled]\r\n");
-    DebugSerial_Printf("[step-test,step_per_rev=%u]\r\n",
-        (unsigned int)STEPPER_STEP_PER_REV);
-    DebugSerial_Printf("[step-test,encoder_count_per_rev=%u]\r\n",
+    DebugSerial_Printf("[step-test,L_dir_sign=%+d,R_dir_sign=%+d]\r\n",
+        (int)LEFT_STEPPER_DIR_SIGN, (int)RIGHT_STEPPER_DIR_SIGN);
+    DebugSerial_Printf("[step-test,K1=STEP_L/DIR_L->right_motor,K2=STEP_R/DIR_R->left_motor]\r\n");
+    DebugSerial_Printf("[step-test,step_per_rev=%u,enc_per_rev=%u]\r\n",
+        (unsigned int)STEPPER_STEP_PER_REV,
         (unsigned int)ENCODER_COUNT_PER_REV);
     DebugSerial_Printf("[step-test,level=%u,target_hz=%lu]\r\n",
         (unsigned int)(s_level + 1U),
@@ -176,7 +176,12 @@ static void BoardTest_ApplyKey(void)
         StepperMotor_SetLeftTargetFrequency(
             (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
         modeStr = "right_only";
-        break;
+        DebugSerial_Printf(
+            "[step-test,key=k1,dir=PB18,lvl=%u,tgt=%+ld]\r\n",
+            (unsigned int)((LEFT_STEPPER_DIR_SIGN >= 0) ? 1U : 0U),
+            (long)((int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN));
+        s_keyPending = 0U;
+        return;
 
     case 2U:
         /* STEP_R/DIR_R → left physical motor (cross-wired) */
@@ -185,7 +190,12 @@ static void BoardTest_ApplyKey(void)
         StepperMotor_SetRightTargetFrequency(
             (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
         modeStr = "left_only";
-        break;
+        DebugSerial_Printf(
+            "[step-test,key=k2,dir=PB25,lvl=%u,tgt=%+ld]\r\n",
+            (unsigned int)((RIGHT_STEPPER_DIR_SIGN >= 0) ? 1U : 0U),
+            (long)((int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN));
+        s_keyPending = 0U;
+        return;
 
     case 3U:
         if (s_mode == STEP_TEST_BOTH)
