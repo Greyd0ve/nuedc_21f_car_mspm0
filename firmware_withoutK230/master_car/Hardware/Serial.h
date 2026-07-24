@@ -23,6 +23,7 @@ uint8_t Serial_ReadByte(uint8_t *byte);
 
 /* RX 环形缓冲区满时丢弃的字节累计数。 */
 uint32_t Serial_GetRxOverflowCount(void);
+uint16_t Serial_GetRxPendingCount(void);
+uint16_t Serial_GetRxHighWaterMark(void);
 
 #endif
-

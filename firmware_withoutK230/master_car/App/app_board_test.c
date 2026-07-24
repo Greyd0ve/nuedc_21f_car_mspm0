@@ -8,7 +8,9 @@
 #include "JY61P.h"
 #include "Key.h"
 #include "Motor.h"
+#include "Serial.h"
 #include "Servo.h"
+#include "Timer.h"
 #include <stdint.h>
 
 #if CAR_TEST_RADIO_ENABLE
@@ -280,14 +282,44 @@ void BoardTest_Task200ms(void)
 
 #include "OLED.h"
 
-#define JY61P_PRINT_PERIOD_MS  500U
+#define JY61P_PRINT_PERIOD_MS  1000U
 
-static uint32_t s_jy61pPrintTimer = 0U;
+static uint32_t s_jy61pLastPrintMs = 0U;
 static uint8_t s_jy61pPrintPaused = 0U;
 static uint8_t s_jy61pPage = 0U;
 static uint8_t s_jy61pPrevOnline = 0U;
 static uint8_t s_jy61pEverOnline = 0U;
-static uint8_t s_jy61pYawZeroDone = 0U;
+
+#if JY61P_AUTO_ZERO_ON_FIRST_VALID
+static uint8_t s_jy61pAutoZeroDone = 0U;
+#endif
+
+static void BoardTest_FormatAge(char *buf, uint32_t age)
+{
+    char reverse[10];
+    uint8_t len = 0U;
+    uint8_t pos = 0U;
+
+    if (age == JY61P_AGE_UNKNOWN_MS)
+    {
+        buf[0] = 'n';
+        buf[1] = 'a';
+        buf[2] = '\0';
+        return;
+    }
+
+    do
+    {
+        reverse[len++] = (char)('0' + (age % 10U));
+        age /= 10U;
+    } while ((age != 0U) && (len < sizeof(reverse)));
+
+    while (len > 0U)
+    {
+        buf[pos++] = reverse[--len];
+    }
+    buf[pos] = '\0';
+}
 
 #if CAR_OLED_ENABLE
 static void BoardTest_FormatAngleX100(char *buf, int16_t value)
@@ -347,19 +379,22 @@ void BoardTest_Init(void)
     Motor_StopAll();
     Servo_DisableAll();
 
-    s_jy61pPrintTimer = 0U;
+    s_jy61pLastPrintMs = Timer_GetMillis();
     s_jy61pPrintPaused = 0U;
     s_jy61pPage = 0U;
     s_jy61pPrevOnline = 0U;
     s_jy61pEverOnline = 0U;
-    s_jy61pYawZeroDone = 0U;
+
+#if JY61P_AUTO_ZERO_ON_FIRST_VALID
+    s_jy61pAutoZeroDone = 0U;
+#endif
+
+    DebugSerial_SendString("[fw,jy61p-test,rev=3]\r\n");
+    DebugSerial_SendString("[board-test,mode=jy61p]\r\n");
+    DebugSerial_SendString("[jy61p,uart0,tx=pa0,rx=pa1,baud=9600]\r\n");
+    DebugSerial_SendString("[jy61p,key,k1=yaw_zero,k2=print_pause,k3=page,k4=clear_stats]\r\n");
 
     JY61P_Init();
-
-    DebugSerial_SendString("[board-test,start]\r\n");
-    DebugSerial_SendString("[board-test,mode=jy61p]\r\n");
-    DebugSerial_SendString("[jy61p,uart=uart0,tx=pa0,rx=pa1,baud=9600]\r\n");
-    DebugSerial_SendString("[jy61p,key,k1=yaw_zero,k2=print_pause,k3=page,k4=clear_stats]\r\n");
 }
 
 void BoardTest_Task10ms(void)
@@ -370,25 +405,26 @@ void BoardTest_Task10ms(void)
 
     App_Control_ForcePWMZero();
     Motor_StopAll();
+    Servo_DisableAll();
 
     JY61P_Task10ms();
 
     JY61P_GetData(&jdata);
     online = JY61P_IsOnline();
 
-    if (!s_jy61pYawZeroDone && online && jdata.angle_valid)
+#if JY61P_AUTO_ZERO_ON_FIRST_VALID
+    if (!s_jy61pAutoZeroDone && online && jdata.angle_valid)
     {
         if (JY61P_ResetRelativeYaw())
         {
-            DebugSerial_Printf("[jy61p,yaw_zero,ok,raw_x100=%d]\r\n",
-                (int)jdata.yaw_x100);
+            JY61P_GetData(&jdata);
+            DebugSerial_Printf(
+                "[jy61p,yaw_zero,auto,yaw=%d,offset=%d]\r\n",
+                (int)jdata.yaw_x100, (int)jdata.yaw_zero_offset_x100);
         }
-        else
-        {
-            DebugSerial_SendString("[jy61p,yaw_zero,rejected,no_valid_angle]\r\n");
-        }
-        s_jy61pYawZeroDone = 1U;
+        s_jy61pAutoZeroDone = 1U;
     }
+#endif
 
     if (online && !s_jy61pPrevOnline)
     {
@@ -404,7 +440,15 @@ void BoardTest_Task10ms(void)
     }
     else if (!online && s_jy61pPrevOnline)
     {
-        DebugSerial_SendString("[jy61p,status,offline,timeout_ms=500]\r\n");
+        if (jdata.link_age_ms == JY61P_AGE_UNKNOWN_MS)
+        {
+            DebugSerial_SendString("[jy61p,status,offline,age=na]\r\n");
+        }
+        else
+        {
+            DebugSerial_Printf("[jy61p,status,offline,age=%lu]\r\n",
+                (unsigned long)jdata.link_age_ms);
+        }
     }
     s_jy61pPrevOnline = online;
 
@@ -417,19 +461,21 @@ void BoardTest_Task10ms(void)
                 JY61P_GetData(&zdata);
                 if (JY61P_ResetRelativeYaw())
                 {
-                    DebugSerial_Printf("[jy61p,yaw_zero,ok,raw_x100=%d]\r\n",
-                        (int)zdata.yaw_x100);
+                    JY61P_GetData(&zdata);
+                    DebugSerial_Printf(
+                        "[jy61p,yaw_zero,ok,yaw=%d,offset=%d]\r\n",
+                        (int)zdata.yaw_x100,
+                        (int)zdata.yaw_zero_offset_x100);
                 }
                 else
                 {
-                    if ((zdata.last_angle_frame_ms != 0U) &&
-                        (zdata.angle_valid == 0U))
-                    {
-                        DebugSerial_SendString("[jy61p,yaw_zero,rejected,angle_stale]\r\n");
-                    }
-                    else if (zdata.online == 0U)
+                    if (zdata.online == 0U)
                     {
                         DebugSerial_SendString("[jy61p,yaw_zero,rejected,offline]\r\n");
+                    }
+                    else if (zdata.angle_valid == 0U)
+                    {
+                        DebugSerial_SendString("[jy61p,yaw_zero,rejected,angle_stale]\r\n");
                     }
                     else
                     {
@@ -472,13 +518,16 @@ void BoardTest_Task10ms(void)
 void BoardTest_Task100ms(void)
 {
     JY61P_Data_t jdata;
+    uint32_t now = Timer_GetMillis();
+    char angleAge[11];
+    char gyroAge[11];
+    char linkAge[11];
 
-    s_jy61pPrintTimer += 100U;
-    if (s_jy61pPrintTimer < JY61P_PRINT_PERIOD_MS)
+    if ((uint32_t)(now - s_jy61pLastPrintMs) < JY61P_PRINT_PERIOD_MS)
     {
         return;
     }
-    s_jy61pPrintTimer -= JY61P_PRINT_PERIOD_MS;
+    s_jy61pLastPrintMs = now;
 
     if (s_jy61pPrintPaused)
     {
@@ -486,45 +535,60 @@ void BoardTest_Task100ms(void)
     }
 
     JY61P_GetData(&jdata);
+    BoardTest_FormatAge(angleAge, jdata.angle_age_ms);
+    BoardTest_FormatAge(gyroAge, jdata.gyro_age_ms);
+    BoardTest_FormatAge(linkAge, jdata.link_age_ms);
+
     if (s_jy61pPage == 0U)
     {
-        if (jdata.angle_valid)
+        if (jdata.angle_valid == 0U)
         {
-            if (jdata.gyro_valid)
-            {
-                DebugSerial_Printf("[jy61p,online=%u,roll=%d,pitch=%d,yaw=%d,rel=%d,gz=%d,angle_age=%lu]\r\n",
-                    (unsigned int)jdata.online,
-                    (int)jdata.roll_x100, (int)jdata.pitch_x100,
-                    (int)jdata.yaw_x100, (int)jdata.relative_yaw_x100,
-                    (int)jdata.gyro_z_dps_x10,
-                    (unsigned long)jdata.angle_age_ms);
-            }
-            else
-            {
-                DebugSerial_Printf("[jy61p,online=%u,roll=%d,pitch=%d,yaw=%d,rel=%d,gz=stale,angle_age=%lu]\r\n",
-                    (unsigned int)jdata.online,
-                    (int)jdata.roll_x100, (int)jdata.pitch_x100,
-                    (int)jdata.yaw_x100, (int)jdata.relative_yaw_x100,
-                    (unsigned long)jdata.angle_age_ms);
-            }
+            DebugSerial_Printf(
+                "[jy61p,on=%u,angle=stale,aa=%s,ga=%s,z=%u,zo=%d]\r\n",
+                (unsigned int)jdata.online, angleAge, gyroAge,
+                (unsigned int)jdata.yaw_zero_valid,
+                (int)jdata.yaw_zero_offset_x100);
+        }
+        else if (jdata.gyro_valid == 0U)
+        {
+            DebugSerial_Printf(
+                "[jy61p,on=%u,r=%d,p=%d,y=%d,rel=%d,gz=stale,aa=%s,ga=%s,z=%u,zo=%d]\r\n",
+                (unsigned int)jdata.online,
+                (int)jdata.roll_x100, (int)jdata.pitch_x100,
+                (int)jdata.yaw_x100, (int)jdata.relative_yaw_x100,
+                angleAge, gyroAge,
+                (unsigned int)jdata.yaw_zero_valid,
+                (int)jdata.yaw_zero_offset_x100);
         }
         else
         {
-            DebugSerial_Printf("[jy61p,online=%u,angle=stale,angle_age=%lu]\r\n",
+            DebugSerial_Printf(
+                "[jy61p,on=%u,r=%d,p=%d,y=%d,rel=%d,gz=%d,aa=%s,ga=%s,z=%u,zo=%d]\r\n",
                 (unsigned int)jdata.online,
-                (unsigned long)jdata.angle_age_ms);
+                (int)jdata.roll_x100, (int)jdata.pitch_x100,
+                (int)jdata.yaw_x100, (int)jdata.relative_yaw_x100,
+                (int)jdata.gyro_z_dps_x10,
+                angleAge, gyroAge,
+                (unsigned int)jdata.yaw_zero_valid,
+                (int)jdata.yaw_zero_offset_x100);
         }
     }
     else
     {
-        DebugSerial_Printf("[jy61p,af=%lu,gf=%lu,cs=%lu,sync=%lu,ign=%lu,ovf=%lu,age=%lu]\r\n",
+        DebugSerial_Printf(
+            "[jy61p,af=%lu,gf=%lu,ign=%lu,cs=%lu,sync=%lu,ovf=%lu,rpend=%u,rmax=%u,tdrop=%lu,tf=%lu,yf=%lu,age=%s]\r\n",
             (unsigned long)jdata.angle_frame_count,
             (unsigned long)jdata.gyro_frame_count,
+            (unsigned long)jdata.unsupported_frame_count,
             (unsigned long)jdata.checksum_error_count,
             (unsigned long)jdata.sync_error_count,
-            (unsigned long)jdata.unsupported_frame_count,
             (unsigned long)jdata.rx_overflow_count,
-            (unsigned long)jdata.link_age_ms);
+            (unsigned int)Serial_GetRxPendingCount(),
+            (unsigned int)Serial_GetRxHighWaterMark(),
+            (unsigned long)DebugSerial_GetTxOverflowCount(),
+            (unsigned long)jdata.timebase_fault_count,
+            (unsigned long)jdata.yaw_state_fault_count,
+            linkAge);
     }
 }
 

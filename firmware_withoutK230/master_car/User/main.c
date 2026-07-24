@@ -163,6 +163,7 @@ int main(void)
         while (taskCount > 0U)
         {
 #if CAR_BOARD_TEST_MODE
+            DebugSerial_Task10ms();
             BoardTest_Task10ms();
 #else
             App_Radio_Task10ms();

@@ -1,9 +1,10 @@
 #include "Serial.h"
 #include "Board_Config.h"
+#include "cmsis_compiler.h"
 #include <stdarg.h>
 #include <stdint.h>
 
-#define SERIAL_RX_BUF_SIZE 128U /* 串口接收环形缓冲区大小，单位字节 */
+#define SERIAL_RX_BUF_SIZE 512U /* 串口接收环形缓冲区大小，单位字节 */
 
 /* 中断驱动的 RX 环形缓冲区。
  * TX 保持阻塞发送，只允许前台短帧调用，不放入高频控制或定时器 ISR。
@@ -14,11 +15,22 @@ static volatile uint16_t s_rxTail = 0U;
 static volatile uint8_t s_rxFlag = 0U;
 static volatile uint8_t s_rxData = 0U;
 static volatile uint32_t s_rxOverflowCount = 0U;
+static volatile uint16_t s_rxHighWaterMark = 0U;
 
 static uint16_t Serial_NextIndex(uint16_t index)
 {
     index++;
     return (index >= SERIAL_RX_BUF_SIZE) ? 0U : index;
+}
+
+static uint16_t Serial_PendingFromIndexes(uint16_t head, uint16_t tail)
+{
+    if (head >= tail)
+    {
+        return (uint16_t)(head - tail);
+    }
+
+    return (uint16_t)(SERIAL_RX_BUF_SIZE - tail + head);
 }
 
 static void Serial_PushRx(uint8_t byte)
@@ -36,6 +48,14 @@ static void Serial_PushRx(uint8_t byte)
     s_rxHead = next;
     s_rxData = byte;
     s_rxFlag = 1U;
+
+    {
+        uint16_t pending = Serial_PendingFromIndexes(s_rxHead, s_rxTail);
+        if (pending > s_rxHighWaterMark)
+        {
+            s_rxHighWaterMark = pending;
+        }
+    }
 }
 
 void Serial_Init(void)
@@ -46,6 +66,7 @@ void Serial_Init(void)
     s_rxFlag = 0U;
     s_rxData = 0U;
     s_rxOverflowCount = 0U;
+    s_rxHighWaterMark = 0U;
 
     NVIC_ClearPendingIRQ(SERIAL_UART_IRQN);
     NVIC_EnableIRQ(SERIAL_UART_IRQN);
@@ -413,6 +434,36 @@ uint8_t Serial_ReadByte(uint8_t *byte)
 uint32_t Serial_GetRxOverflowCount(void)
 {
     return s_rxOverflowCount;
+}
+
+uint16_t Serial_GetRxPendingCount(void)
+{
+    uint16_t pending;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    pending = Serial_PendingFromIndexes(s_rxHead, s_rxTail);
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return pending;
+}
+
+uint16_t Serial_GetRxHighWaterMark(void)
+{
+    uint16_t highWater;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    highWater = s_rxHighWaterMark;
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return highWater;
 }
 
 void UART_K230_INST_IRQHandler(void)

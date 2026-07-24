@@ -21,7 +21,7 @@
 
 /* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    1
+#define ECAR_BOARD_TEST_MODE                    0
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
@@ -44,7 +44,10 @@
 #define ECAR_TEST_STEPPER_ENCODER_ENABLE        0
 #endif
 #ifndef ECAR_TEST_JY61P_ENABLE
-#define ECAR_TEST_JY61P_ENABLE                  1
+#define ECAR_TEST_JY61P_ENABLE                  0
+#endif
+#ifndef JY61P_AUTO_ZERO_ON_FIRST_VALID
+#define JY61P_AUTO_ZERO_ON_FIRST_VALID          0
 #endif
 
 /* Mutual exclusion: only one board test sub-mode at a time. */

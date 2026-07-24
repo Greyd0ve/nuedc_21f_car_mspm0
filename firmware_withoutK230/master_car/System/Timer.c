@@ -5,6 +5,7 @@
 #include "BeepLed.h"
 #include "app_car_base.h"
 #include "app_task_mode.h"
+#include "cmsis_compiler.h"
 #include <stdint.h>
 
 extern volatile uint8_t g_task_1ms_count;
@@ -12,6 +13,8 @@ extern volatile uint8_t g_task_5ms_count;
 extern volatile uint8_t g_task_10ms_count;
 extern volatile uint8_t g_task_100ms_count;
 extern volatile uint8_t g_task_200ms_count;
+
+static volatile uint32_t s_systemMillis = 0U;
 
 static void Timer_SaturatingInc(volatile uint8_t *counter)
 {
@@ -29,6 +32,21 @@ void Timer_Init(void)
     DL_TimerG_startCounter(SYSTEM_TIMER_INST);
 }
 
+uint32_t Timer_GetMillis(void)
+{
+    uint32_t millis;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    millis = s_systemMillis;
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return millis;
+}
+
 void TIMG6_IRQHandler(void)
 {
 #if !CAR_ENCODER_MINIMAL_DEBUG
@@ -41,6 +59,7 @@ void TIMG6_IRQHandler(void)
     switch (DL_TimerG_getPendingInterrupt(SYSTEM_TIMER_INST))
     {
         case DL_TIMER_IIDX_ZERO:
+            s_systemMillis++;
 #if CAR_ENCODER_MINIMAL_DEBUG
             Timer_SaturatingInc(&g_task_1ms_count);
 #else

@@ -1,15 +1,39 @@
 #include "DebugSerial.h"
 #include "ti_msp_dl_config.h"
+#include "cmsis_compiler.h"
 #include <stdint.h>
 #include <stdarg.h>
 
 #define DEBUG_RX_BUF_SIZE 128U
+#define DEBUG_TX_BUF_SIZE 512U
 #define DEBUG_PING_BUF_SIZE 64U
 
 static volatile uint8_t s_rxBuf[DEBUG_RX_BUF_SIZE];
 static volatile uint8_t s_rxHead = 0U;
 static volatile uint8_t s_rxTail = 0U;
 static volatile uint32_t s_rxOverflow = 0U;
+
+static volatile uint8_t s_txBuf[DEBUG_TX_BUF_SIZE];
+static volatile uint16_t s_txHead = 0U;
+static volatile uint16_t s_txTail = 0U;
+static volatile uint32_t s_txOverflow = 0U;
+static volatile uint16_t s_txHighWaterMark = 0U;
+
+static uint16_t DebugSerial_TxNextIndex(uint16_t index)
+{
+    index++;
+    return (index >= DEBUG_TX_BUF_SIZE) ? 0U : index;
+}
+
+static uint16_t DebugSerial_TxPendingFromIndexes(uint16_t head, uint16_t tail)
+{
+    if (head >= tail)
+    {
+        return (uint16_t)(head - tail);
+    }
+
+    return (uint16_t)(DEBUG_TX_BUF_SIZE - tail + head);
+}
 
 static void DebugSerial_PushRx(uint8_t byte)
 {
@@ -30,6 +54,23 @@ void UART_DEBUG_INST_IRQHandler(void)
                 DebugSerial_PushRx(DL_UART_Main_receiveData(UART_DEBUG_INST));
             }
             break;
+
+        case DL_UART_MAIN_IIDX_TX:
+            while ((s_txTail != s_txHead) &&
+                   !DL_UART_Main_isTXFIFOFull(UART_DEBUG_INST))
+            {
+                uint8_t byte = s_txBuf[s_txTail];
+                s_txTail = DebugSerial_TxNextIndex(s_txTail);
+                DL_UART_Main_transmitData(UART_DEBUG_INST, byte);
+            }
+
+            if (s_txTail == s_txHead)
+            {
+                DL_UART_Main_disableInterrupt(
+                    UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+            }
+            break;
+
         default:
             break;
     }
@@ -40,6 +81,11 @@ void DebugSerial_Init(void)
     s_rxHead = 0U;
     s_rxTail = 0U;
     s_rxOverflow = 0U;
+    s_txHead = 0U;
+    s_txTail = 0U;
+    s_txOverflow = 0U;
+    s_txHighWaterMark = 0U;
+    DL_UART_Main_disableInterrupt(UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
     NVIC_ClearPendingIRQ(UART_DEBUG_INST_INT_IRQN);
     NVIC_EnableIRQ(UART_DEBUG_INST_INT_IRQN);
 }
@@ -51,7 +97,34 @@ uint32_t DebugSerial_GetRxOverflowCount(void)
 
 void DebugSerial_SendByte(uint8_t byte)
 {
-    DL_UART_Main_transmitDataBlocking(UART_DEBUG_INST, byte);
+    uint16_t next;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    next = DebugSerial_TxNextIndex(s_txHead);
+    if (next == s_txTail)
+    {
+        s_txOverflow++;
+    }
+    else
+    {
+        uint16_t pending;
+
+        s_txBuf[s_txHead] = byte;
+        s_txHead = next;
+        pending = DebugSerial_TxPendingFromIndexes(s_txHead, s_txTail);
+        if (pending > s_txHighWaterMark)
+        {
+            s_txHighWaterMark = pending;
+        }
+        DL_UART_Main_enableInterrupt(
+            UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+    }
+
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
 }
 
 void DebugSerial_SendString(const char *str)
@@ -66,6 +139,51 @@ uint8_t DebugSerial_ReadByte(uint8_t *byte)
     s_rxTail++;
     if (s_rxTail >= DEBUG_RX_BUF_SIZE) s_rxTail = 0U;
     return 1U;
+}
+
+uint32_t DebugSerial_GetTxOverflowCount(void)
+{
+    uint32_t overflow;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    overflow = s_txOverflow;
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return overflow;
+}
+
+uint16_t DebugSerial_GetTxPendingCount(void)
+{
+    uint16_t pending;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    pending = DebugSerial_TxPendingFromIndexes(s_txHead, s_txTail);
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return pending;
+}
+
+uint16_t DebugSerial_GetTxHighWaterMark(void)
+{
+    uint16_t highWater;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    highWater = s_txHighWaterMark;
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    return highWater;
 }
 
 static void DebugSerial_SendNumU(uint32_t num, uint8_t width, uint8_t zeroPad)
