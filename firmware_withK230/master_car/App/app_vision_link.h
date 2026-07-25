@@ -9,6 +9,15 @@
 #define VISION_BINARY_VERSION          0x02U
 #define VISION_BINARY_MESSAGE_ROAD     0x10U
 
+/*
+ * Existing K230 road-frame status byte.  These masks only decode byte 11;
+ * the 24-byte wire format is unchanged.
+ */
+#define VISION_STATUS_VALID                 0x01U
+#define VISION_STATUS_LEFT_BOUNDARY_VALID   0x02U
+#define VISION_STATUS_RIGHT_BOUNDARY_VALID  0x04U
+#define VISION_STATUS_DEGRADED              0x08U
+
 typedef struct
 {
     uint16_t sequence;
@@ -30,6 +39,9 @@ typedef struct
 
     uint8_t  transportValid;
     uint8_t  visionValid;
+    uint8_t  degraded;
+    uint8_t  leftBoundaryValid;
+    uint8_t  rightBoundaryValid;
 } VisionTrackFrame_t;
 
 void App_VisionLink_Init(void);

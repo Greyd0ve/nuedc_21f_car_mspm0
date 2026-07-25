@@ -124,8 +124,15 @@ static void Vision_ParseAndUpdate(const uint8_t *frame)
     tmp.confidence          = frame[20];
     tmp.anomalyFlags        = frame[21];
 
-    tmp.transportValid = 1U;
-    tmp.visionValid = ((tmp.statusFlags & 0x01U) != 0U) &&
+    tmp.transportValid    = 1U;
+    tmp.leftBoundaryValid =
+        ((tmp.statusFlags & VISION_STATUS_LEFT_BOUNDARY_VALID) != 0U);
+    tmp.rightBoundaryValid =
+        ((tmp.statusFlags & VISION_STATUS_RIGHT_BOUNDARY_VALID) != 0U);
+    tmp.degraded =
+        ((tmp.statusFlags & VISION_STATUS_DEGRADED) != 0U) ||
+        (tmp.leftBoundaryValid != tmp.rightBoundaryValid);
+    tmp.visionValid = ((tmp.statusFlags & VISION_STATUS_VALID) != 0U) &&
                       (lat != INT16_MIN) &&
                       (head != INT16_MIN) &&
                       (rw != 0xFFFFU);
@@ -157,7 +164,11 @@ void App_VisionLink_Init(void)
 
     s_latest.transportValid = 0U;
     s_latest.visionValid    = 0U;
+    s_latest.degraded       = 0U;
+    s_latest.leftBoundaryValid  = 0U;
+    s_latest.rightBoundaryValid = 0U;
     s_latest.sequence       = 0U;
+    s_latest.confidence     = 0U;
     s_hasNewFrame           = 0U;
 
     s_validFrameCount       = 0U;
@@ -257,7 +268,11 @@ void App_VisionLink_Reset(void)
 
     s_latest.transportValid = 0U;
     s_latest.visionValid    = 0U;
+    s_latest.degraded       = 0U;
+    s_latest.leftBoundaryValid  = 0U;
+    s_latest.rightBoundaryValid = 0U;
     s_latest.sequence       = 0U;
+    s_latest.confidence     = 0U;
     s_hasNewFrame           = 0U;
 
     s_lastProcessedSeq = 0xFFFFU;

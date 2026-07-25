@@ -4,12 +4,23 @@
 #include <stdarg.h>
 
 #define DEBUG_RX_BUF_SIZE 128U
+#define DEBUG_TX_BUF_SIZE 512U
 #define DEBUG_PING_BUF_SIZE 64U
 
 static volatile uint8_t s_rxBuf[DEBUG_RX_BUF_SIZE];
 static volatile uint8_t s_rxHead = 0U;
 static volatile uint8_t s_rxTail = 0U;
 static volatile uint32_t s_rxOverflow = 0U;
+
+static volatile uint8_t  s_txBuf[DEBUG_TX_BUF_SIZE];
+static volatile uint16_t s_txHead = 0U;
+static volatile uint16_t s_txTail = 0U;
+
+static uint16_t DebugSerial_NextTxIndex(uint16_t index)
+{
+    index++;
+    return (index >= DEBUG_TX_BUF_SIZE) ? 0U : index;
+}
 
 static void DebugSerial_PushRx(uint8_t byte)
 {
@@ -30,6 +41,21 @@ void UART_DEBUG_INST_IRQHandler(void)
                 DebugSerial_PushRx(DL_UART_Main_receiveData(UART_DEBUG_INST));
             }
             break;
+        case DL_UART_MAIN_IIDX_TX:
+            while ((s_txTail != s_txHead) &&
+                   !DL_UART_Main_isTXFIFOFull(UART_DEBUG_INST))
+            {
+                DL_UART_Main_transmitData(
+                    UART_DEBUG_INST, s_txBuf[s_txTail]);
+                s_txTail = DebugSerial_NextTxIndex(s_txTail);
+            }
+
+            if (s_txTail == s_txHead)
+            {
+                DL_UART_Main_disableInterrupt(
+                    UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+            }
+            break;
         default:
             break;
     }
@@ -40,6 +66,10 @@ void DebugSerial_Init(void)
     s_rxHead = 0U;
     s_rxTail = 0U;
     s_rxOverflow = 0U;
+    s_txHead = 0U;
+    s_txTail = 0U;
+    DL_UART_Main_disableInterrupt(
+        UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
     NVIC_ClearPendingIRQ(UART_DEBUG_INST_INT_IRQN);
     NVIC_EnableIRQ(UART_DEBUG_INST_INT_IRQN);
 }
@@ -52,6 +82,22 @@ uint32_t DebugSerial_GetRxOverflowCount(void)
 void DebugSerial_SendByte(uint8_t byte)
 {
     DL_UART_Main_transmitDataBlocking(UART_DEBUG_INST, byte);
+}
+
+uint8_t DebugSerial_TrySendByte(uint8_t byte)
+{
+    uint16_t next = DebugSerial_NextTxIndex(s_txHead);
+
+    if (next == s_txTail)
+    {
+        return 0U;
+    }
+
+    s_txBuf[s_txHead] = byte;
+    s_txHead = next;
+    DL_UART_Main_enableInterrupt(
+        UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+    return 1U;
 }
 
 void DebugSerial_SendString(const char *str)

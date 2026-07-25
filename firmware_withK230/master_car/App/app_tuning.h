@@ -13,7 +13,7 @@
 
 /* Motor speed closed-loop tuning. */
 #define TUNE_SPEED_FILTER_ALPHA             0.20f
-#define TUNE_PWM_SLEW_STEP                  5
+#define TUNE_PWM_SLEW_STEP                  10
 
 #define TUNE_SPEED_PI_KP                    1.2f
 #define TUNE_SPEED_PI_KI                    0.08f
