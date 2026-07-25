@@ -25,15 +25,17 @@ static uint8_t IsFrameDrivable(const VisionTrackFrame_t *f)
     return 1U;
 }
 
-static float CalcSteer(int16_t lateralErrorDeciMm,
-                       int16_t headingErrorCentiDeg,
-                       float dEy)
+/*
+ * rawSteer > 0:  road centre is to the RIGHT, car needs to steer RIGHT.
+ * This is in K230 eye-space.  VISION_TRACK_TURN_SIGN converts to MSPM0
+ * turn-space before setting g_targetTurnSpeed.
+ */
+static float VisionTrack_CalcSteer(int16_t lateralErrorDeciMm)
 {
-    float ey  = (float)lateralErrorDeciMm * VISION_TRACK_KY_SCALE;
-    float hdg = (float)headingErrorCentiDeg;
-    return VISION_TRACK_KY * ey +
-           VISION_TRACK_KA * hdg +
-           VISION_TRACK_KD * dEy;
+    float errorMm;
+    errorMm = (float)lateralErrorDeciMm *
+              VISION_TRACK_ERROR_DECI_MM_TO_MM;
+    return VISION_TRACK_KY_CMPS_PER_MM * errorMm;
 }
 
 void App_VisionTrack_Init(void)
@@ -48,6 +50,7 @@ void App_VisionTrack_Init(void)
 void App_VisionTrack_Task10ms(void)
 {
     float forward;
+    float rawSteer;
     float steer;
     uint8_t drivable;
 
@@ -71,10 +74,8 @@ void App_VisionTrack_Task10ms(void)
         ? VISION_TRACK_DEGRADED_SPEED_CMPS
         : VISION_TRACK_FORWARD_SPEED_CMPS;
 
-    steer = VISION_TRACK_TURN_SIGN *
-        CalcSteer(s_curFrame.lateralErrorDeciMm,
-                  s_curFrame.headingErrorCentiDeg,
-                  0.0f);
+    rawSteer = VisionTrack_CalcSteer(s_curFrame.lateralErrorDeciMm);
+    steer = VISION_TRACK_TURN_SIGN * rawSteer;
 
     steer = clamp(steer, -VISION_TRACK_TURN_LIMIT_CMPS,
                    VISION_TRACK_TURN_LIMIT_CMPS);
@@ -98,18 +99,20 @@ void App_VisionTrack_HandleKey(uint8_t key)
     {
     case 2U:
         App_VisionLink_Reset();
-        App_VisionTrack_Init();
-        App_Control_ResetPID();
         App_VisionLink_SendTrackMode();
+        s_curFrame.transportValid = 0U;
+        s_curFrame.visionValid    = 0U;
+        App_Control_ForcePWMZero();
         s_state = VISION_TRACK_RUNNING;
         break;
 
     case 3U:
         App_Control_ForcePWMZero();
-        App_Control_ResetPID();
         App_VisionLink_SendIdleMode();
         App_VisionLink_Reset();
-        App_VisionTrack_Init();
+        s_curFrame.transportValid = 0U;
+        s_curFrame.visionValid    = 0U;
+        s_state = VISION_TRACK_STOPPED;
         break;
 
     default:

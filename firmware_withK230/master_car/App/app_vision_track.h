@@ -16,17 +16,20 @@
  *
  * VISION_TRACK_TURN_SIGN translates K230 eye-space to MSPM0 turn-space.
  * Default -1.0f:  positive ey (road to right) -> negative turn -> steer right.
- * Tune by observing which side the car drifts toward.
+ *
+ * VISION_TRACK_ERROR_DECI_MM_TO_MM:  convert K230 0.1mm units to mm.
+ *   e.g. lateralErrorDeciMm=600 -> errorMm=60.0
+ *
+ * VISION_TRACK_KY_CMPS_PER_MM:  lateral error per mm produces how many cm/s
+ *   of differential steer.  0.04f means 60mm error -> 2.4cm/s steer.
  */
-#define VISION_TRACK_FORWARD_SPEED_CMPS      10.0f
+#define VISION_TRACK_FORWARD_SPEED_CMPS      6.0f
 #define VISION_TRACK_DEGRADED_SPEED_CMPS     4.5f
-#define VISION_TRACK_KY                      0.008f
-#define VISION_TRACK_KA                      0.0f
-#define VISION_TRACK_KD                      0.0f
-#define VISION_TRACK_TURN_LIMIT_CMPS         8.0f
+#define VISION_TRACK_ERROR_DECI_MM_TO_MM     0.1f
+#define VISION_TRACK_KY_CMPS_PER_MM           0.04f
+#define VISION_TRACK_TURN_LIMIT_CMPS         5.0f
 #define VISION_TRACK_TURN_SIGN               -1.0f
 #define VISION_TRACK_FRESH_LIMIT_MS          120U
-#define VISION_TRACK_KY_SCALE                0.01f
 
 #define VISION_TRACK_DEBUG_ENABLE            0
 
