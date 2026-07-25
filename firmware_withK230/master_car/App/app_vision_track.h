@@ -3,9 +3,10 @@
 
 #include <stdint.h>
 
-#define VISION_TRACK_MAX_SPEED_CMPS          10.0f
+#define VISION_TRACK_MAX_SPEED_CMPS           7.0f
 #define VISION_TRACK_MIN_SPEED_CMPS           4.5f
-#define VISION_TRACK_DEGRADED_SPEED_CMPS      4.8f
+#define VISION_TRACK_DEGRADED_SPEED_CMPS      4.5f
+#define VISION_TRACK_CURVE_HOLD_SPEED_CMPS    5.0f
 
 /*
  * Controller input units:
@@ -14,7 +15,7 @@
  *   dEy = new-frame ey difference, not divided by elapsed time.
  */
 #define VISION_TRACK_KY                       0.008f
-#define VISION_TRACK_KA                       0.040f
+#define VISION_TRACK_KA                       0.028f
 #define VISION_TRACK_KD                       0.0015f
 #define VISION_TRACK_TURN_LIMIT_CMPS         10.0f
 
@@ -23,15 +24,36 @@
  * makes the right wheel faster and steers left, so the translation is -1.
  */
 #define VISION_TRACK_TURN_SIGN               -1.0f
+#define VISION_TRACK_HEADING_SIGN            -1.0f
 
-#define VISION_TRACK_EY_FULL_SLOW_MM         45.0f
-#define VISION_TRACK_EA_FULL_SLOW_DEG        12.0f
+#define VISION_TRACK_EY_FULL_SLOW_MM         30.0f
+#define VISION_TRACK_EA_FULL_SLOW_DEG         8.0f
 #define VISION_TRACK_EY_DECI_MM_TO_MM         0.1f
 #define VISION_TRACK_EA_CENTI_DEG_TO_DEG     0.01f
+#define VISION_TRACK_EA_DECI_DEG_TO_DEG       0.1f
+
+#define VISION_TRACK_EY_HEADING_GUARD_DECI_MM 150.0f
+#define VISION_TRACK_OPPOSING_EA_RATIO        0.35f
+#define VISION_TRACK_D_TERM_LIMIT_CMPS        0.50f
+
+#define VISION_TRACK_EY_FILTER_ALPHA          0.55f
+#define VISION_TRACK_EA_FILTER_ALPHA          0.40f
+#define VISION_TRACK_DEGRADED_EY_FILTER_ALPHA 0.25f
+#define VISION_TRACK_DEGRADED_EA_DECAY        0.85f
+#define VISION_TRACK_EY_JUMP_REJECT_DECI_MM  300.0f
 
 #define VISION_TRACK_DECEL_STEP_CMPS          0.5f
 #define VISION_TRACK_ACCEL_STEP_CMPS          0.15f
-#define VISION_TRACK_DEGRADED_TURN_STEP_CMPS  0.5f
+#define VISION_TRACK_TURN_STEP_CMPS           0.25f
+#define VISION_TRACK_TURN_DECAY_STEP_CMPS     0.35f
+#define VISION_TRACK_DEGRADED_TURN_STEP_CMPS  0.50f
+#define VISION_TRACK_TURN_REVERSAL_DEADBAND_CMPS 0.50f
+#define VISION_TRACK_TURN_REVERSAL_CONFIRM_FRAMES 2U
+
+#define VISION_TRACK_CURVE_HOLD_FRAMES        6U
+#define VISION_TRACK_CURVE_RELEASE_SEVERITY   0.25f
+#define VISION_TRACK_CURVE_TRIGGER_SEVERITY   0.70f
+#define VISION_TRACK_TRUSTED_CONFIDENCE       80U
 
 #define VISION_TRACK_FRESH_LIMIT_MS           150U
 #define VISION_TRACK_ACQUIRE_FRAMES           3U
@@ -40,11 +62,11 @@
 
 /*
  * UART_DEBUG is the 9600-baud Bluetooth/debug port.  A full self-describing
- * record needs about 0.35 s on the wire, so 500 ms is the safe default.
+ * record needs nearly 0.5 s on the wire, so 600 ms is the safe default.
  */
 #define VISION_TRACK_DEBUG_ENABLE              1
-#define VISION_TRACK_DEBUG_PERIOD_MS           500U
-#define VISION_TRACK_DEBUG_BUFFER_SIZE         384U
+#define VISION_TRACK_DEBUG_PERIOD_MS           600U
+#define VISION_TRACK_DEBUG_BUFFER_SIZE         500U
 
 typedef enum
 {

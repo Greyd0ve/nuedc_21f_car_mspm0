@@ -28,6 +28,9 @@
  * - 18 cm/s needs about PWM 168.
  */
 #define TUNE_SPEED_FF_DEAD_BAND_CMPS        0.5f
+#define TUNE_SPEED_FF_LOW_RAMP_END_CMPS     4.5f
+#define TUNE_SPEED_OVERSPEED_MARGIN_CMPS    1.0f
+#define TUNE_SPEED_OVERSPEED_CUT_PWM_PER_CMPS 7.0f
 #define TUNE_SPEED_FF_BREAK_CMPS            15.0f
 #define TUNE_SPEED_FF_LOW_BASE_PWM          135.0f
 #define TUNE_SPEED_FF_LOW_K                 1.7f

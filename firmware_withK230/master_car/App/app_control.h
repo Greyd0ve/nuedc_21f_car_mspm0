@@ -12,6 +12,9 @@ void App_Control_UpdatePIDParam(void);
 /* 清空 PID 积分和上次误差，不直接操作电机 GPIO。 */
 void App_Control_ResetPID(void);
 
+/* Enable visual-track-only low-speed and no-reverse output protection. */
+void App_Control_SetLowSpeedTrackSafety(uint8_t enable);
+
 /* 强制目标速度、PWM 状态归零，并停止左右电机。 */
 void App_Control_ForcePWMZero(void);
 
