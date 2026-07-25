@@ -167,6 +167,7 @@ static uint8_t IsVisionValid(const VisionTrackFrame_t *f)
     if (!f->transportValid) return 0U;
     if (!f->visionValid) return 0U;
     if (App_VisionLink_GetFrameAgeMs() > VISION_TRACK_FRESH_LIMIT_MS) return 0U;
+    if (f->confidence < VISION_TRACK_MIN_CONFIDENCE) return 0U;
     return 1U;
 }
 
@@ -348,6 +349,12 @@ static void VisionTrack_DebugBuildRecord(void)
     VisionTrack_DebugAppendU32((uint32_t)s_curFrame.degraded);
     VisionTrack_DebugAppendString(",conf=");
     VisionTrack_DebugAppendU32((uint32_t)s_curFrame.confidence);
+    VisionTrack_DebugAppendString(",flags=");
+    VisionTrack_DebugAppendU32((uint32_t)s_curFrame.statusFlags);
+    VisionTrack_DebugAppendString(",leftValid=");
+    VisionTrack_DebugAppendU32((uint32_t)s_curFrame.leftBoundaryValid);
+    VisionTrack_DebugAppendString(",rightValid=");
+    VisionTrack_DebugAppendU32((uint32_t)s_curFrame.rightBoundaryValid);
     VisionTrack_DebugAppendString(",ey=");
     VisionTrack_DebugAppendI32((int32_t)s_curFrame.lateralErrorDeciMm);
     VisionTrack_DebugAppendString(",ea=");

@@ -25,6 +25,7 @@
 #define VISION_TRACK_FRESH_LIMIT_MS           150U
 #define VISION_TRACK_ACQUIRE_FRAMES           3U
 #define VISION_TRACK_INVALID_CONFIRM_FRAMES   3U
+#define VISION_TRACK_MIN_CONFIDENCE           30U
 
 /*
  * UART_DEBUG is 9600 baud.  A complete diagnostic record is deliberately

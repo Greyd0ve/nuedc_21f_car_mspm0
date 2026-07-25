@@ -10,13 +10,16 @@
 #define VISION_BINARY_MESSAGE_ROAD     0x10U
 
 /*
- * Existing K230 road-frame status byte.  These masks only decode byte 11;
- * the 24-byte wire format is unchanged.
+ * K230 binary protocol status byte (frame[11]) bit definitions.
+ * Verified against k230_road_vision firmware v0.2 protocol.
  */
 #define VISION_STATUS_VALID                 0x01U
-#define VISION_STATUS_LEFT_BOUNDARY_VALID   0x02U
-#define VISION_STATUS_RIGHT_BOUNDARY_VALID  0x04U
-#define VISION_STATUS_DEGRADED              0x08U
+#define VISION_STATUS_DEGRADED              0x02U
+#define VISION_STATUS_LEFT_BOUNDARY_VALID   0x04U
+#define VISION_STATUS_RIGHT_BOUNDARY_VALID  0x08U
+#define VISION_STATUS_LEFT_BRANCH           0x10U
+#define VISION_STATUS_RIGHT_BRANCH          0x20U
+#define VISION_STATUS_INTERSECTION          0x40U
 
 typedef struct
 {

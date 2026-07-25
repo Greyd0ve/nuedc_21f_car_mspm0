@@ -337,8 +337,10 @@ uint32_t App_VisionLink_GetRxOverflowCount(void)
 
 void App_VisionLink_SendTrackMode(void)
 {
+    Serial_SendString("[mode,track]\r\n");
 }
 
 void App_VisionLink_SendIdleMode(void)
 {
+    Serial_SendString("[mode,idle]\r\n");
 }
