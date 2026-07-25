@@ -9,68 +9,41 @@
 #endif
 #include <stdint.h>
 
-/*
- * Non-drivable reason bit masks (matches CSV field "ir").
- */
 #define VISION_DEBUG_INVALID_NO_TRANSPORT   0x01U
 #define VISION_DEBUG_INVALID_VISION         0x02U
 #define VISION_DEBUG_INVALID_MODE           0x04U
 #define VISION_DEBUG_INVALID_STALE          0x08U
 #define VISION_DEBUG_INVALID_STOPPED        0x10U
 
+#if VISION_TRACK_DEBUG_ENABLE
+#define VISION_DEBUG_LINE_BUFFER_SIZE 80U
+#define VISION_DEBUG_LINE_MAX_LENGTH  75U
+#define VISION_DEBUG_EVENT_BUF_SIZE   20U
+
+static uint8_t  s_debugLine[VISION_DEBUG_LINE_BUFFER_SIZE];
+static uint16_t s_debugLineLen = 0U;
+static uint8_t  s_debugDivider = 0U;
+static uint8_t  s_debugHeaderSent = 0U;
+
+static uint16_t s_dbgSequence;
+static uint32_t s_dbgFrameAgeMs;
+static uint8_t  s_dbgDrivable;
+static uint8_t  s_dbgInvalidReason;
+static uint8_t  s_dbgVisionBits;
+
+static float s_dbgFinalSteer;
+static float s_dbgLeftTarget;
+static float s_dbgRightTarget;
+#endif
+
 static VisionTrackState_t s_state = VISION_TRACK_STOPPED;
 static VisionTrackFrame_t s_curFrame;
-
-#if VISION_TRACK_DEBUG_ENABLE
-#define VISION_DEBUG_LINE_SIZE    256U
-static char    s_debugLine[VISION_DEBUG_LINE_SIZE];
-static uint16_t s_debugLineLen = 0U;
-
-static float  s_dbgRawSteer;
-static float  s_dbgFinalSteer;
-static float  s_dbgForward;
-static float  s_dbgLeftTarget;
-static float  s_dbgRightTarget;
-static uint8_t  s_dbgInvalidReason;
-static uint8_t  s_dbgDrivable;
-static uint32_t s_dbgFrameAgeMs;
-#endif
 
 static float clamp(float v, float lo, float hi)
 {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
-}
-
-static int32_t ToCenti(float value)
-{
-    if (value >= 0.0f)
-        return (int32_t)(value * 100.0f + 0.5f);
-    return (int32_t)(value * 100.0f - 0.5f);
-}
-
-static uint8_t GetInvalidReason(const VisionTrackFrame_t *f,
-                                uint32_t frameAgeMs)
-{
-    uint8_t reason = 0U;
-
-    if (!f->transportValid)  reason |= VISION_DEBUG_INVALID_NO_TRANSPORT;
-    if (!f->visionValid)     reason |= VISION_DEBUG_INVALID_VISION;
-    if (f->mode != VISION_MODE_TRACK) reason |= VISION_DEBUG_INVALID_MODE;
-    if (frameAgeMs > VISION_TRACK_FRESH_LIMIT_MS) reason |= VISION_DEBUG_INVALID_STALE;
-    if (s_state != VISION_TRACK_RUNNING) reason |= VISION_DEBUG_INVALID_STOPPED;
-
-    return reason;
-}
-
-static uint8_t IsFrameDrivable(const VisionTrackFrame_t *f)
-{
-    if (!f->transportValid) return 0U;
-    if (!f->visionValid) return 0U;
-    if (f->mode != VISION_MODE_TRACK) return 0U;
-    if (App_VisionLink_GetFrameAgeMs() > VISION_TRACK_FRESH_LIMIT_MS) return 0U;
-    return 1U;
 }
 
 static float VisionTrack_CalcSteer(int16_t lateralErrorDeciMm)
@@ -81,49 +54,74 @@ static float VisionTrack_CalcSteer(int16_t lateralErrorDeciMm)
     return VISION_TRACK_KY_CMPS_PER_MM * errorMm;
 }
 
+static uint8_t VisionTrack_GetInvalidReason(
+    const VisionTrackFrame_t *frame,
+    uint32_t frameAgeMs)
+{
+    uint8_t reason = 0U;
+
+    if (!frame->transportValid)
+        reason |= VISION_DEBUG_INVALID_NO_TRANSPORT;
+    if (!frame->visionValid)
+        reason |= VISION_DEBUG_INVALID_VISION;
+    if (frame->mode != VISION_MODE_TRACK)
+        reason |= VISION_DEBUG_INVALID_MODE;
+    if (frameAgeMs > VISION_TRACK_FRESH_LIMIT_MS)
+        reason |= VISION_DEBUG_INVALID_STALE;
+    if (s_state != VISION_TRACK_RUNNING)
+        reason |= VISION_DEBUG_INVALID_STOPPED;
+
+    return reason;
+}
+
 #if VISION_TRACK_DEBUG_ENABLE
-static void DebugAppendC(char c)
+static int32_t VisionDebug_ToCenti(float value)
 {
-    if (s_debugLineLen < (VISION_DEBUG_LINE_SIZE - 1U))
-        s_debugLine[s_debugLineLen++] = c;
+    if (value >= 0.0f)
+        return (int32_t)(value * 100.0f + 0.5f);
+    return (int32_t)(value * 100.0f - 0.5f);
 }
 
-static void DebugAppendS(const char *s)
+static void dbgAppendC(char c)
 {
-    while (*s && (s_debugLineLen < (VISION_DEBUG_LINE_SIZE - 1U)))
-        s_debugLine[s_debugLineLen++] = *s++;
+    if (s_debugLineLen < (VISION_DEBUG_LINE_BUFFER_SIZE - 1U))
+        s_debugLine[s_debugLineLen++] = (uint8_t)c;
 }
 
-static void DebugAppendU32(uint32_t v)
+static void dbgAppendS(const char *s)
 {
-    char buf[10];
-    uint8_t i = 0U;
-    do { buf[i++] = (char)('0' + (v % 10U)); v /= 10U; } while (v > 0U);
-    while (i > 0U) DebugAppendC(buf[--i]);
+    while (*s && (s_debugLineLen < (VISION_DEBUG_LINE_BUFFER_SIZE - 1U)))
+        s_debugLine[s_debugLineLen++] = (uint8_t)*s++;
 }
 
-static void DebugAppendI32(int32_t v)
+static void dbgAppendU32(uint32_t v)
 {
-    if (v < 0) { DebugAppendC('-'); DebugAppendU32((uint32_t)(-(v + 1)) + 1U); }
-    else { DebugAppendU32((uint32_t)v); }
+    char b[10]; uint8_t i = 0U;
+    do { b[i++] = (char)('0' + (v % 10U)); v /= 10U; } while (v > 0U);
+    while (i > 0U) dbgAppendC(b[--i]);
 }
 
-static void DebugAppendHex8(uint8_t v)
+static void dbgAppendI32(int32_t v)
+{
+    if (v < 0) { dbgAppendC('-'); dbgAppendU32((uint32_t)(-(v + 1)) + 1U); }
+    else dbgAppendU32((uint32_t)v);
+}
+
+static void dbgAppendHex8(uint8_t v)
 {
     uint8_t hi = (v >> 4) & 0xFU;
     uint8_t lo = v & 0xFU;
-    DebugAppendC((char)(hi < 10U ? '0' + hi : 'A' + hi - 10U));
-    DebugAppendC((char)(lo < 10U ? '0' + lo : 'A' + lo - 10U));
+    dbgAppendC((char)(hi < 10U ? '0' + hi : 'A' + hi - 10U));
+    dbgAppendC((char)(lo < 10U ? '0' + lo : 'A' + lo - 10U));
 }
 
-static void DebugAppendEvent(const char *event)
+static void dbgAppendEvent(const char *txt)
 {
-    char line[32];
-    uint8_t i = 0U;
-    while (*event && i < 30U) line[i++] = *event++;
-    line[i++] = '\r';
-    line[i++] = '\n';
-    DebugSerial_TrySendBuffer((const uint8_t *)line, (uint16_t)i);
+    uint8_t buf[VISION_DEBUG_EVENT_BUF_SIZE];
+    uint8_t n = 0U;
+    while (*txt && n < (VISION_DEBUG_EVENT_BUF_SIZE - 2U)) buf[n++] = (uint8_t)*txt++;
+    buf[n++] = '\r'; buf[n++] = '\n';
+    DebugSerial_TrySendBuffer(buf, (uint16_t)n);
 }
 #endif
 
@@ -132,7 +130,6 @@ void App_VisionTrack_Init(void)
     s_state = VISION_TRACK_STOPPED;
     s_curFrame.transportValid = 0U;
     s_curFrame.visionValid    = 0U;
-
     App_Control_ForcePWMZero();
 }
 
@@ -145,29 +142,38 @@ void App_VisionTrack_Task10ms(void)
 #if VISION_TRACK_DEBUG_ENABLE
     uint8_t invalidReason;
     uint32_t frameAgeMs;
+    uint8_t visionBits;
 #endif
 
     App_VisionLink_GetLatest(&s_curFrame);
 
 #if VISION_TRACK_DEBUG_ENABLE
     frameAgeMs = App_VisionLink_GetFrameAgeMs();
-    invalidReason = GetInvalidReason(&s_curFrame, frameAgeMs);
+    invalidReason = VisionTrack_GetInvalidReason(&s_curFrame, frameAgeMs);
     drivable = (invalidReason == 0U);
 
+    visionBits = (uint8_t)((s_curFrame.mode & 0x07U) << 5);
+    if (s_curFrame.transportValid)   visionBits |= 0x10U;
+    if (s_curFrame.visionValid)      visionBits |= 0x08U;
+    if (s_curFrame.degraded)         visionBits |= 0x04U;
+    if (s_curFrame.leftBoundaryValid) visionBits |= 0x02U;
+    if (s_curFrame.rightBoundaryValid)visionBits |= 0x01U;
+
+    s_dbgSequence      = s_curFrame.sequence;
+    s_dbgFrameAgeMs    = frameAgeMs;
+    s_dbgDrivable      = drivable;
     s_dbgInvalidReason = invalidReason;
-    s_dbgDrivable = drivable;
-    s_dbgFrameAgeMs = frameAgeMs;
+    s_dbgVisionBits    = visionBits;
 #else
-    drivable = IsFrameDrivable(&s_curFrame);
+    drivable = (VisionTrack_GetInvalidReason(
+        &s_curFrame, App_VisionLink_GetFrameAgeMs()) == 0U);
 #endif
 
     if (s_state != VISION_TRACK_RUNNING)
     {
         App_Control_ForcePWMZero();
 #if VISION_TRACK_DEBUG_ENABLE
-        s_dbgRawSteer   = 0.0f;
         s_dbgFinalSteer = 0.0f;
-        s_dbgForward    = 0.0f;
         s_dbgLeftTarget = 0.0f;
         s_dbgRightTarget = 0.0f;
 #endif
@@ -178,9 +184,7 @@ void App_VisionTrack_Task10ms(void)
     {
         App_Control_ForcePWMZero();
 #if VISION_TRACK_DEBUG_ENABLE
-        s_dbgRawSteer   = 0.0f;
         s_dbgFinalSteer = 0.0f;
-        s_dbgForward    = 0.0f;
         s_dbgLeftTarget = 0.0f;
         s_dbgRightTarget = 0.0f;
 #endif
@@ -204,9 +208,7 @@ void App_VisionTrack_Task10ms(void)
     App_Control_ApplyMotorOutput();
 
 #if VISION_TRACK_DEBUG_ENABLE
-    s_dbgRawSteer   = rawSteer;
     s_dbgFinalSteer = steer;
-    s_dbgForward    = forward;
     s_dbgLeftTarget = forward - steer;
     s_dbgRightTarget = forward + steer;
 #endif
@@ -215,66 +217,57 @@ void App_VisionTrack_Task10ms(void)
 void App_VisionTrack_Task100ms(void)
 {
 #if VISION_TRACK_DEBUG_ENABLE
+    uint32_t ageMs;
+
+    s_debugDivider++;
+    if (s_debugDivider < 2U) return;
+    s_debugDivider = 0U;
+
+    if (s_debugHeaderSent == 0U)
+    {
+        s_debugLineLen = 0U;
+        dbgAppendS("#D,q,a,k,i,v,e,h,u,l,r,L,R,p,P\r\n");
+        if (DebugSerial_TrySendBuffer(s_debugLine, s_debugLineLen))
+            s_debugHeaderSent = 1U;
+        return;
+    }
+
+    ageMs = s_dbgFrameAgeMs;
+    if (ageMs > 999U) ageMs = 999U;
+
     s_debugLineLen = 0U;
+    dbgAppendS("D,");
+    dbgAppendU32((uint32_t)s_dbgSequence);
+    dbgAppendC(',');
+    dbgAppendU32(ageMs);
+    dbgAppendC(',');
+    dbgAppendU32((uint32_t)s_dbgDrivable);
+    dbgAppendC(',');
+    dbgAppendHex8(s_dbgInvalidReason);
+    dbgAppendC(',');
+    dbgAppendHex8(s_dbgVisionBits);
+    dbgAppendC(',');
+    dbgAppendI32((int32_t)s_curFrame.lateralErrorDeciMm);
+    dbgAppendC(',');
+    dbgAppendI32((int32_t)s_curFrame.headingErrorCentiDeg);
+    dbgAppendC(',');
+    dbgAppendI32(VisionDebug_ToCenti(s_dbgFinalSteer));
+    dbgAppendC(',');
+    dbgAppendI32(VisionDebug_ToCenti(s_dbgLeftTarget));
+    dbgAppendC(',');
+    dbgAppendI32(VisionDebug_ToCenti(s_dbgRightTarget));
+    dbgAppendC(',');
+    dbgAppendI32(VisionDebug_ToCenti(g_leftSpeed));
+    dbgAppendC(',');
+    dbgAppendI32(VisionDebug_ToCenti(g_rightSpeed));
+    dbgAppendC(',');
+    dbgAppendI32((int32_t)g_leftPwm);
+    dbgAppendC(',');
+    dbgAppendI32((int32_t)g_rightPwm);
+    dbgAppendS("\r\n");
 
-    DebugAppendS("VDBG,t=");
-    DebugAppendU32(Timer_GetMillis());
-    DebugAppendS(",st=");
-    DebugAppendU32((uint32_t)s_state);
-    DebugAppendS(",m=");
-    DebugAppendU32((uint32_t)s_curFrame.mode);
-    DebugAppendS(",seq=");
-    DebugAppendU32((uint32_t)s_curFrame.sequence);
-    DebugAppendS(",age=");
-    DebugAppendU32(s_dbgFrameAgeMs);
-    DebugAppendS(",ok=");
-    DebugAppendU32((uint32_t)s_dbgDrivable);
-    DebugAppendS(",ir=");
-    DebugAppendHex8(s_dbgInvalidReason);
-    DebugAppendS(",fl=");
-    DebugAppendHex8(s_curFrame.statusFlags);
-    DebugAppendS(",cf=");
-    DebugAppendU32((uint32_t)s_curFrame.confidence);
-    DebugAppendS(",an=");
-    DebugAppendHex8(s_curFrame.anomalyFlags);
-    DebugAppendS(",lr=");
-    DebugAppendU32((uint32_t)s_curFrame.leftBoundaryValid);
-    DebugAppendS(",rr=");
-    DebugAppendU32((uint32_t)s_curFrame.rightBoundaryValid);
-    DebugAppendS(",ey=");
-    DebugAppendI32((int32_t)s_curFrame.lateralErrorDeciMm);
-    DebugAppendS(",hd=");
-    DebugAppendI32((int32_t)s_curFrame.headingErrorCentiDeg);
-    DebugAppendS(",rw=");
-    DebugAppendU32((uint32_t)s_curFrame.roadWidthDeciMm);
-    DebugAppendS(",rs=");
-    DebugAppendI32(ToCenti(s_dbgRawSteer));
-    DebugAppendS(",ts=");
-    DebugAppendI32(ToCenti(s_dbgFinalSteer));
-    DebugAppendS(",fw=");
-    DebugAppendI32(ToCenti(s_dbgForward));
-    DebugAppendS(",lt=");
-    DebugAppendI32(ToCenti(s_dbgLeftTarget));
-    DebugAppendS(",rt=");
-    DebugAppendI32(ToCenti(s_dbgRightTarget));
-    DebugAppendS(",lv=");
-    DebugAppendI32(ToCenti(g_leftSpeed));
-    DebugAppendS(",rv=");
-    DebugAppendI32(ToCenti(g_rightSpeed));
-    DebugAppendS(",lp=");
-    DebugAppendI32((int32_t)g_leftPwm);
-    DebugAppendS(",rp=");
-    DebugAppendI32((int32_t)g_rightPwm);
-    DebugAppendS(",crc=");
-    DebugAppendU32(App_VisionLink_GetCrcErrorCount());
-    DebugAppendS(",rxov=");
-    DebugAppendU32(App_VisionLink_GetRxOverflowCount());
-    DebugAppendS(",txdrop=");
-    DebugAppendU32(DebugSerial_GetTxDropCount());
-    DebugAppendS("\r\n");
-
-    DebugSerial_TrySendBuffer(
-        (const uint8_t *)s_debugLine, s_debugLineLen);
+    if (s_debugLineLen >= 60U && s_debugLineLen <= VISION_DEBUG_LINE_MAX_LENGTH)
+        DebugSerial_TrySendBuffer(s_debugLine, s_debugLineLen);
 #endif
 }
 
@@ -292,7 +285,7 @@ void App_VisionTrack_HandleKey(uint8_t key)
         App_Control_ForcePWMZero();
         s_state = VISION_TRACK_RUNNING;
 #if VISION_TRACK_DEBUG_ENABLE
-        DebugAppendEvent("VEVT,K2,track");
+        dbgAppendEvent("VEVT,K2,track");
 #endif
         break;
 
@@ -304,7 +297,7 @@ void App_VisionTrack_HandleKey(uint8_t key)
         s_curFrame.visionValid    = 0U;
         s_state = VISION_TRACK_STOPPED;
 #if VISION_TRACK_DEBUG_ENABLE
-        DebugAppendEvent("VEVT,K3,stop");
+        dbgAppendEvent("VEVT,K3,stop");
 #endif
         break;
 
