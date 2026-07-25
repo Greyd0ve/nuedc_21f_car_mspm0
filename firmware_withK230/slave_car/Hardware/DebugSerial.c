@@ -32,20 +32,26 @@ static uint16_t DebugSerial_NextTxIndex(uint16_t index)
     return (index >= DEBUG_TX_BUF_SIZE) ? 0U : index;
 }
 
-static void DebugSerial_PushTx(uint8_t byte)
+static void DebugSerial_FillTxFifo(void)
 {
-    uint16_t next = DebugSerial_NextTxIndex(s_txHead);
-
-    if (next == s_txTail)
+    while ((s_txTail != s_txHead) &&
+           !DL_UART_Main_isTXFIFOFull(UART_DEBUG_INST))
     {
-        s_txOverflow++;
-        return;
+        DL_UART_Main_transmitData(
+            UART_DEBUG_INST, s_txBuf[s_txTail]);
+        s_txTail = DebugSerial_NextTxIndex(s_txTail);
     }
 
-    s_txBuf[s_txHead] = byte;
-    s_txHead = next;
-    DL_UART_Main_enableInterrupt(
-        UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+    if (s_txTail == s_txHead)
+    {
+        DL_UART_Main_disableInterrupt(
+            UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+    }
+    else
+    {
+        DL_UART_Main_enableInterrupt(
+            UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+    }
 }
 
 void UART_DEBUG_INST_IRQHandler(void)
@@ -59,19 +65,7 @@ void UART_DEBUG_INST_IRQHandler(void)
             }
             break;
         case DL_UART_MAIN_IIDX_TX:
-            while (s_txTail != s_txHead &&
-                   !DL_UART_Main_isTXFIFOFull(UART_DEBUG_INST))
-            {
-                DL_UART_Main_transmitData(
-                    UART_DEBUG_INST, s_txBuf[s_txTail]);
-                s_txTail = DebugSerial_NextTxIndex(s_txTail);
-            }
-
-            if (s_txTail == s_txHead)
-            {
-                DL_UART_Main_disableInterrupt(
-                    UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
-            }
+            DebugSerial_FillTxFifo();
             break;
         default:
             break;
@@ -104,7 +98,27 @@ uint32_t DebugSerial_GetTxOverflowCount(void)
 
 void DebugSerial_SendByte(uint8_t byte)
 {
-    DebugSerial_PushTx(byte);
+    uint16_t next;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+
+    next = DebugSerial_NextTxIndex(s_txHead);
+    if (next == s_txTail)
+    {
+        s_txOverflow++;
+    }
+    else
+    {
+        s_txBuf[s_txHead] = byte;
+        s_txHead = next;
+        DebugSerial_FillTxFifo();
+    }
+
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
 }
 
 void DebugSerial_SendString(const char *str)
