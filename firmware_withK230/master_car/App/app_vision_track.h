@@ -3,40 +3,56 @@
 
 #include <stdint.h>
 
-/*
- * Pure vision-only track mode parameters.
- *
- * K230 protocol convention:
- *   lateralErrorDeciMm > 0  -> road centre is to the RIGHT of the car.
- *   headingErrorCentiDeg > 0 -> road extends to the RIGHT of the car.
- *
- * MSPM0 control convention:
- *   g_targetTurnSpeed > 0 -> right-wheel target is HIGHER than left,
- *                            i.e. the car steers LEFT.
- *
- * VISION_TRACK_TURN_SIGN translates K230 eye-space to MSPM0 turn-space.
- * Default -1.0f:  positive ey (road to right) -> negative turn -> steer right.
- *
- * VISION_TRACK_ERROR_DECI_MM_TO_MM:  convert K230 0.1mm units to mm.
- *   e.g. lateralErrorDeciMm=600 -> errorMm=60.0
- *
- * VISION_TRACK_KY_CMPS_PER_MM:  lateral error per mm produces how many cm/s
- *   of differential steer.  0.04f means 60mm error -> 2.4cm/s steer.
- */
-#define VISION_TRACK_FORWARD_SPEED_CMPS      6.0f
-#define VISION_TRACK_DEGRADED_SPEED_CMPS     4.5f
-#define VISION_TRACK_ERROR_DECI_MM_TO_MM     0.1f
-#define VISION_TRACK_KY_CMPS_PER_MM           0.04f
-#define VISION_TRACK_TURN_LIMIT_CMPS         5.0f
-#define VISION_TRACK_TURN_SIGN               -1.0f
-#define VISION_TRACK_FRESH_LIMIT_MS          120U
+#define VISION_TRACK_MAX_SPEED_CMPS          10.0f
+#define VISION_TRACK_MIN_SPEED_CMPS           4.5f
+#define VISION_TRACK_DEGRADED_SPEED_CMPS      4.8f
 
-#define VISION_TRACK_DEBUG_ENABLE            1
+/*
+ * Controller input units:
+ *   ey  = lateralErrorDeciMm, 0.1 mm/count.
+ *   ea  = headingErrorCentiDeg converted to 0.1 degree/count.
+ *   dEy = new-frame ey difference, not divided by elapsed time.
+ */
+#define VISION_TRACK_KY                       0.008f
+#define VISION_TRACK_KA                       0.040f
+#define VISION_TRACK_KD                       0.0015f
+#define VISION_TRACK_TURN_LIMIT_CMPS         10.0f
+
+/*
+ * K230 positive ey/ea means the road is to the right.  MSPM0 positive turn
+ * makes the right wheel faster and steers left, so the translation is -1.
+ */
+#define VISION_TRACK_TURN_SIGN               -1.0f
+
+#define VISION_TRACK_EY_FULL_SLOW_MM         45.0f
+#define VISION_TRACK_EA_FULL_SLOW_DEG        12.0f
+#define VISION_TRACK_EY_DECI_MM_TO_MM         0.1f
+#define VISION_TRACK_EA_CENTI_DEG_TO_DEG     0.01f
+
+#define VISION_TRACK_DECEL_STEP_CMPS          0.5f
+#define VISION_TRACK_ACCEL_STEP_CMPS          0.15f
+#define VISION_TRACK_DEGRADED_TURN_STEP_CMPS  0.5f
+
+#define VISION_TRACK_FRESH_LIMIT_MS           150U
+#define VISION_TRACK_ACQUIRE_FRAMES           3U
+#define VISION_TRACK_INVALID_CONFIRM_FRAMES   3U
+#define VISION_TRACK_MIN_CONFIDENCE           30U
+
+/*
+ * UART_DEBUG is the 9600-baud Bluetooth/debug port.  A full self-describing
+ * record needs about 0.35 s on the wire, so 500 ms is the safe default.
+ */
+#define VISION_TRACK_DEBUG_ENABLE              1
+#define VISION_TRACK_DEBUG_PERIOD_MS           500U
+#define VISION_TRACK_DEBUG_BUFFER_SIZE         384U
 
 typedef enum
 {
-    VISION_TRACK_STOPPED = 0,
-    VISION_TRACK_RUNNING
+    VISION_TRACK_IDLE = 0,
+    VISION_TRACK_ACQUIRE,
+    VISION_TRACK_RUN,
+    VISION_TRACK_LOST,
+    VISION_TRACK_STOP
 } VisionTrackState_t;
 
 void App_VisionTrack_Init(void);
