@@ -21,21 +21,17 @@
 #include "cmsis_compiler.h"
 #include <stdint.h>
 
-#if F21_VISION_TRACK_TEST_MODE
+#if ECAR_VISION_TRACK_MODE
 #include "app_vision_link.h"
 #include "app_vision_track.h"
 #endif
 
-volatile uint8_t g_task_1ms_count = 0U;
-volatile uint8_t g_task_5ms_count = 0U;
+volatile uint8_t g_task_1ms_count  = 0U;
+volatile uint8_t g_task_5ms_count  = 0U;
 volatile uint8_t g_task_10ms_count = 0U;
 volatile uint8_t g_task_100ms_count = 0U;
 volatile uint8_t g_task_200ms_count = 0U;
 
-/*
- * mspm0g3507.sct places this section at the end of flash with +Last.
- * Keep this section, but keep it small to avoid MDK Lite 32KB limit.
- */
 __attribute__((used, section(".rodata.flash_tail_pad")))
 static const uint8_t s_flashTailPadForKeilFlm[0x10] = { 0U };
 
@@ -75,6 +71,7 @@ int main(void)
     SYSCFG_DL_init();
 
 #if CAR_ENCODER_MINIMAL_DEBUG
+
     Serial_Init();
     Encoder_Init();
     Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-timer]");
@@ -95,66 +92,78 @@ int main(void)
                 printMs = 0U;
                 Encoder_DebugPrintDirectNoPrintf("[enc-direct-before-getdelta]");
 
-				{
-					int16_t rd = Encoder_GetRightDelta();
-					Serial_Printf("[getdelta-test]\r\n");
-					Serial_Printf("rd=%d\r\n", (int)rd);
-				}
+                {
+                    int16_t rd = Encoder_GetRightDelta();
+                    Serial_Printf("[getdelta-test]\r\n");
+                    Serial_Printf("rd=%d\r\n", (int)rd);
+                }
 
-				Encoder_DebugPrintDirectNoPrintf("[enc-direct-after-getdelta]");
-				Encoder_DebugPrintGetterNoPrintf("[enc-getter-after-getdelta]");
-				Main_PrintfSingleFieldTest();
+                Encoder_DebugPrintDirectNoPrintf("[enc-direct-after-getdelta]");
+                Encoder_DebugPrintGetterNoPrintf("[enc-getter-after-getdelta]");
+                Main_PrintfSingleFieldTest();
             }
         }
     }
-#elif F21_VISION_TRACK_TEST_MODE
-    Key_Init();
-    Motor_Init();
-    Motor_StopAll();
-    Encoder_Init();
-    BeepLed_Init();
-    Serial_Init();
-    DebugSerial_Init();
-    CarBase_Init();
-    App_VisionLink_Init();
-    App_VisionTrack_Init();
 
-    Timer_Init();
+#elif ECAR_VISION_TRACK_MODE
 
-    DebugSerial_SendString("[boot,mode=vision-track]\r\n");
-
-    while (1)
     {
-        uint8_t taskCount;
+        uint8_t key;
 
-        (void)Main_TakeTaskCounterAll(&g_task_1ms_count);
+        Key_Init();
+        Motor_Init();
+        Motor_StopAll();
+        Encoder_Init();
+        Serial_Init();
 
-        taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
-        if (taskCount > 0U)
+#if VISION_TRACK_DEBUG_ENABLE
+        DebugSerial_Init();
+#endif
+
+        App_Control_Init();
+        App_Control_ForcePWMZero();
+
+        App_VisionLink_Init();
+        App_VisionTrack_Init();
+
+        Timer_Init();
+
+        while (1)
         {
-            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
-        }
+            uint8_t taskCount;
 
-        taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
-        if (taskCount > 2U)
-        {
-            taskCount = 2U;
-        }
-        while (taskCount > 0U)
-        {
-            App_VisionLink_Task10ms();
-            App_VisionTrack_Task10ms();
-            taskCount--;
-        }
+            key = Key_GetNum();
+            App_VisionTrack_HandleKey(key);
 
-        App_VisionTrack_HandleKey(Key_GetNum());
+            Main_TakeTaskCounterAll(&g_task_1ms_count);
 
-        if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
-        {
-            App_VisionTrack_Task100ms();
+            taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
+            if (taskCount > 0U)
+            {
+                App_Control_UpdateEncoderSpeed(
+                    (uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
+            }
+
+            taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
+            if (taskCount > 0U)
+            {
+                App_VisionLink_Task10ms();
+                App_VisionTrack_Task10ms();
+            }
+
+#if VISION_TRACK_DEBUG_ENABLE
+            if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
+            {
+                App_VisionTrack_Task100ms();
+            }
+#else
+            Main_TakeTaskCounterAll(&g_task_100ms_count);
+#endif
         }
     }
+
 #else
+
     Key_Init();
     Grayscale_Init();
     Motor_Init();
@@ -267,5 +276,6 @@ int main(void)
 #endif
         }
     }
+
 #endif
 }

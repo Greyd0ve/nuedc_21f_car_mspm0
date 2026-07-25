@@ -21,6 +21,13 @@
 #define VISION_STATUS_RIGHT_BRANCH          0x20U
 #define VISION_STATUS_INTERSECTION          0x40U
 
+#define VISION_MODE_IDLE       0U
+#define VISION_MODE_TRACK      1U
+#define VISION_MODE_TURNING    2U
+#define VISION_MODE_REACQUIRE  3U
+#define VISION_MODE_FAULT      4U
+#define VISION_MODE_NUMBER     5U
+
 typedef struct
 {
     uint16_t sequence;

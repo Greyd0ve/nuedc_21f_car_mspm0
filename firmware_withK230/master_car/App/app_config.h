@@ -176,11 +176,17 @@
 #define ECAR_BOARD_TEST_PWM_LIMIT               260
 #endif
 
-/* Stage 1 vision track test mode.
- * When 1: run K230 vision-based straight-line tracking.
- * When 0: restore original 2021 F-topic full route state machine. */
-#ifndef F21_VISION_TRACK_TEST_MODE
-#define F21_VISION_TRACK_TEST_MODE              1
+/* Pure vision-only track mode (K230 24-byte binary protocol).
+ * When 1: independent vision line-follow, no grayscale / NRF / F-topic tasks. */
+#ifndef ECAR_VISION_TRACK_MODE
+#define ECAR_VISION_TRACK_MODE                  1
+#endif
+
+/* Top-level execution mode mutual exclusion. */
+#if ((ECAR_ENCODER_MINIMAL_DEBUG + \
+      ECAR_BOARD_TEST_MODE + \
+      ECAR_VISION_TRACK_MODE) > 1)
+#error "Only one top-level execution mode can be enabled"
 #endif
 
 #endif
