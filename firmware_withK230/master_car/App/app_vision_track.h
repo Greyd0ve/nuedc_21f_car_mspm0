@@ -18,12 +18,12 @@
  * Default -1.0f:  positive ey (road to right) -> negative turn -> steer right.
  * Tune by observing which side the car drifts toward.
  */
-#define VISION_TRACK_FORWARD_SPEED_CMPS      6.0f
+#define VISION_TRACK_FORWARD_SPEED_CMPS      10.0f
 #define VISION_TRACK_DEGRADED_SPEED_CMPS     4.5f
 #define VISION_TRACK_KY                      0.008f
 #define VISION_TRACK_KA                      0.0f
 #define VISION_TRACK_KD                      0.0f
-#define VISION_TRACK_TURN_LIMIT_CMPS         5.0f
+#define VISION_TRACK_TURN_LIMIT_CMPS         8.0f
 #define VISION_TRACK_TURN_SIGN               -1.0f
 #define VISION_TRACK_FRESH_LIMIT_MS          120U
 #define VISION_TRACK_KY_SCALE                0.01f
