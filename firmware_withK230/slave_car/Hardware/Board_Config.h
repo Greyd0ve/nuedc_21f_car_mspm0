@@ -205,7 +205,7 @@
  * Verify by pushing car forward after wiring.
  */
 #define LEFT_ENCODER_DIR_SIGN           (+1)
-#define RIGHT_ENCODER_DIR_SIGN          (+1)
+#define RIGHT_ENCODER_DIR_SIGN          (-1)
 
 /* Backward compat aliases for Encoder.c internal use. */
 #define LEFT_ENCODER_DIR                LEFT_ENCODER_DIR_SIGN
