@@ -7,12 +7,12 @@
 #define F21_CROSS_CONFIRM_MS            20U
 
 /*
- * Cross advance is an empirically verified state-machine distance after
- * detecting a cross.  It is intentionally independent of the 17.7 cm
- * sensor-to-axle mechanical dimension in app_config.h.
+ * Cross advance: distance from line-sensor detection to drive-axle centre.
+ * Initial values set to the sensor-to-axle mechanical dimension.
+ * Trim these after real track testing.
  */
-#define F21_CROSS_ADVANCE_BASE_CM       6.0f
-#define F21_FAR_CROSS_ADVANCE_BASE_CM   3.0f
+#define F21_CROSS_ADVANCE_BASE_CM       17.7f
+#define F21_FAR_CROSS_ADVANCE_BASE_CM   15.5f
 #define F21_CROSS_ADVANCE_TRIM_CM       0.0f
 #define F21_FAR_CROSS_ADVANCE_TRIM_CM   0.0f
 
@@ -35,22 +35,12 @@
 #define F21_TURN_SPEED_CMPS             12.0f
 
 /*
- * Turn encoder count thresholds.
- *
- * Theoretical values based on chassis geometry:
- *   90°:  ECAR_TURN_90_ENCODER_COUNT_THEORY  = 2505
- *   180°: ECAR_TURN_180_ENCODER_COUNT_THEORY = 5010
- *
- * Control initial values preserve the verified withoutK230 behavior, scaled
- * independently from 367 to 4096 encoder counts/revolution:
- *   90°:  180 * 4096 / 367 ~= 2009 -> 2010
- *   180°: 440 * 4096 / 367 ~= 4911 -> 4910
- *
- * These are not measured values for this chassis.  Calibrate the 90° and
- * 180° thresholds independently on the real vehicle.
+ * Turn encoder count thresholds (real-car calibrated).
+ *  90°: 2405
+ *  180°: 4920
  */
-#define F21_TURN_90_PULSE               2010U
-#define F21_TURN_180_PULSE              4910U
+#define F21_TURN_90_PULSE               2405U
+#define F21_TURN_180_PULSE              4920U
 
 /* [legacy] F21_TURN_PWM was raw PWM direct drive; replaced by speed closed-loop. */
 #define F21_TURN_PWM                    140
