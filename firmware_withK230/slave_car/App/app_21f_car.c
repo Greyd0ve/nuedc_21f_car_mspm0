@@ -5,6 +5,7 @@
 #include "app_control.h"
 #include "app_line.h"
 #include "BeepLed.h"
+#include "DebugSerial.h"
 #include "Encoder.h"
 #include "Key.h"
 #include "Motor.h"
@@ -1247,6 +1248,26 @@ void F21Car_Task10ms(void)
 
 void F21Car_Task100ms(void)
 {
+#if F21_RUNTIME_DIAG_ENABLE
+    static uint16_t s_runtimeDiagMs = 0U;
+
+    s_runtimeDiagMs += 100U;
+    if (s_runtimeDiagMs >= F21_RUNTIME_DIAG_PERIOD_MS)
+    {
+        s_runtimeDiagMs = 0U;
+        DebugSerial_Printf(
+            "[f21,state=%u,mask=%02X,black=%u,left=%ld,right=%ld,"
+            "forward=%ld,turn=%ld,monitor=%u]\r\n",
+            (unsigned int)s_state,
+            (unsigned int)g_lineMask,
+            (unsigned int)g_lineBlackCount,
+            (long)g_leftEncoderTotal,
+            (long)g_rightEncoderTotal,
+            (long)g_forwardEncoderTotal,
+            (long)g_turnEncoderTotal,
+            (unsigned int)s_crossMonitoring);
+    }
+#endif
 }
 
 void F21Car_Task200ms(void)

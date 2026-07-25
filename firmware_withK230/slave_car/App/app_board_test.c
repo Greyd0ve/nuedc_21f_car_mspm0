@@ -126,6 +126,26 @@ static uint16_t s_periodMs = 0U;
 static int32_t s_lastLeftEncTotal  = 0;
 static int32_t s_lastRightEncTotal = 0;
 
+static uint32_t BoardTest_Magnitude32(int32_t value)
+{
+    if (value < 0)
+    {
+        return (uint32_t)(-(value + 1)) + 1U;
+    }
+    return (uint32_t)value;
+}
+
+static uint32_t BoardTest_AbsoluteMagnitudeError(
+    int32_t actual, int32_t expected)
+{
+    uint32_t actualMagnitude = BoardTest_Magnitude32(actual);
+    uint32_t expectedMagnitude = BoardTest_Magnitude32(expected);
+
+    return (actualMagnitude >= expectedMagnitude)
+        ? (actualMagnitude - expectedMagnitude)
+        : (expectedMagnitude - actualMagnitude);
+}
+
 static void BoardTest_PrintBanner(void)
 {
     DebugSerial_SendString("\r\n[step-test,start]\r\n");
@@ -134,7 +154,7 @@ static void BoardTest_PrintBanner(void)
     DebugSerial_Printf("[step-test,dir_l=PB18,dir_r=PB25]\r\n");
     DebugSerial_Printf("[step-test,enc_l=PB05/PB12,enc_r=PB08/PB00]\r\n");
     DebugSerial_Printf("[step-test,en=hardware_always_enabled]\r\n");
-    DebugSerial_Printf("[step-test,L_dir_sign=%+d,R_dir_sign=%+d]\r\n",
+    DebugSerial_Printf("[step-test,L_dir_sign=%d,R_dir_sign=%d]\r\n",
         (int)LEFT_STEPPER_DIR_SIGN, (int)RIGHT_STEPPER_DIR_SIGN);
     DebugSerial_Printf("[step-test,K1=STEP_L/DIR_L->right_motor,K2=STEP_R/DIR_R->left_motor]\r\n");
     DebugSerial_Printf("[step-test,step_per_rev=%u,enc_per_rev=%u]\r\n",
@@ -143,6 +163,8 @@ static void BoardTest_PrintBanner(void)
     DebugSerial_Printf("[step-test,level=%u,target_hz=%lu]\r\n",
         (unsigned int)(s_level + 1U),
         (unsigned long)s_stepFreqTable[s_level]);
+    DebugSerial_Printf(
+        "[step-test,level1_steady_500ms_expected_enc=1434]\r\n");
 }
 
 void BoardTest_Init(void)
@@ -177,7 +199,7 @@ static void BoardTest_ApplyKey(void)
             (int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN);
         modeStr = "right_only";
         DebugSerial_Printf(
-            "[step-test,key=k1,dir=PB18,lvl=%u,tgt=%+ld]\r\n",
+            "[step-test,key=k1,dir=PB18,lvl=%u,tgt=%ld]\r\n",
             (unsigned int)((LEFT_STEPPER_DIR_SIGN >= 0) ? 1U : 0U),
             (long)((int32_t)freq * (int32_t)LEFT_STEPPER_DIR_SIGN));
         s_keyPending = 0U;
@@ -191,7 +213,7 @@ static void BoardTest_ApplyKey(void)
             (int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN);
         modeStr = "left_only";
         DebugSerial_Printf(
-            "[step-test,key=k2,dir=PB25,lvl=%u,tgt=%+ld]\r\n",
+            "[step-test,key=k2,dir=PB25,lvl=%u,tgt=%ld]\r\n",
             (unsigned int)((RIGHT_STEPPER_DIR_SIGN >= 0) ? 1U : 0U),
             (long)((int32_t)freq * (int32_t)RIGHT_STEPPER_DIR_SIGN));
         s_keyPending = 0U;
@@ -278,10 +300,13 @@ void BoardTest_Task100ms(void)
 
     {
         int32_t ltgt, rtgt, lcur, rcur;
-        int32_t lenc, renc, ltot, rtot;
+        int32_t leftDeltaWindow, rightDeltaWindow;
+        int32_t forwardDeltaWindow, turnDeltaWindow;
+        int32_t ltot, rtot;
         int32_t lstep, rstep;
-        int64_t lexp64, rexp64;
-        int32_t lexp, rexp;
+        int64_t leftExpected64, rightExpected64;
+        int32_t leftExpected, rightExpected;
+        uint32_t leftError, rightError;
 
         ltgt = StepperMotor_GetLeftTargetFrequency();
         rtgt = StepperMotor_GetRightTargetFrequency();
@@ -293,30 +318,63 @@ void BoardTest_Task100ms(void)
 
         ltot = g_leftEncoderTotal;
         rtot = g_rightEncoderTotal;
-        lenc = ltot - s_lastLeftEncTotal;
-        renc = rtot - s_lastRightEncTotal;
+        leftDeltaWindow = ltot - s_lastLeftEncTotal;
+        rightDeltaWindow = rtot - s_lastRightEncTotal;
+        forwardDeltaWindow =
+            (leftDeltaWindow + rightDeltaWindow) / 2;
+        turnDeltaWindow =
+            (rightDeltaWindow - leftDeltaWindow) / 2;
         s_lastLeftEncTotal  = ltot;
         s_lastRightEncTotal = rtot;
 
-        lexp64 = (int64_t)lstep * (int64_t)STEPPER_ENC_PER_STEP_NUM
-                 / (int64_t)STEPPER_ENC_PER_STEP_DEN;
-        rexp64 = (int64_t)rstep * (int64_t)STEPPER_ENC_PER_STEP_NUM
-                 / (int64_t)STEPPER_ENC_PER_STEP_DEN;
-        lexp = (int32_t)lexp64;
-        rexp = (int32_t)rexp64;
+        /*
+         * Hardware channels are cross-wired:
+         * STEP_R drives the physical left wheel and STEP_L drives right.
+         * Keep signed raw values visible; compare magnitudes because the
+         * physical-left STEP_R command is negative after direction correction
+         * while a forward logical left encoder count must remain positive.
+         */
+        leftExpected64 =
+            (int64_t)rstep * (int64_t)ENCODER_COUNT_PER_REV
+            / (int64_t)STEPPER_STEP_PER_REV;
+        rightExpected64 =
+            (int64_t)lstep * (int64_t)ENCODER_COUNT_PER_REV
+            / (int64_t)STEPPER_STEP_PER_REV;
+        leftExpected = (int32_t)leftExpected64;
+        rightExpected = (int32_t)rightExpected64;
+        leftError = BoardTest_AbsoluteMagnitudeError(
+            ltot, leftExpected);
+        rightError = BoardTest_AbsoluteMagnitudeError(
+            rtot, rightExpected);
 
         DebugSerial_Printf(
             "[step,m=%u,lv=%u,lt=%ld,lc=%ld,rt=%ld,rc=%ld]\r\n",
             (unsigned int)s_mode, (unsigned int)(s_level + 1U),
             (long)ltgt, (long)lcur, (long)rtgt, (long)rcur);
         DebugSerial_Printf(
-            "[enc,ls=%ld,rs=%ld,le=%ld,re=%ld,"
-            "lexp=%ld,rexp=%ld,li=%lu,ri=%lu]\r\n",
-            (long)lstep, (long)rstep,
+            "[step-count,step_l=%ld,step_r=%ld]\r\n",
+            (long)lstep, (long)rstep);
+        DebugSerial_Printf(
+            "[enc-window,ld=%ld,rd=%ld,fd=%ld,td=%ld]\r\n",
+            (long)leftDeltaWindow, (long)rightDeltaWindow,
+            (long)forwardDeltaWindow, (long)turnDeltaWindow);
+        DebugSerial_Printf(
+            "[enc-diag,left=%ld,right=%ld,li=%lu,ri=%lu,"
+            "girq=%lu,lisr=%lu,risr=%lu,lvalid=%lu,rvalid=%lu,txov=%lu]\r\n",
             (long)ltot, (long)rtot,
-            (long)lexp, (long)rexp,
             (unsigned long)Encoder_GetLeftIllegalCount(),
-            (unsigned long)Encoder_GetRightIllegalCount());
+            (unsigned long)Encoder_GetRightIllegalCount(),
+            (unsigned long)Encoder_GetGpioIrqCount(),
+            (unsigned long)Encoder_GetLeftIsrCount(),
+            (unsigned long)Encoder_GetRightIsrCount(),
+            (unsigned long)Encoder_GetLeftStatusCount(),
+            (unsigned long)Encoder_GetRightStatusCount(),
+            (unsigned long)DebugSerial_GetTxOverflowCount());
+        DebugSerial_Printf(
+            "[enc-check,left_enc=%ld,left_expected=%ld,left_error=%lu,"
+            "right_enc=%ld,right_expected=%ld,right_error=%lu]\r\n",
+            (long)ltot, (long)leftExpected, (unsigned long)leftError,
+            (long)rtot, (long)rightExpected, (unsigned long)rightError);
     }
 }
 

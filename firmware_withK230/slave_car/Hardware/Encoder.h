@@ -15,6 +15,15 @@ void Encoder_ClearAll(void);
 uint32_t Encoder_GetLeftIllegalCount(void);
 uint32_t Encoder_GetRightIllegalCount(void);
 
+uint32_t Encoder_GetGpioIrqCount(void);
+uint32_t Encoder_GetLeftIsrCount(void);
+uint32_t Encoder_GetLeftStatusCount(void);
+int32_t Encoder_GetLeftLastRawDeltaBeforeLimit(void);
+uint32_t Encoder_GetLeftLimitHitCount(void);
+uint32_t Encoder_GetLeftGetDeltaCount(void);
+uint32_t Encoder_GetLeftNonZeroGetCount(void);
+int32_t Encoder_GetLeftMaxRawDelta(void);
+
 uint32_t Encoder_GetRightIsrCount(void);
 uint32_t Encoder_GetRightSameAIgnored(void);
 uint32_t Encoder_GetRightStatusCount(void);

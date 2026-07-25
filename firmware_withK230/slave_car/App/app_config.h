@@ -75,6 +75,25 @@
 #define ECAR_TEST_RADIO_ENABLE                  0
 #endif
 
+/*
+ * Encoder diagnostics are compiled into the dedicated stepper board test.
+ * Formal task builds keep the ISR instrumentation disabled by default.
+ */
+#ifndef ENCODER_DIAG_ENABLE
+#if ECAR_BOARD_TEST_MODE && ECAR_TEST_STEPPER_ENABLE
+#define ENCODER_DIAG_ENABLE                     1U
+#else
+#define ENCODER_DIAG_ENABLE                     0U
+#endif
+#endif
+
+#ifndef F21_RUNTIME_DIAG_ENABLE
+#define F21_RUNTIME_DIAG_ENABLE                 1U
+#endif
+#ifndef F21_RUNTIME_DIAG_PERIOD_MS
+#define F21_RUNTIME_DIAG_PERIOD_MS              500U
+#endif
+
 #ifndef ECAR_OLED_ENABLE
 #define ECAR_OLED_ENABLE                        0
 #endif
