@@ -31,7 +31,7 @@
 #define VISION_TRACK_TURN_SIGN               -1.0f
 #define VISION_TRACK_FRESH_LIMIT_MS          120U
 
-#define VISION_TRACK_DEBUG_ENABLE            0
+#define VISION_TRACK_DEBUG_ENABLE            1
 
 typedef enum
 {

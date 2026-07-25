@@ -15,6 +15,7 @@ static volatile uint32_t s_rxOverflow = 0U;
 static volatile uint8_t  s_txBuf[DEBUG_TX_BUF_SIZE];
 static volatile uint16_t s_txHead = 0U;
 static volatile uint16_t s_txTail = 0U;
+static volatile uint32_t s_txDropCount = 0U;
 
 static uint16_t DebugSerial_NextTxIndex(uint16_t index)
 {
@@ -68,6 +69,7 @@ void DebugSerial_Init(void)
     s_rxOverflow = 0U;
     s_txHead = 0U;
     s_txTail = 0U;
+    s_txDropCount = 0U;
     DL_UART_Main_disableInterrupt(
         UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
     NVIC_ClearPendingIRQ(UART_DEBUG_INST_INT_IRQN);
@@ -98,6 +100,46 @@ uint8_t DebugSerial_TrySendByte(uint8_t byte)
     DL_UART_Main_enableInterrupt(
         UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
     return 1U;
+}
+
+uint16_t DebugSerial_GetTxFreeBytes(void)
+{
+    if (s_txHead >= s_txTail)
+    {
+        return (uint16_t)(DEBUG_TX_BUF_SIZE - 1U -
+               (s_txHead - s_txTail));
+    }
+
+    return (uint16_t)(s_txTail - s_txHead - 1U);
+}
+
+uint8_t DebugSerial_TrySendBuffer(const uint8_t *data, uint16_t length)
+{
+    uint16_t i;
+
+    if (!data || (length == 0U)) return 1U;
+
+    if (DebugSerial_GetTxFreeBytes() < length)
+    {
+        s_txDropCount++;
+        return 0U;
+    }
+
+    for (i = 0U; i < length; i++)
+    {
+        uint16_t next = DebugSerial_NextTxIndex(s_txHead);
+        s_txBuf[s_txHead] = data[i];
+        s_txHead = next;
+    }
+
+    DL_UART_Main_enableInterrupt(
+        UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
+    return 1U;
+}
+
+uint32_t DebugSerial_GetTxDropCount(void)
+{
+    return s_txDropCount;
 }
 
 void DebugSerial_SendString(const char *str)
