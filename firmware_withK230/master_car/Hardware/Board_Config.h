@@ -109,12 +109,15 @@
 #define MOTOR_R_IN2                     MOTOR_R_IN2_PIN
 
 /*
- * Measured: positive PWM drives both wheels backward in rear mode.
- * Motor direction signs are inverted so Motor_SetPWM(+150,+150)
- * drives the car toward the new front.
+ * The camera-view direction is the new vehicle front.  With the logical
+ * left/right wheels swapped above, these signs make
+ * Motor_SetPWM(+150, +150) drive toward that camera-view direction.
+ *
+ * Do not change the encoder signs below: their existing mapping already
+ * reports positive speed for this physical travel direction.
  */
-#define LEFT_MOTOR_DIR                  (+1)
-#define RIGHT_MOTOR_DIR                 (-1)
+#define LEFT_MOTOR_DIR                  (-1)
+#define RIGHT_MOTOR_DIR                 (+1)
 
 #else
 
