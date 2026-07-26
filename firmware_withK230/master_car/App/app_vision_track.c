@@ -36,6 +36,9 @@ static float s_rightTarget = 0.0f;
 
 static float s_filteredEyControl = 0.0f;
 static float s_filteredEaControl = 0.0f;
+static float s_previewCompDeciMm = 0.0f;
+static float s_bodyEyControl = 0.0f;
+static float s_headingScale = 0.0f;
 static uint8_t s_hasFilteredErrors = 0U;
 
 static float s_turnEy = 0.0f;
@@ -46,6 +49,10 @@ static uint8_t s_degradedFrameStreak = 0U;
 static uint8_t s_turnReversalFrames = 0U;
 static int8_t s_pendingTurnDirection = 0;
 static uint32_t s_turnDirectionChangeCount = 0U;
+static int8_t s_curveDirectionLock = 0;
+static int8_t s_curveLockCandidateDirection = 0;
+static uint8_t s_curveLockCandidateFrames = 0U;
+static uint8_t s_curveReverseFrames = 0U;
 
 #if VISION_TRACK_DEBUG_ENABLE
 static char     s_debugTxBuffer[VISION_TRACK_DEBUG_BUFFER_SIZE];
@@ -119,6 +126,8 @@ static void VisionTrack_UpdateFilteredErrors(int16_t eyControl,
 {
     float eyNew = (float)eyControl;
     float eaNew = (float)eaControl;
+    float eyAlpha;
+    float eaAlpha;
 
     if (!s_hasFilteredErrors)
     {
@@ -141,29 +150,105 @@ static void VisionTrack_UpdateFilteredErrors(int16_t eyControl,
     }
     else
     {
-        s_filteredEyControl += VISION_TRACK_EY_FILTER_ALPHA *
+        if (s_curveHoldFrames > 0U)
+        {
+            eyAlpha = VISION_TRACK_CURVE_EY_FILTER_ALPHA;
+            eaAlpha = VISION_TRACK_CURVE_EA_FILTER_ALPHA;
+        }
+        else
+        {
+            eyAlpha = VISION_TRACK_EY_FILTER_ALPHA;
+            eaAlpha = VISION_TRACK_EA_FILTER_ALPHA;
+        }
+
+        s_filteredEyControl += eyAlpha *
             (eyNew - s_filteredEyControl);
-        s_filteredEaControl += VISION_TRACK_EA_FILTER_ALPHA *
+        s_filteredEaControl += eaAlpha *
             (eaNew - s_filteredEaControl);
     }
 }
 
-static float VisionTrack_CalcTurnCandidate(float dEy)
+static void VisionTrack_UpdateBodyError(const VisionTrackFrame_t *frame,
+                                        uint8_t degraded)
+{
+    float previewHeading;
+    float previewCompTarget;
+    float previewDistance;
+
+    previewCompTarget = 0.0f;
+
+    if ((!degraded) &&
+        (frame->confidence >= VISION_TRACK_TRUSTED_CONFIDENCE))
+    {
+        previewHeading = VisionTrack_LimitFloat(
+            s_filteredEaControl,
+            -VISION_TRACK_PREVIEW_EA_LIMIT_DEG /
+                VISION_TRACK_EA_DECI_DEG_TO_DEG,
+            VISION_TRACK_PREVIEW_EA_LIMIT_DEG /
+                VISION_TRACK_EA_DECI_DEG_TO_DEG);
+        previewDistance = VISION_TRACK_CAMERA_LOOKAHEAD_MM -
+            VISION_TRACK_VIRTUAL_LOOKAHEAD_MM;
+        previewCompTarget = VISION_TRACK_PREVIEW_HEADING_SIGN *
+            previewDistance * previewHeading *
+            VISION_TRACK_PREVIEW_RAD_PER_DECI_DEG /
+            VISION_TRACK_EY_DECI_MM_TO_MM;
+        previewCompTarget = VisionTrack_LimitFloat(
+            previewCompTarget,
+            -VISION_TRACK_PREVIEW_MAX_COMP_MM /
+                VISION_TRACK_EY_DECI_MM_TO_MM,
+            VISION_TRACK_PREVIEW_MAX_COMP_MM /
+                VISION_TRACK_EY_DECI_MM_TO_MM);
+    }
+
+    /* Do not let a one-frame heading change move the virtual reference. */
+    s_previewCompDeciMm = VisionTrack_MoveToward(
+        s_previewCompDeciMm,
+        previewCompTarget,
+        VISION_TRACK_PREVIEW_STEP_DECI_MM,
+        VISION_TRACK_PREVIEW_STEP_DECI_MM);
+    s_bodyEyControl = s_filteredEyControl - s_previewCompDeciMm;
+}
+
+static float VisionTrack_CalcTurnCandidate(float dEy, uint8_t confidence)
 {
     float maxOpposingEa;
+    float headingControl;
+    float eyRatio;
     float turnCandidate;
 
     s_turnEy = VISION_TRACK_TURN_SIGN * VISION_TRACK_KY *
-        s_filteredEyControl;
+        s_bodyEyControl;
+
+    headingControl = VisionTrack_LimitFloat(
+        s_filteredEaControl,
+        -VISION_TRACK_HEADING_CONTROL_LIMIT_DEG /
+            VISION_TRACK_EA_DECI_DEG_TO_DEG,
+        VISION_TRACK_HEADING_CONTROL_LIMIT_DEG /
+            VISION_TRACK_EA_DECI_DEG_TO_DEG);
+    eyRatio = VisionTrack_LimitFloat(
+        VisionTrack_AbsFloat(s_bodyEyControl) /
+            VISION_TRACK_HEADING_FULL_EY_DECI_MM,
+        0.0f,
+        1.0f);
+    s_headingScale = VISION_TRACK_HEADING_MIN_SCALE +
+        (1.0f - VISION_TRACK_HEADING_MIN_SCALE) * eyRatio;
+    if (confidence < VISION_TRACK_TRUSTED_CONFIDENCE)
+    {
+        s_headingScale *= VISION_TRACK_HEADING_LOW_CONF_SCALE;
+    }
+
     s_turnEa = VISION_TRACK_HEADING_SIGN * VISION_TRACK_KA *
-        s_filteredEaControl;
+        headingControl * s_headingScale;
+    s_turnEa = VisionTrack_LimitFloat(s_turnEa,
+                                      -VISION_TRACK_HEADING_TERM_LIMIT_CMPS,
+                                      VISION_TRACK_HEADING_TERM_LIMIT_CMPS);
     s_turnD = VISION_TRACK_TURN_SIGN * VISION_TRACK_KD * dEy;
     s_turnD = VisionTrack_LimitFloat(s_turnD,
                                      -VISION_TRACK_D_TERM_LIMIT_CMPS,
                                      VISION_TRACK_D_TERM_LIMIT_CMPS);
 
     /* A large cross-track error must not be reversed by an opposing ea term. */
-    if ((VisionTrack_AbsFloat(s_filteredEyControl) >=
+    if ((VisionTrack_AbsFloat(s_bodyEyControl) >=
          VISION_TRACK_EY_HEADING_GUARD_DECI_MM) &&
         ((s_turnEy * s_turnEa) < 0.0f))
     {
@@ -184,7 +269,7 @@ static void VisionTrack_UpdateCurveHold(const VisionTrackFrame_t *frame,
                                         float severity,
                                         uint8_t degraded)
 {
-    float absEyMm = VisionTrack_AbsFloat(s_filteredEyControl) *
+    float absEyMm = VisionTrack_AbsFloat(s_bodyEyControl) *
                     VISION_TRACK_EY_DECI_MM_TO_MM;
     float absEaDeg = VisionTrack_AbsFloat(s_filteredEaControl) *
                      VISION_TRACK_EA_DECI_DEG_TO_DEG;
@@ -210,9 +295,87 @@ static void VisionTrack_UpdateCurveHold(const VisionTrackFrame_t *frame,
     }
 }
 
+static float VisionTrack_ApplyCurveDirectionLock(float requestedTurn,
+                                                  uint8_t curveActive)
+{
+    int8_t requestedDirection;
+
+    if (!curveActive)
+    {
+        s_curveDirectionLock = 0;
+        s_curveLockCandidateDirection = 0;
+        s_curveLockCandidateFrames = 0U;
+        s_curveReverseFrames = 0U;
+        return requestedTurn;
+    }
+
+    requestedDirection = VisionTrack_GetTurnDirection(requestedTurn);
+    if (requestedDirection == 0)
+    {
+        return requestedTurn;
+    }
+
+    if (s_curveDirectionLock == 0)
+    {
+        if (requestedDirection == s_curveLockCandidateDirection)
+        {
+            if (s_curveLockCandidateFrames < 0xFFU)
+            {
+                s_curveLockCandidateFrames++;
+            }
+        }
+        else
+        {
+            s_curveLockCandidateDirection = requestedDirection;
+            s_curveLockCandidateFrames = 1U;
+        }
+
+        if (s_curveLockCandidateFrames >=
+            VISION_TRACK_CURVE_DIRECTION_LOCK_FRAMES)
+        {
+            s_curveDirectionLock = requestedDirection;
+            s_curveReverseFrames = 0U;
+        }
+        return requestedTurn;
+    }
+
+    if (requestedDirection == s_curveDirectionLock)
+    {
+        s_curveReverseFrames = 0U;
+        return requestedTurn;
+    }
+
+    /* A heading-only sign change is not enough to reverse inside a curve. */
+    if (VisionTrack_AbsFloat(s_bodyEyControl) <
+        VISION_TRACK_CURVE_REVERSE_EY_DECI_MM)
+    {
+        s_curveReverseFrames = 0U;
+        return (float)s_curveDirectionLock *
+            VISION_TRACK_CURVE_LOCK_HOLD_TURN_CMPS;
+    }
+
+    if (s_curveReverseFrames < 0xFFU)
+    {
+        s_curveReverseFrames++;
+    }
+
+    if (s_curveReverseFrames <
+        VISION_TRACK_CURVE_REVERSE_CONFIRM_FRAMES)
+    {
+        return (float)s_curveDirectionLock *
+            VISION_TRACK_CURVE_LOCK_HOLD_TURN_CMPS;
+    }
+
+    s_curveDirectionLock = requestedDirection;
+    s_curveReverseFrames = 0U;
+    return requestedTurn;
+}
+
 static void VisionTrack_UpdateTurnCommand(float requestedTurn,
                                           uint8_t degraded,
-                                          uint8_t isNewFrame)
+                                          uint8_t isNewFrame,
+                                          float forwardLimit,
+                                          uint8_t curveActive)
 {
     int8_t currentDirection;
     int8_t requestedDirection;
@@ -223,6 +386,12 @@ static void VisionTrack_UpdateTurnCommand(float requestedTurn,
             requestedTurn,
             -VISION_TRACK_TURN_LIMIT_CMPS,
             VISION_TRACK_TURN_LIMIT_CMPS);
+        forwardLimit = VisionTrack_LimitFloat(forwardLimit,
+                                               0.0f,
+                                               VISION_TRACK_TURN_LIMIT_CMPS);
+        requestedTurn = VisionTrack_LimitFloat(requestedTurn,
+                                                -forwardLimit,
+                                                forwardLimit);
 
         if (degraded)
         {
@@ -233,6 +402,9 @@ static void VisionTrack_UpdateTurnCommand(float requestedTurn,
                 VISION_TRACK_DEGRADED_TURN_STEP_CMPS,
                 VISION_TRACK_DEGRADED_TURN_STEP_CMPS);
         }
+
+        requestedTurn = VisionTrack_ApplyCurveDirectionLock(requestedTurn,
+                                                              curveActive);
 
         currentDirection = VisionTrack_GetTurnDirection(s_turnCmd);
         requestedDirection = VisionTrack_GetTurnDirection(requestedTurn);
@@ -356,6 +528,9 @@ static void VisionTrack_ResetControlHistory(void)
 
     s_filteredEyControl = 0.0f;
     s_filteredEaControl = 0.0f;
+    s_previewCompDeciMm = 0.0f;
+    s_bodyEyControl = 0.0f;
+    s_headingScale = 0.0f;
     s_hasFilteredErrors = 0U;
     s_turnEy = 0.0f;
     s_turnEa = 0.0f;
@@ -365,6 +540,10 @@ static void VisionTrack_ResetControlHistory(void)
     s_turnReversalFrames = 0U;
     s_pendingTurnDirection = 0;
     s_turnDirectionChangeCount = 0U;
+    s_curveDirectionLock = 0;
+    s_curveLockCandidateDirection = 0;
+    s_curveLockCandidateFrames = 0U;
+    s_curveReverseFrames = 0U;
 }
 
 static void VisionTrack_PrepareRun(void)
@@ -600,10 +779,16 @@ static void VisionTrack_DebugBuildRecord(void)
     VisionTrack_DebugAppendFloat2(s_filteredEyControl);
     VisionTrack_DebugAppendString(",eaFilt=");
     VisionTrack_DebugAppendFloat2(s_filteredEaControl);
+    VisionTrack_DebugAppendString(",pComp=");
+    VisionTrack_DebugAppendFloat2(s_previewCompDeciMm);
+    VisionTrack_DebugAppendString(",eyBody=");
+    VisionTrack_DebugAppendFloat2(s_bodyEyControl);
     VisionTrack_DebugAppendString(",turnEy=");
     VisionTrack_DebugAppendFloat2(s_turnEy);
     VisionTrack_DebugAppendString(",turnEa=");
     VisionTrack_DebugAppendFloat2(s_turnEa);
+    VisionTrack_DebugAppendString(",hScale=");
+    VisionTrack_DebugAppendFloat2(s_headingScale);
     VisionTrack_DebugAppendString(",turnD=");
     VisionTrack_DebugAppendFloat2(s_turnD);
     VisionTrack_DebugAppendString(",turnTarget=");
@@ -632,6 +817,8 @@ static void VisionTrack_DebugBuildRecord(void)
     VisionTrack_DebugAppendU32((uint32_t)s_invalidFrameCount);
     VisionTrack_DebugAppendString(",curveHold=");
     VisionTrack_DebugAppendU32((uint32_t)s_curveHoldFrames);
+    VisionTrack_DebugAppendString(",curveDir=");
+    VisionTrack_DebugAppendI32((int32_t)s_curveDirectionLock);
     VisionTrack_DebugAppendString(",degradedFrames=");
     VisionTrack_DebugAppendU32((uint32_t)s_degradedFrameStreak);
     VisionTrack_DebugAppendString(",turnFlips=");
@@ -650,6 +837,7 @@ void App_VisionTrack_Task10ms(void)
     uint8_t transportOk;
     uint8_t frameUsable;
     uint8_t controlDegraded;
+    uint8_t curveActive;
     int16_t eyControl;
     int16_t eaControl;
     float turnCandidate;
@@ -787,8 +975,10 @@ void App_VisionTrack_Task10ms(void)
             VisionTrack_UpdateFilteredErrors(eyControl,
                                              eaControl,
                                              controlDegraded);
-            turnCandidate = VisionTrack_CalcTurnCandidate(dEy);
-            s_severity = VisionTrack_CalcSeverity(s_filteredEyControl,
+            VisionTrack_UpdateBodyError(&s_curFrame, controlDegraded);
+            turnCandidate = VisionTrack_CalcTurnCandidate(
+                dEy, s_curFrame.confidence);
+            s_severity = VisionTrack_CalcSeverity(s_bodyEyControl,
                                                    s_filteredEaControl,
                                                    turnCandidate);
             VisionTrack_UpdateCurveHold(&s_curFrame,
@@ -810,14 +1000,6 @@ void App_VisionTrack_Task10ms(void)
             {
                 s_degradedFrameStreak = 0U;
             }
-
-            VisionTrack_UpdateTurnCommand(turnCandidate,
-                                           controlDegraded,
-                                           1U);
-        }
-        else
-        {
-            VisionTrack_UpdateTurnCommand(s_turnTarget, 0U, 0U);
         }
 
         s_forwardCmdFiltered = VisionTrack_MoveToward(
@@ -825,6 +1007,25 @@ void App_VisionTrack_Task10ms(void)
             s_forwardTarget,
             VISION_TRACK_ACCEL_STEP_CMPS,
             VISION_TRACK_DECEL_STEP_CMPS);
+
+        curveActive = ((s_curveHoldFrames > 0U) ||
+            (s_severity >= VISION_TRACK_CURVE_TRIGGER_SEVERITY)) ? 1U : 0U;
+        if (isNewSeq)
+        {
+            VisionTrack_UpdateTurnCommand(turnCandidate,
+                                           controlDegraded,
+                                           1U,
+                                           s_forwardCmdFiltered,
+                                           curveActive);
+        }
+        else
+        {
+            VisionTrack_UpdateTurnCommand(s_turnTarget,
+                                           0U,
+                                           0U,
+                                           s_forwardCmdFiltered,
+                                           curveActive);
+        }
 
         VisionTrack_ApplyMotorCommand();
         break;
