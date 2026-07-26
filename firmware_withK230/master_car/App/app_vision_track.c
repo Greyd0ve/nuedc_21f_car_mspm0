@@ -546,14 +546,14 @@ static float VisionTrack_CalcForwardTarget(float severity,
 
     if (degraded)
     {
-        target = VISION_TRACK_DEGRADED_SPEED_CMPS;
+        return VisionTrack_LimitFloat(VISION_TRACK_DEGRADED_SPEED_CMPS,
+                                      0.0f,
+                                      VISION_TRACK_MAX_SPEED_CMPS);
     }
-    else
-    {
-        target = VISION_TRACK_MAX_SPEED_CMPS -
-            severity *
-            (VISION_TRACK_MAX_SPEED_CMPS - VISION_TRACK_MIN_SPEED_CMPS);
-    }
+
+    target = VISION_TRACK_MAX_SPEED_CMPS -
+        severity *
+        (VISION_TRACK_MAX_SPEED_CMPS - VISION_TRACK_MIN_SPEED_CMPS);
 
     target = VisionTrack_LimitFloat(target,
                                     VISION_TRACK_MIN_SPEED_CMPS,
@@ -666,9 +666,10 @@ static void VisionTrack_EnterState(VisionTrackState_t next)
 
 static void VisionTrack_ApplyMotorCommand(void)
 {
+    /* Degraded frames are intentionally permitted to use the lower safe speed. */
     s_forwardCmdFiltered = VisionTrack_LimitFloat(
         s_forwardCmdFiltered,
-        VISION_TRACK_MIN_SPEED_CMPS,
+        VISION_TRACK_DEGRADED_SPEED_CMPS,
         VISION_TRACK_MAX_SPEED_CMPS);
 
     s_turnCmd = VisionTrack_LimitFloat(
