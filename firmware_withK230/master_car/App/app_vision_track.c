@@ -49,11 +49,6 @@ static uint8_t s_degradedFrameStreak = 0U;
 static uint8_t s_turnReversalFrames = 0U;
 static int8_t s_pendingTurnDirection = 0;
 static uint32_t s_turnDirectionChangeCount = 0U;
-static int8_t s_curveDirectionLock = 0;
-static int8_t s_curveLockCandidateDirection = 0;
-static uint8_t s_curveLockCandidateFrames = 0U;
-static uint8_t s_curveReverseFrames = 0U;
-static uint8_t s_curveReverseAllowed = 0U;
 
 #if VISION_TRACK_DEBUG_ENABLE
 static char     s_debugTxBuffer[VISION_TRACK_DEBUG_BUFFER_SIZE];
@@ -346,93 +341,10 @@ static void VisionTrack_UpdateCurveHold(const VisionTrackFrame_t *frame,
     }
 }
 
-static float VisionTrack_ApplyCurveDirectionLock(float requestedTurn,
-                                                  uint8_t curveActive,
-                                                  uint8_t reverseAllowed)
-{
-    int8_t requestedDirection;
-
-    if (!curveActive)
-    {
-        s_curveDirectionLock = 0;
-        s_curveLockCandidateDirection = 0;
-        s_curveLockCandidateFrames = 0U;
-        s_curveReverseFrames = 0U;
-        return requestedTurn;
-    }
-
-    requestedDirection = VisionTrack_GetTurnDirection(requestedTurn);
-    if (requestedDirection == 0)
-    {
-        return requestedTurn;
-    }
-
-    if (s_curveDirectionLock == 0)
-    {
-        if (requestedDirection == s_curveLockCandidateDirection)
-        {
-            if (s_curveLockCandidateFrames < 0xFFU)
-            {
-                s_curveLockCandidateFrames++;
-            }
-        }
-        else
-        {
-            s_curveLockCandidateDirection = requestedDirection;
-            s_curveLockCandidateFrames = 1U;
-        }
-
-        if (s_curveLockCandidateFrames >=
-            VISION_TRACK_CURVE_DIRECTION_LOCK_FRAMES)
-        {
-            s_curveDirectionLock = requestedDirection;
-            s_curveReverseFrames = 0U;
-        }
-        return requestedTurn;
-    }
-
-    if (requestedDirection == s_curveDirectionLock)
-    {
-        s_curveReverseFrames = 0U;
-        return requestedTurn;
-    }
-
-    /*
-     * The virtual preview point can move eyBody across zero on a sharp bend.
-     * Only a trusted two-boundary raw ey displacement may reverse the curve.
-     */
-    if ((!reverseAllowed) ||
-        (VisionTrack_AbsFloat(s_filteredEyControl) <
-            VISION_TRACK_CURVE_REVERSE_EY_DECI_MM))
-    {
-        s_curveReverseFrames = 0U;
-        return (float)s_curveDirectionLock *
-            VISION_TRACK_CURVE_LOCK_HOLD_TURN_CMPS;
-    }
-
-    if (s_curveReverseFrames < 0xFFU)
-    {
-        s_curveReverseFrames++;
-    }
-
-    if (s_curveReverseFrames <
-        VISION_TRACK_CURVE_REVERSE_CONFIRM_FRAMES)
-    {
-        return (float)s_curveDirectionLock *
-            VISION_TRACK_CURVE_LOCK_HOLD_TURN_CMPS;
-    }
-
-    s_curveDirectionLock = requestedDirection;
-    s_curveReverseFrames = 0U;
-    return requestedTurn;
-}
-
 static void VisionTrack_UpdateTurnCommand(float requestedTurn,
                                           uint8_t degraded,
                                           uint8_t isNewFrame,
-                                          float forwardLimit,
-                                          uint8_t curveActive,
-                                          uint8_t reverseAllowed)
+                                          float forwardLimit)
 {
     int8_t currentDirection;
     int8_t requestedDirection;
@@ -457,10 +369,6 @@ static void VisionTrack_UpdateTurnCommand(float requestedTurn,
                 VISION_TRACK_DEGRADED_TURN_STEP_CMPS,
                 VISION_TRACK_DEGRADED_TURN_STEP_CMPS);
         }
-
-        requestedTurn = VisionTrack_ApplyCurveDirectionLock(requestedTurn,
-                                                              curveActive,
-                                                              reverseAllowed);
 
         currentDirection = VisionTrack_GetTurnDirection(s_turnCmd);
         requestedDirection = VisionTrack_GetTurnDirection(requestedTurn);
@@ -610,11 +518,6 @@ static void VisionTrack_ResetControlHistory(void)
     s_turnReversalFrames = 0U;
     s_pendingTurnDirection = 0;
     s_turnDirectionChangeCount = 0U;
-    s_curveDirectionLock = 0;
-    s_curveLockCandidateDirection = 0;
-    s_curveLockCandidateFrames = 0U;
-    s_curveReverseFrames = 0U;
-    s_curveReverseAllowed = 0U;
 }
 
 static void VisionTrack_PrepareRun(void)
@@ -895,10 +798,6 @@ static void VisionTrack_DebugBuildRecord(void)
     VisionTrack_DebugAppendU32((uint32_t)s_invalidFrameCount);
     VisionTrack_DebugAppendString(",curveHold=");
     VisionTrack_DebugAppendU32((uint32_t)s_curveHoldFrames);
-    VisionTrack_DebugAppendString(",curveDir=");
-    VisionTrack_DebugAppendI32((int32_t)s_curveDirectionLock);
-    VisionTrack_DebugAppendString(",curveRevOk=");
-    VisionTrack_DebugAppendU32((uint32_t)s_curveReverseAllowed);
     VisionTrack_DebugAppendString(",degradedFrames=");
     VisionTrack_DebugAppendU32((uint32_t)s_degradedFrameStreak);
     VisionTrack_DebugAppendString(",turnFlips=");
@@ -917,8 +816,6 @@ void App_VisionTrack_Task10ms(void)
     uint8_t transportOk;
     uint8_t frameUsable;
     uint8_t controlDegraded;
-    uint8_t curveActive;
-    uint8_t curveReverseAllowed;
     int16_t eyControl;
     int16_t eaControl;
     float turnCandidate;
@@ -1090,41 +987,19 @@ void App_VisionTrack_Task10ms(void)
             VISION_TRACK_ACCEL_STEP_CMPS,
             VISION_TRACK_DECEL_STEP_CMPS);
 
-        curveActive = ((s_curveHoldFrames > 0U) ||
-            (s_severity >= VISION_TRACK_CURVE_TRIGGER_SEVERITY)) ? 1U : 0U;
-        curveReverseAllowed = s_curveReverseAllowed;
-        if (isNewSeq)
-        {
-            curveReverseAllowed = 0U;
-            if ((!controlDegraded) &&
-                s_curFrame.leftBoundaryValid &&
-                s_curFrame.rightBoundaryValid &&
-                (s_curFrame.confidence >= VISION_TRACK_TRUSTED_CONFIDENCE) &&
-                (VisionTrack_AbsFloat(s_filteredEyControl) >=
-                    VISION_TRACK_CURVE_REVERSE_EY_DECI_MM))
-            {
-                curveReverseAllowed = 1U;
-            }
-            s_curveReverseAllowed = curveReverseAllowed;
-        }
-
         if (isNewSeq)
         {
             VisionTrack_UpdateTurnCommand(turnCandidate,
                                            controlDegraded,
                                            1U,
-                                           s_forwardCmdFiltered,
-                                           curveActive,
-                                           curveReverseAllowed);
+                                           s_forwardCmdFiltered);
         }
         else
         {
             VisionTrack_UpdateTurnCommand(s_turnTarget,
                                            0U,
                                            0U,
-                                           s_forwardCmdFiltered,
-                                           curveActive,
-                                           0U);
+                                           s_forwardCmdFiltered);
         }
 
         VisionTrack_ApplyMotorCommand();
