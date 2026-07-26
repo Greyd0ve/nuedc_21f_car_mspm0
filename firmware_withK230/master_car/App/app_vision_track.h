@@ -43,13 +43,13 @@
 
 /*
  * In rear-camera / reversed-heading mode, K230 observes the road at a point
- * about 100 mm ahead of the drive-axle midpoint in the new forward direction.
+ * about 150 mm ahead of the drive-axle midpoint in the new forward direction.
  * Control the axle midpoint itself, so the image tangent is not treated as an
  * immediate car-body cross-track error.  The linear small-angle projection is
  * bounded for sharp turns and is used only with a confident, full-boundary
  * frame.
  */
-#define VISION_TRACK_CAMERA_LOOKAHEAD_MM       100.0f
+#define VISION_TRACK_CAMERA_LOOKAHEAD_MM       150.0f
 #define VISION_TRACK_VIRTUAL_LOOKAHEAD_MM        0.0f
 /* K230: heading < 0 means the road advances toward image left. */
 #define VISION_TRACK_PREVIEW_HEADING_SIGN       -1.0f
