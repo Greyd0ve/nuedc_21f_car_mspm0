@@ -3,10 +3,10 @@
 
 #include <stdint.h>
 
-#define VISION_TRACK_MAX_SPEED_CMPS          11.0f
-#define VISION_TRACK_MIN_SPEED_CMPS           6.0f
+#define VISION_TRACK_MAX_SPEED_CMPS          13.0f
+#define VISION_TRACK_MIN_SPEED_CMPS           7.0f
 #define VISION_TRACK_DEGRADED_SPEED_CMPS      4.5f
-#define VISION_TRACK_CURVE_HOLD_SPEED_CMPS    8.5f
+#define VISION_TRACK_CURVE_HOLD_SPEED_CMPS   10.0f
 
 /*
  * Normal visual tracking uses forward +/- turn wheel targets.  Retain a
@@ -85,9 +85,9 @@
 #define VISION_TRACK_DEGRADED_EA_DECAY        0.85f
 #define VISION_TRACK_EY_JUMP_REJECT_DECI_MM  300.0f
 
-#define VISION_TRACK_DECEL_STEP_CMPS          0.50f
-#define VISION_TRACK_ACCEL_STEP_CMPS          0.25f
-#define VISION_TRACK_TURN_STEP_CMPS           0.25f
+#define VISION_TRACK_DECEL_STEP_CMPS          0.70f
+#define VISION_TRACK_ACCEL_STEP_CMPS          0.35f
+#define VISION_TRACK_TURN_STEP_CMPS           0.30f
 #define VISION_TRACK_TURN_DECAY_STEP_CMPS     0.35f
 #define VISION_TRACK_DEGRADED_TURN_STEP_CMPS  0.50f
 #define VISION_TRACK_TURN_REVERSAL_DEADBAND_CMPS 0.50f
