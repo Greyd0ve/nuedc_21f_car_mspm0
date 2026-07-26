@@ -56,6 +56,15 @@
 #define VISION_TRACK_HEADING_FULL_EY_DECI_MM  150.0f
 #define VISION_TRACK_HEADING_LOW_CONF_SCALE     0.35f
 
+/*
+ * Keep normal centering gain near the road centre.  On a deep bend, reduce
+ * the complete turn command smoothly instead of pulling the vehicle toward
+ * the inside of the curve with a large camera-preview error.
+ */
+#define VISION_TRACK_TURN_ATTENUATE_START_DECI_MM 100.0f
+#define VISION_TRACK_TURN_ATTENUATE_FULL_DECI_MM  250.0f
+#define VISION_TRACK_LARGE_ERROR_MIN_TURN_SCALE     0.50f
+
 #define VISION_TRACK_EY_FILTER_ALPHA          0.35f
 #define VISION_TRACK_EA_FILTER_ALPHA          0.25f
 #define VISION_TRACK_CURVE_EY_FILTER_ALPHA    0.22f

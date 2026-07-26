@@ -210,11 +210,38 @@ static void VisionTrack_UpdateBodyError(const VisionTrackFrame_t *frame,
     s_bodyEyControl = s_filteredEyControl - s_previewCompDeciMm;
 }
 
+static float VisionTrack_CalcLargeErrorTurnScale(float bodyEyControl)
+{
+    float ratio;
+    float smoothRatio;
+    float absEy = VisionTrack_AbsFloat(bodyEyControl);
+
+    if (absEy <= VISION_TRACK_TURN_ATTENUATE_START_DECI_MM)
+    {
+        return 1.0f;
+    }
+
+    if (absEy >= VISION_TRACK_TURN_ATTENUATE_FULL_DECI_MM)
+    {
+        return VISION_TRACK_LARGE_ERROR_MIN_TURN_SCALE;
+    }
+
+    ratio = (absEy - VISION_TRACK_TURN_ATTENUATE_START_DECI_MM) /
+        (VISION_TRACK_TURN_ATTENUATE_FULL_DECI_MM -
+         VISION_TRACK_TURN_ATTENUATE_START_DECI_MM);
+    /* Smoothstep avoids a gain corner when the vehicle enters a deep bend. */
+    smoothRatio = ratio * ratio * (3.0f - 2.0f * ratio);
+
+    return 1.0f - (1.0f - VISION_TRACK_LARGE_ERROR_MIN_TURN_SCALE) *
+        smoothRatio;
+}
+
 static float VisionTrack_CalcTurnCandidate(float dEy, uint8_t confidence)
 {
     float maxOpposingEa;
     float headingControl;
     float eyRatio;
+    float largeErrorTurnScale;
     float turnCandidate;
 
     s_turnEy = VISION_TRACK_TURN_SIGN * VISION_TRACK_KY *
@@ -261,6 +288,9 @@ static float VisionTrack_CalcTurnCandidate(float dEy, uint8_t confidence)
     }
 
     turnCandidate = s_turnEy + s_turnEa + s_turnD;
+    largeErrorTurnScale = VisionTrack_CalcLargeErrorTurnScale(
+        s_bodyEyControl);
+    turnCandidate *= largeErrorTurnScale;
     return VisionTrack_LimitFloat(turnCandidate,
                                   -VISION_TRACK_TURN_LIMIT_CMPS,
                                   VISION_TRACK_TURN_LIMIT_CMPS);
