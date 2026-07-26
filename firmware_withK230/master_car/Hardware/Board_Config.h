@@ -13,9 +13,11 @@
 /*
  * ECAR_REAR_LINE_SENSOR_MODE:
  *   0 = original front sensor module layout;
- *   1 = rear sensor module layout, new heading is reversed.
- *       Original right wheel becomes logical left wheel,
- *       original left wheel becomes logical right wheel.
+ *   1 = rear-facing sensor/camera layout.  The camera view defines the new
+ *       vehicle front, so the vehicle coordinate frame is rotated 180 deg.
+ *       Original right wheel becomes logical left wheel and original left
+ *       wheel becomes logical right wheel; positive logical wheel speed
+ *       drives the vehicle toward the camera-view forward direction.
  */
 #ifndef ECAR_REAR_LINE_SENSOR_MODE
 #define ECAR_REAR_LINE_SENSOR_MODE 1U
