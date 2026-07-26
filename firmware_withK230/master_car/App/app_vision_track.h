@@ -3,10 +3,17 @@
 
 #include <stdint.h>
 
-#define VISION_TRACK_MAX_SPEED_CMPS           7.5f
-#define VISION_TRACK_MIN_SPEED_CMPS           4.5f
+#define VISION_TRACK_MAX_SPEED_CMPS           8.0f
+#define VISION_TRACK_MIN_SPEED_CMPS           5.0f
 #define VISION_TRACK_DEGRADED_SPEED_CMPS      4.5f
-#define VISION_TRACK_CURVE_HOLD_SPEED_CMPS    5.2f
+#define VISION_TRACK_CURVE_HOLD_SPEED_CMPS    6.0f
+
+/*
+ * Normal visual tracking uses forward +/- turn wheel targets.  Retain a
+ * meaningful rolling target for the inside wheel, so a broad curve remains
+ * a continuous arc instead of becoming a one-wheel pivot correction.
+ */
+#define VISION_TRACK_MIN_INNER_WHEEL_SPEED_CMPS 3.0f
 
 /*
  * Controller input units:
@@ -28,8 +35,8 @@
 #define VISION_TRACK_TURN_SIGN               (+1.0f)
 #define VISION_TRACK_HEADING_SIGN            (+1.0f)
 
-#define VISION_TRACK_EY_FULL_SLOW_MM         30.0f
-#define VISION_TRACK_EA_FULL_SLOW_DEG         8.0f
+#define VISION_TRACK_EY_FULL_SLOW_MM         40.0f
+#define VISION_TRACK_EA_FULL_SLOW_DEG        10.0f
 #define VISION_TRACK_EY_DECI_MM_TO_MM         0.1f
 #define VISION_TRACK_EA_CENTI_DEG_TO_DEG     0.01f
 #define VISION_TRACK_EA_DECI_DEG_TO_DEG       0.1f
@@ -77,9 +84,9 @@
 #define VISION_TRACK_DEGRADED_EA_DECAY        0.85f
 #define VISION_TRACK_EY_JUMP_REJECT_DECI_MM  300.0f
 
-#define VISION_TRACK_DECEL_STEP_CMPS          0.5f
+#define VISION_TRACK_DECEL_STEP_CMPS          0.30f
 #define VISION_TRACK_ACCEL_STEP_CMPS          0.15f
-#define VISION_TRACK_TURN_STEP_CMPS           0.25f
+#define VISION_TRACK_TURN_STEP_CMPS           0.18f
 #define VISION_TRACK_TURN_DECAY_STEP_CMPS     0.35f
 #define VISION_TRACK_DEGRADED_TURN_STEP_CMPS  0.50f
 #define VISION_TRACK_TURN_REVERSAL_DEADBAND_CMPS 0.50f
@@ -91,8 +98,8 @@
 #define VISION_TRACK_CURVE_REVERSE_EY_DECI_MM 250.0f
 #define VISION_TRACK_CURVE_LOCK_HOLD_TURN_CMPS 0.60f
 
-#define VISION_TRACK_CURVE_HOLD_FRAMES       12U
-#define VISION_TRACK_CURVE_RELEASE_SEVERITY   0.25f
+#define VISION_TRACK_CURVE_HOLD_FRAMES        8U
+#define VISION_TRACK_CURVE_RELEASE_SEVERITY   0.35f
 #define VISION_TRACK_CURVE_TRIGGER_SEVERITY   0.70f
 #define VISION_TRACK_TRUSTED_CONFIDENCE       80U
 

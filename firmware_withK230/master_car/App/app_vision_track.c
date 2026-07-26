@@ -85,6 +85,21 @@ static float VisionTrack_MaxFloat(float a, float b)
     return (a >= b) ? a : b;
 }
 
+static float VisionTrack_CalcTurnLimit(float forwardSpeed)
+{
+    float innerSpeed;
+
+    forwardSpeed = VisionTrack_LimitFloat(forwardSpeed,
+                                          0.0f,
+                                          VISION_TRACK_TURN_LIMIT_CMPS);
+    innerSpeed = VisionTrack_LimitFloat(
+        VISION_TRACK_MIN_INNER_WHEEL_SPEED_CMPS,
+        0.0f,
+        forwardSpeed);
+
+    return forwardSpeed - innerSpeed;
+}
+
 static float VisionTrack_MoveToward(float current,
                                      float target,
                                      float upStep,
@@ -423,9 +438,7 @@ static void VisionTrack_UpdateTurnCommand(float requestedTurn,
             requestedTurn,
             -VISION_TRACK_TURN_LIMIT_CMPS,
             VISION_TRACK_TURN_LIMIT_CMPS);
-        forwardLimit = VisionTrack_LimitFloat(forwardLimit,
-                                               0.0f,
-                                               VISION_TRACK_TURN_LIMIT_CMPS);
+        forwardLimit = VisionTrack_CalcTurnLimit(forwardLimit);
         requestedTurn = VisionTrack_LimitFloat(requestedTurn,
                                                 -forwardLimit,
                                                 forwardLimit);
@@ -658,9 +671,15 @@ static void VisionTrack_ApplyMotorCommand(void)
         -VISION_TRACK_TURN_LIMIT_CMPS,
         VISION_TRACK_TURN_LIMIT_CMPS);
 
-    /* Normal RUN never allows the inside wheel target to become negative. */
+    /*
+     * Normal RUN retains a rolling inside wheel.  This is stricter than the
+     * old no-reverse-only limit and prevents a broad curve from degrading
+     * into an abrupt one-wheel pivot.
+     */
     s_turnCmd = VisionTrack_LimitFloat(
-        s_turnCmd, -s_forwardCmdFiltered, s_forwardCmdFiltered);
+        s_turnCmd,
+        -VisionTrack_CalcTurnLimit(s_forwardCmdFiltered),
+        VisionTrack_CalcTurnLimit(s_forwardCmdFiltered));
 
     s_leftTarget = s_forwardCmdFiltered - s_turnCmd;
     s_rightTarget = s_forwardCmdFiltered + s_turnCmd;
