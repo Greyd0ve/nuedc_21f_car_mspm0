@@ -20,11 +20,13 @@
 #define VISION_TRACK_TURN_LIMIT_CMPS         10.0f
 
 /*
- * K230 positive ey/ea means the road is to the right.  MSPM0 positive turn
- * makes the right wheel faster and steers left, so the translation is -1.
+ * K230 positive ey/ea means the road is to the right.  In the current
+ * rear-camera motor mapping, a positive turn makes the car steer right.
+ * Keep the visual error and differential-drive correction in the same
+ * direction: road right -> steer right; road left -> steer left.
  */
-#define VISION_TRACK_TURN_SIGN               -1.0f
-#define VISION_TRACK_HEADING_SIGN            -1.0f
+#define VISION_TRACK_TURN_SIGN               (+1.0f)
+#define VISION_TRACK_HEADING_SIGN            (+1.0f)
 
 #define VISION_TRACK_EY_FULL_SLOW_MM         30.0f
 #define VISION_TRACK_EA_FULL_SLOW_DEG         8.0f
