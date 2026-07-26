@@ -40,7 +40,8 @@
  */
 #define VISION_TRACK_CAMERA_LOOKAHEAD_MM       200.0f
 #define VISION_TRACK_VIRTUAL_LOOKAHEAD_MM      100.0f
-#define VISION_TRACK_PREVIEW_HEADING_SIGN        1.0f
+/* K230: heading < 0 means the road advances toward image left. */
+#define VISION_TRACK_PREVIEW_HEADING_SIGN       -1.0f
 #define VISION_TRACK_PREVIEW_RAD_PER_DECI_DEG 0.00174533f
 #define VISION_TRACK_PREVIEW_MAX_COMP_MM        30.0f
 #define VISION_TRACK_PREVIEW_EA_LIMIT_DEG       15.0f
@@ -73,6 +74,7 @@
 
 #define VISION_TRACK_CURVE_DIRECTION_LOCK_FRAMES 3U
 #define VISION_TRACK_CURVE_REVERSE_CONFIRM_FRAMES 6U
+/* Reverse only after a reliable, raw camera cross-track displacement. */
 #define VISION_TRACK_CURVE_REVERSE_EY_DECI_MM 250.0f
 #define VISION_TRACK_CURVE_LOCK_HOLD_TURN_CMPS 0.60f
 
