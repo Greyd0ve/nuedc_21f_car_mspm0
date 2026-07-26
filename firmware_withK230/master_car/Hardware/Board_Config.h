@@ -184,12 +184,14 @@
 #define ENC_R_B_PIN                     GPIO_ENCODER_L_B_PIN
 
 /*
- * Verify by pushing car toward new front:
+ * With the rear-camera motor polarity below, pushing the car toward the
+ * camera-view front must produce positive logical wheel speed.
+ * Verify:
  * g_leftEncoderDelta > 0, g_rightEncoderDelta > 0,
  * g_forwardEncoderTotal increases.
  */
-#define LEFT_ENCODER_DIR                (-1)
-#define RIGHT_ENCODER_DIR               (+1)
+#define LEFT_ENCODER_DIR                (+1)
+#define RIGHT_ENCODER_DIR               (-1)
 
 #else
 

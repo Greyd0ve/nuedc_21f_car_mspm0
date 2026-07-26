@@ -191,7 +191,12 @@ static void VisionTrack_UpdateBodyError(const VisionTrackFrame_t *frame,
     float previewCompTarget;
     float previewDistance;
 
-    previewCompTarget = 0.0f;
+    /*
+     * Heading is unavailable in a one-boundary/degraded frame.  Keep the
+     * previous geometric compensation instead of snapping the virtual point
+     * back to the camera centre for one frame.
+     */
+    previewCompTarget = s_previewCompDeciMm;
 
     if ((!degraded) &&
         (frame->confidence >= VISION_TRACK_TRUSTED_CONFIDENCE))
