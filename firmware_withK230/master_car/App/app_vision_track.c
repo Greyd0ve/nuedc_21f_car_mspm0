@@ -540,12 +540,26 @@ static float VisionTrack_CalcSeverity(float eyControl,
 
 static float VisionTrack_CalcForwardTarget(float severity,
                                            uint8_t degraded,
-                                           uint8_t curveHoldFrames)
+                                           uint8_t curveHoldFrames,
+                                           uint8_t degradedFrameStreak)
 {
     float target;
 
     if (degraded)
     {
+        /*
+         * A single trusted one-boundary frame is common on a bend.  Avoid an
+         * immediate high-speed-to-crawl transition, but return to the safe
+         * degraded speed when that condition persists.
+         */
+        if (degradedFrameStreak <= VISION_TRACK_DEGRADED_GRACE_FRAMES)
+        {
+            return VisionTrack_LimitFloat(
+                VISION_TRACK_DEGRADED_GRACE_SPEED_CMPS,
+                VISION_TRACK_DEGRADED_SPEED_CMPS,
+                VISION_TRACK_MAX_SPEED_CMPS);
+        }
+
         return VisionTrack_LimitFloat(VISION_TRACK_DEGRADED_SPEED_CMPS,
                                       0.0f,
                                       VISION_TRACK_MAX_SPEED_CMPS);
@@ -1051,11 +1065,6 @@ void App_VisionTrack_Task10ms(void)
             VisionTrack_UpdateCurveHold(&s_curFrame,
                                         s_severity,
                                         controlDegraded);
-            s_forwardTarget = VisionTrack_CalcForwardTarget(
-                s_severity,
-                controlDegraded,
-                s_curveHoldFrames);
-
             if (controlDegraded)
             {
                 if (s_degradedFrameStreak < 0xFFU)
@@ -1067,6 +1076,12 @@ void App_VisionTrack_Task10ms(void)
             {
                 s_degradedFrameStreak = 0U;
             }
+
+            s_forwardTarget = VisionTrack_CalcForwardTarget(
+                s_severity,
+                controlDegraded,
+                s_curveHoldFrames,
+                s_degradedFrameStreak);
         }
 
         s_forwardCmdFiltered = VisionTrack_MoveToward(

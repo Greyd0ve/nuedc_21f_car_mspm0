@@ -13,9 +13,9 @@
 
 /* Motor speed closed-loop tuning. */
 #define TUNE_SPEED_FILTER_ALPHA             0.20f
-#define TUNE_PWM_SLEW_STEP                  10
+#define TUNE_PWM_SLEW_STEP                  15
 
-#define TUNE_SPEED_PI_KP                    1.2f
+#define TUNE_SPEED_PI_KP                    1.5f
 #define TUNE_SPEED_PI_KI                    0.08f
 #define TUNE_SPEED_I_LIMIT                  45.0f
 #define TUNE_WHEEL_TARGET_LIMIT_CMPS        80.0f
@@ -30,7 +30,7 @@
 #define TUNE_SPEED_FF_DEAD_BAND_CMPS        0.5f
 #define TUNE_SPEED_FF_LOW_RAMP_END_CMPS     4.5f
 #define TUNE_SPEED_OVERSPEED_MARGIN_CMPS    1.0f
-#define TUNE_SPEED_OVERSPEED_CUT_PWM_PER_CMPS 7.0f
+#define TUNE_SPEED_OVERSPEED_CUT_PWM_PER_CMPS 12.0f
 #define TUNE_SPEED_FF_BREAK_CMPS            15.0f
 #define TUNE_SPEED_FF_LOW_BASE_PWM          135.0f
 #define TUNE_SPEED_FF_LOW_K                 1.7f
