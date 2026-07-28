@@ -228,6 +228,17 @@ UART2.enabledInterrupts        = ["RX"];
 UART2.peripheral.txPin.$assign = "PA0";
 UART2.peripheral.rxPin.$assign = "PA1";
 
+const UART_JY = UART.addInstance();
+UART_JY.$name                    = "UART_JY61P";
+UART_JY.profile                  = "CONFIG_PROFILE_1";
+UART_JY.peripheral.$assign       = "UART2";
+UART_JY.targetBaudRate           = 9600;
+UART_JY.enableInternalLoopback   = false;
+UART_JY.enableFIFO               = false;
+UART_JY.enabledInterrupts        = ["RX"];
+UART_JY.peripheral.txPin.$assign = "PA23";
+UART_JY.peripheral.rxPin.$assign = "PA24";
+
 I2C1.$name                     = "I2C_SHARED";
 I2C1.basicEnableController     = true;
 I2C1.basicControllerBusSpeed   = 100000;

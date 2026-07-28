@@ -543,9 +543,29 @@
               <FilePath>..\Hardware\NRF24L01.c</FilePath>
             </File>
             <File>
+              <FileName>JY61P.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\JY61P.c</FilePath>
+            </File>
+            <File>
+              <FileName>JY61P_Serial.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\JY61P_Serial.c</FilePath>
+            </File>
+            <File>
               <FileName>Board_Config.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Hardware\Board_Config.h</FilePath>
+            </File>
+            <File>
+              <FileName>JY61P.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\JY61P.h</FilePath>
+            </File>
+            <File>
+              <FileName>JY61P_Serial.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\JY61P_Serial.h</FilePath>
             </File>
           </Files>
         </Group>

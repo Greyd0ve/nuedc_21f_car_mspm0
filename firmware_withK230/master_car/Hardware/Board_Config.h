@@ -376,13 +376,18 @@
 #define SERVO4_PWM                      SERVO4_PWM_CC_INDEX
 
 /* ---------------- UARTs ----------------
- * UART_DEBUG  = UART1, PB6/PB7, 9600   for debug/bluetooth.
- * UART_K230   = UART0, PA0/PA1, 115200 for K230 vision.
- * UART2 (PA23/PA24) is unused.
+ * UART_DEBUG  = UART1, PB6/PB7, 9600    for debug/HC-04 BLE.
+ * UART_K230   = UART0, PA0/PA1, 460800  for K230 vision.
+ * UART_JY61P  = UART2, PA23/PA24, 9600  for JY61P IMU.
  */
 #define SERIAL_UART_INST                UART_K230_INST
 #define SERIAL_UART_IRQN                UART_K230_INST_INT_IRQN
 #define SERIAL_BAUD_RATE                UART_K230_BAUD_RATE
+
+#define JY61P_UART_INST                 UART_JY61P_INST
+#define JY61P_UART_IRQN                 UART_JY61P_INST_INT_IRQN
+#define JY61P_UART_BAUD_RATE            UART_JY61P_BAUD_RATE
+#define JY61P_UART_IRQHandler           UART_JY61P_INST_IRQHandler
 
 /* ---------------- System tick ---------------- */
 #define SYSTEM_TIMER_INST               TIMER_SYS_INST
