@@ -28,10 +28,6 @@ static uint8_t s_rxHead = 0U;
 static uint8_t s_rxTail = 0U;
 static uint8_t s_rxCount = 0U;
 
-#if CAR_ROLE_SLAVE
-static uint8_t s_savedTargetRoom = 0U;
-#endif
-
 static const uint8_t *Radio_GetLocalAddress(void)
 {
 #if CAR_ROLE_MASTER
@@ -71,7 +67,7 @@ static uint8_t Radio_GetPeerId(void)
 static uint8_t Radio_ComputeChecksum(const RadioPacket_t *pkt)
 {
     return (uint8_t)(pkt->header ^ pkt->sender_id ^ pkt->target_id
-        ^ pkt->cmd ^ pkt->room_id ^ pkt->seq ^ pkt->reserved);
+        ^ pkt->cmd ^ pkt->value ^ pkt->seq ^ pkt->reserved);
 }
 
 static void Radio_ClearQueue(void)
@@ -101,11 +97,7 @@ static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
     if (pkt->target_id != 1U) return 0U;
     if (pkt->cmd == RADIO_CMD_PONG)
     {
-        if (pkt->room_id == 0U) return 0U;
-    }
-    else if (pkt->cmd == RADIO_CMD_SLAVE_AT_WAIT)
-    {
-        if (pkt->room_id != 3U && pkt->room_id != 4U) return 0U;
+        if (pkt->value == 0U) return 0U;
     }
     else
     {
@@ -118,14 +110,7 @@ static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
     switch (pkt->cmd)
     {
     case RADIO_CMD_PING:
-        if (pkt->room_id == 0U) return 0U;
-        break;
-    case RADIO_CMD_TARGET_ROOM:
-        if (pkt->room_id < 1U || pkt->room_id > 8U) return 0U;
-        break;
-    case RADIO_CMD_SLAVE_START:
-    case RADIO_CMD_SLAVE_RELEASE:
-        if (pkt->room_id != 3U && pkt->room_id != 4U) return 0U;
+        if (pkt->value == 0U) return 0U;
         break;
     default:
         return 0U;
@@ -137,30 +122,19 @@ static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
     return 1U;
 }
 
-static uint8_t Radio_IsSendAllowed(uint8_t cmd, uint8_t room)
+static uint8_t Radio_IsSendAllowed(uint8_t cmd, uint8_t value)
 {
 #if CAR_ROLE_MASTER
-    switch (cmd)
-    {
-    case RADIO_CMD_TARGET_ROOM:
-        return (room >= 1U && room <= 8U) ? 1U : 0U;
-    case RADIO_CMD_SLAVE_START:
-    case RADIO_CMD_SLAVE_RELEASE:
-        return (room == 3U || room == 4U) ? 1U : 0U;
-    case RADIO_CMD_PING:
+    if (cmd == RADIO_CMD_PING)
         return 1U;
-    default:
-        return 0U;
-    }
+    return 0U;
 #elif CAR_ROLE_SLAVE
-    if (cmd == RADIO_CMD_SLAVE_AT_WAIT)
-        return (room == 3U || room == 4U) ? 1U : 0U;
     if (cmd == RADIO_CMD_PONG)
         return 1U;
     return 0U;
 #else
     (void)cmd;
-    (void)room;
+    (void)value;
     return 0U;
 #endif
 }
@@ -179,7 +153,7 @@ static uint8_t Radio_PushCommand(const RadioPacket_t *pkt)
     slot->sender_id = pkt->sender_id;
     slot->target_id = pkt->target_id;
     slot->cmd = pkt->cmd;
-    slot->room_id = pkt->room_id;
+    slot->value = pkt->value;
     slot->seq = pkt->seq;
 
     s_rxHead++;
@@ -224,19 +198,19 @@ void App_Radio_Init(void)
     RADIO_PRINTF("[radio,init,ok]\r\n");
 }
 
-static uint8_t Radio_SendCommand(uint8_t cmd, uint8_t room)
+static uint8_t Radio_SendCommand(uint8_t cmd, uint8_t value)
 {
     RadioPacket_t pkt;
     uint8_t ok;
 
     if (!s_radioReady) return 0U;
-    if (!Radio_IsSendAllowed(cmd, room)) return 0U;
+    if (!Radio_IsSendAllowed(cmd, value)) return 0U;
 
     pkt.header    = RADIO_HEADER;
     pkt.sender_id = Radio_GetLocalId();
     pkt.target_id = Radio_GetPeerId();
     pkt.cmd       = cmd;
-    pkt.room_id   = room;
+    pkt.value     = value;
     pkt.seq       = s_seq++;
     pkt.reserved  = 0U;
     pkt.checksum  = Radio_ComputeChecksum(&pkt);
@@ -249,33 +223,18 @@ static uint8_t Radio_SendCommand(uint8_t cmd, uint8_t room)
 
     Radio_RestoreLocalRxMode();
 
-    RADIO_PRINTF("[radio,tx,cmd=%u,room=%u,%s]\r\n",
-        (unsigned int)cmd, (unsigned int)room, ok ? "ack" : "fail");
+    RADIO_PRINTF("[radio,tx,cmd=%u,value=%u,%s]\r\n",
+        (unsigned int)cmd, (unsigned int)value, ok ? "ack" : "fail");
 
     return ok;
 }
 
+uint8_t App_Radio_SendCommand(uint8_t cmd, uint8_t value)
+{
+    return Radio_SendCommand(cmd, value);
+}
+
 #if CAR_ROLE_MASTER
-uint8_t App_Radio_SendCommand(uint8_t cmd, uint8_t room)
-{
-    return Radio_SendCommand(cmd, room);
-}
-
-uint8_t App_Radio_SendTargetRoom(uint8_t room)
-{
-    return Radio_SendCommand(RADIO_CMD_TARGET_ROOM, room);
-}
-
-uint8_t App_Radio_SendSlaveStart(uint8_t room)
-{
-    return Radio_SendCommand(RADIO_CMD_SLAVE_START, room);
-}
-
-uint8_t App_Radio_SendSlaveRelease(uint8_t room)
-{
-    return Radio_SendCommand(RADIO_CMD_SLAVE_RELEASE, room);
-}
-
 uint8_t App_Radio_SendPing(uint8_t token)
 {
     return Radio_SendCommand(RADIO_CMD_PING, token);
@@ -283,11 +242,6 @@ uint8_t App_Radio_SendPing(uint8_t token)
 #endif
 
 #if CAR_ROLE_SLAVE
-uint8_t App_Radio_SendSlaveAtWait(uint8_t room)
-{
-    return Radio_SendCommand(RADIO_CMD_SLAVE_AT_WAIT, room);
-}
-
 uint8_t App_Radio_SendPong(uint8_t token)
 {
     return Radio_SendCommand(RADIO_CMD_PONG, token);
@@ -320,32 +274,6 @@ uint8_t App_Radio_IsReady(void)
     return s_radioReady;
 }
 
-#if CAR_ROLE_SLAVE
-uint8_t App_Radio_HasNewTarget(uint8_t *room)
-{
-    AppRadioCommand_t cmd;
-
-    if (!App_Radio_PopCommand(&cmd))
-    {
-        return 0U;
-    }
-
-    if (cmd.cmd != RADIO_CMD_TARGET_ROOM)
-    {
-        return 0U;
-    }
-
-    s_savedTargetRoom = cmd.room_id;
-    if (room) *room = cmd.room_id;
-    return 1U;
-}
-
-uint8_t App_Radio_GetSavedTargetRoom(void)
-{
-    return s_savedTargetRoom;
-}
-#endif
-
 void App_Radio_Task10ms(void)
 {
     RadioPacket_t pkt;
@@ -365,15 +293,8 @@ void App_Radio_Task10ms(void)
 
         if (Radio_PushCommand(&pkt))
         {
-#if CAR_ROLE_SLAVE
-            if (pkt.cmd == RADIO_CMD_TARGET_ROOM)
-            {
-                s_savedTargetRoom = pkt.room_id;
-            }
-#endif
-
-            RADIO_PRINTF("[radio,rx,cmd=%u,room=%u]\r\n",
-                (unsigned int)pkt.cmd, (unsigned int)pkt.room_id);
+            RADIO_PRINTF("[radio,rx,cmd=%u,value=%u]\r\n",
+                (unsigned int)pkt.cmd, (unsigned int)pkt.value);
         }
     }
 }

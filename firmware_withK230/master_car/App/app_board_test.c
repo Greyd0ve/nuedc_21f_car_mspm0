@@ -89,32 +89,32 @@ void BoardTest_Task10ms(void)
     while (App_Radio_PopCommand(&cmd))
     {
 #if CAR_ROLE_MASTER
-        if (cmd.cmd == RADIO_CMD_PONG && cmd.room_id != 0U)
+        if (cmd.cmd == RADIO_CMD_PONG && cmd.value != 0U)
         {
-            if (s_waitPong && cmd.room_id == s_pendingToken)
+            if (s_waitPong && cmd.value == s_pendingToken)
             {
                 s_pongCount++;
                 s_lastRttMs = s_testMs - s_pongStartMs;
                 s_waitPong = 0U;
                 DebugSerial_Printf("[radio-test,master,rx,pong,token=%u,rtt_ms=%u,ok]\r\n",
-                    (unsigned int)cmd.room_id, (unsigned int)s_lastRttMs);
+                    (unsigned int)cmd.value, (unsigned int)s_lastRttMs);
             }
             else
             {
                 s_unexpectedCount++;
                 DebugSerial_Printf("[radio-test,master,rx,pong,token=%u,expected=%u,unexpected]\r\n",
-                    (unsigned int)cmd.room_id, (unsigned int)s_pendingToken);
+                    (unsigned int)cmd.value, (unsigned int)s_pendingToken);
             }
         }
         else
         {
             DebugSerial_Printf("[radio-test,master,ignore,cmd=%u,value=%u]\r\n",
-                (unsigned int)cmd.cmd, (unsigned int)cmd.room_id);
+                (unsigned int)cmd.cmd, (unsigned int)cmd.value);
         }
 #elif CAR_ROLE_SLAVE
-        if (cmd.cmd == RADIO_CMD_PING && cmd.room_id != 0U)
+        if (cmd.cmd == RADIO_CMD_PING && cmd.value != 0U)
         {
-            uint8_t token = cmd.room_id;
+            uint8_t token = cmd.value;
             s_pingRxCount++;
             DebugSerial_Printf("[radio-test,slave,rx,ping,token=%u]\r\n", (unsigned int)token);
 
@@ -132,7 +132,7 @@ void BoardTest_Task10ms(void)
         else
         {
             DebugSerial_Printf("[radio-test,slave,ignore,cmd=%u,value=%u]\r\n",
-                (unsigned int)cmd.cmd, (unsigned int)cmd.room_id);
+                (unsigned int)cmd.cmd, (unsigned int)cmd.value);
         }
 #endif
     }

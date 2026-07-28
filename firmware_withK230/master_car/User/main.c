@@ -2,9 +2,6 @@
 #include "app_config.h"
 #include "app_board_test.h"
 #include "app_car_base.h"
-#include "app_21f_car.h"
-#include "app_coop.h"
-#include "app_task_mode.h"
 #include "app_radio.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -162,7 +159,7 @@ int main(void)
         }
     }
 
-#else
+#elif ECAR_BOARD_TEST_MODE
 
     Key_Init();
     Grayscale_Init();
@@ -170,39 +167,23 @@ int main(void)
     Motor_StopAll();
     Encoder_Init();
     BeepLed_Init();
-#if ENABLE_K230
-    Serial_Init();
-#endif
     DebugSerial_Init();
     Servo_Init();
     CarBase_Init();
-    F21Car_Init();
-    F21Coop_Init();
-    App_TaskMode_Init();
+
+#if ECAR_TEST_RADIO_ENABLE
+    Serial_Init();
     App_Radio_Init();
+#endif
 
 #if CAR_OLED_ENABLE
     OLED_Init();
     OLED_Clear();
 #endif
 
-#if CAR_BOARD_TEST_MODE
     BoardTest_Init();
-#else
-    App_Line_GPIOForceInit();
-#if CAR_OLED_ENABLE
-    F21Car_Task200ms();
-#endif
-#endif
 
     Timer_Init();
-
-#if !CAR_BOARD_TEST_MODE
-    DebugSerial_SendString("[boot,mode=normal-task]\r\n");
-    DebugSerial_Printf("[boot,board-test=%u]\r\n", (unsigned int)CAR_BOARD_TEST_MODE);
-    DebugSerial_Printf("[boot,radio-test=%u]\r\n", (unsigned int)CAR_TEST_RADIO_ENABLE);
-    DebugSerial_Printf("[boot,stepper-encoder-test=%u]\r\n", (unsigned int)CAR_TEST_STEPPER_ENCODER_ENABLE);
-#endif
 
     while (1)
     {
@@ -223,58 +204,75 @@ int main(void)
         }
         while (taskCount > 0U)
         {
-#if CAR_BOARD_TEST_MODE
             DebugSerial_Task10ms();
             BoardTest_Task10ms();
-#else
-            App_Radio_Task10ms();
-            DebugSerial_Task10ms();
-            if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
-            {
-                F21Car_Task10ms();
-            }
-            else
-            {
-                F21Coop_Task10ms();
-            }
-#endif
             taskCount--;
         }
 
-#if !CAR_BOARD_TEST_MODE
-        App_TaskMode_KeyProcess();
-#endif
-
         if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
         {
-#if CAR_BOARD_TEST_MODE
             BoardTest_Task100ms();
-#else
-            if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
-            {
-                F21Car_Task100ms();
-            }
-            else
-            {
-                F21Coop_Task100ms();
-            }
-#endif
         }
 
         if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
         {
-#if CAR_BOARD_TEST_MODE
             BoardTest_Task200ms();
+        }
+    }
+
 #else
-            if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
-            {
-                F21Car_Task200ms();
-            }
-            else
-            {
-                F21Coop_Task200ms();
-            }
+
+    Key_Init();
+    Grayscale_Init();
+    Motor_Init();
+    Motor_StopAll();
+    Encoder_Init();
+    BeepLed_Init();
+    DebugSerial_Init();
+    Servo_Init();
+    CarBase_Init();
+
+#if CAR_OLED_ENABLE
+    OLED_Init();
+    OLED_Clear();
 #endif
+
+    Timer_Init();
+
+    DebugSerial_SendString("[boot,mode=safe-idle]\r\n");
+
+    while (1)
+    {
+        uint8_t taskCount;
+
+        (void)Main_TakeTaskCounterAll(&g_task_1ms_count);
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
+        if (taskCount > 0U)
+        {
+            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
+        }
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
+        if (taskCount > 2U)
+        {
+            taskCount = 2U;
+        }
+        while (taskCount > 0U)
+        {
+            DebugSerial_Task10ms();
+            CarBase_Task10ms();
+            taskCount--;
+        }
+
+        if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
+        {
+            CarBase_Task100ms();
+        }
+
+        if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
+        {
+            CarBase_Task200ms();
         }
     }
 

@@ -7,7 +7,7 @@
 #include "Encoder.h"
 #include "Motor.h"
 #include "OLED.h"
-#include "Serial.h"
+#include "DebugSerial.h"
 #include <stdint.h>
 
 static volatile uint16_t s_promptTimer = 0U;
@@ -68,10 +68,10 @@ void CarBase_KeyProcess(void)
 void CarBase_Task100ms(void)
 {
 #if CAR_BASE_SERIAL_MONITOR_ENABLE
-    Serial_Printf("[base,state,idle]\r\n");
-    Serial_Printf("[base,enc,l=%ld,r=%ld]\r\n",
+    DebugSerial_Printf("[base,state,idle]\r\n");
+    DebugSerial_Printf("[base,enc,l=%ld,r=%ld]\r\n",
         (long)g_leftEncoderTotal, (long)g_rightEncoderTotal);
-    Serial_Printf("[base,line,valid=%u,err=%d,mask=%u]\r\n",
+    DebugSerial_Printf("[base,line,valid=%u,err=%d,mask=%u]\r\n",
         (unsigned int)g_lineValid, (int)g_lineError,
         (unsigned int)g_lineMask);
 #endif

@@ -14,11 +14,6 @@
 #define ECAR_ENCODER_MINIMAL_DEBUG              0
 #endif
 
-/* Safety switches. Keep remote start disabled unless deliberately enabled. */
-#ifndef ECAR_ENABLE_REMOTE_START
-#define ECAR_ENABLE_REMOTE_START                0
-#endif
-
 /* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
 #ifndef ECAR_BOARD_TEST_MODE
 #define ECAR_BOARD_TEST_MODE                    0
@@ -92,7 +87,7 @@
 
 /* CarBase template behaviour switches. */
 #ifndef CAR_BASE_SERIAL_MONITOR_ENABLE
-#define CAR_BASE_SERIAL_MONITOR_ENABLE          1
+#define CAR_BASE_SERIAL_MONITOR_ENABLE          0
 #endif
 #ifndef CAR_BASE_BOOT_PROMPT_ENABLE
 #define CAR_BASE_BOOT_PROMPT_ENABLE             0
@@ -152,11 +147,11 @@
 #define ECAR_ENCODER_PULSE_PER_REV             367.0f
 #define ECAR_CM_PER_PULSE                      (ECAR_WHEEL_CIRCUMFERENCE_CM / ECAR_ENCODER_PULSE_PER_REV)
 
-/* [legacy] E-topic square track nominal distance. */
+/* Nominal lap distance. */
 #define ECAR_LAP_DISTANCE_CM                    400.0f
 
 /*
- * [legacy] E-topic corner detection:
+ * Corner detection:
  * all-white (8-channel count == 0) for LOST_CONFIRM_MS triggers corner.
  */
 #define ECAR_CORNER_ADVANCE_CM                  4.0f
@@ -188,7 +183,7 @@
 /* Pure vision-only track mode (K230 24-byte binary protocol).
  * When 1: independent vision line-follow, no grayscale / NRF / F-topic tasks. */
 #ifndef ECAR_VISION_TRACK_MODE
-#define ECAR_VISION_TRACK_MODE                  1
+#define ECAR_VISION_TRACK_MODE                  0
 #endif
 
 /* Top-level execution mode mutual exclusion. */
