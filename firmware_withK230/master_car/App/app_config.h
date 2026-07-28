@@ -20,18 +20,6 @@
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
-#ifndef ECAR_TEST_MOTOR_ENABLE
-#define ECAR_TEST_MOTOR_ENABLE                  0
-#endif
-#ifndef ECAR_TEST_SERVO_ENABLE
-#define ECAR_TEST_SERVO_ENABLE                  0
-#endif
-#ifndef ECAR_TEST_BEEP_ENABLE
-#define ECAR_TEST_BEEP_ENABLE                   0
-#endif
-#ifndef ECAR_TEST_OLED_ENABLE
-#define ECAR_TEST_OLED_ENABLE                   0
-#endif
 #ifndef ECAR_TEST_RADIO_ENABLE
 #define ECAR_TEST_RADIO_ENABLE                  0
 #endif
@@ -99,6 +87,9 @@
 #ifndef CAR_ROLE_SLAVE
 #define CAR_ROLE_SLAVE                          0
 #endif
+#if ((CAR_ROLE_MASTER + CAR_ROLE_SLAVE) != 1)
+#error "Exactly one radio role must be enabled"
+#endif
 #ifndef CAR_ID
 #define CAR_ID                                  1
 #endif
@@ -116,7 +107,7 @@
 #define ECAR_OLED_ENABLE                        0
 #endif
 
-/* Cooperative task periods driven by the 1ms timer ISR. */
+/* Periodic task intervals driven by the 1ms timer ISR. */
 #ifndef ECAR_TASK_COUNT_MAX
 #define ECAR_TASK_COUNT_MAX                     5U
 #endif
@@ -180,8 +171,11 @@
 #define ECAR_BOARD_TEST_PWM_LIMIT               260
 #endif
 
-/* Pure vision-only track mode (K230 24-byte binary protocol).
- * When 1: independent vision line-follow, no grayscale / NRF / F-topic tasks. */
+/*
+ * Independent K230 vision tracking mode.
+ * When enabled, the main loop runs only the K230 vision link and
+ * vision tracking controller.
+ */
 #ifndef ECAR_VISION_TRACK_MODE
 #define ECAR_VISION_TRACK_MODE                  0
 #endif

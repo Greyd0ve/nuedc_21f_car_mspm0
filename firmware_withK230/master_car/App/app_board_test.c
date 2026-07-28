@@ -362,17 +362,35 @@ static const char *BoardTest_GetDiagnosis(const JY61P_Data_t *jdata,
 {
     if (irqCount == 0U && rxByteCount == 0U) return "no_uart_irq";
     if (irqCount > 0U && rxByteCount == 0U) return "irq_without_rx_data";
-    if (rxByteCount > 0U)
+
+    if (jdata->online == 0U)
     {
-        if (jdata->sync_error_count > 0U && jdata->angle_frame_count == 0U && jdata->gyro_frame_count == 0U)
-            return "baud_or_protocol_mismatch";
-        if (jdata->checksum_error_count > 0U && jdata->angle_frame_count == 0U && jdata->gyro_frame_count == 0U)
-            return "checksum_fail";
-        if (jdata->unsupported_frame_count > 0U && jdata->angle_frame_count == 0U && jdata->gyro_frame_count == 0U)
-            return "unsupported_frames_only";
-        if (jdata->angle_frame_count > 0U || jdata->gyro_frame_count > 0U)
-            return "receiving";
+        if (jdata->link_age_ms == JY61P_AGE_UNKNOWN_MS)
+            return "no_valid_frame";
+        return "offline";
     }
+
+    if (jdata->angle_valid == 0U && jdata->gyro_valid == 0U)
+        return "frames_stale";
+
+    if (jdata->angle_valid != 0U || jdata->gyro_valid != 0U)
+        return "receiving";
+
+    if (jdata->sync_error_count > 0U &&
+        jdata->angle_frame_count == 0U &&
+        jdata->gyro_frame_count == 0U)
+        return "baud_or_protocol_mismatch";
+
+    if (jdata->checksum_error_count > 0U &&
+        jdata->angle_frame_count == 0U &&
+        jdata->gyro_frame_count == 0U)
+        return "checksum_fail";
+
+    if (jdata->unsupported_frame_count > 0U &&
+        jdata->angle_frame_count == 0U &&
+        jdata->gyro_frame_count == 0U)
+        return "unsupported_frames_only";
+
     return "unknown";
 }
 

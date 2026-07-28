@@ -124,6 +124,11 @@ static uint8_t Radio_ValidatePacket(const RadioPacket_t *pkt)
 
 static uint8_t Radio_IsSendAllowed(uint8_t cmd, uint8_t value)
 {
+    if (value == 0U)
+    {
+        return 0U;
+    }
+
 #if CAR_ROLE_MASTER
     if (cmd == RADIO_CMD_PING)
         return 1U;
@@ -134,7 +139,6 @@ static uint8_t Radio_IsSendAllowed(uint8_t cmd, uint8_t value)
     return 0U;
 #else
     (void)cmd;
-    (void)value;
     return 0U;
 #endif
 }
@@ -165,6 +169,10 @@ static uint8_t Radio_PushCommand(const RadioPacket_t *pkt)
 
 void App_Radio_Init(void)
 {
+    s_radioReady = 0U;
+    s_seq = 0U;
+    Radio_ClearQueue();
+
     NRF24L01_Init();
 
     if (!NRF24L01_Check())
@@ -227,11 +235,6 @@ static uint8_t Radio_SendCommand(uint8_t cmd, uint8_t value)
         (unsigned int)cmd, (unsigned int)value, ok ? "ack" : "fail");
 
     return ok;
-}
-
-uint8_t App_Radio_SendCommand(uint8_t cmd, uint8_t value)
-{
-    return Radio_SendCommand(cmd, value);
 }
 
 #if CAR_ROLE_MASTER

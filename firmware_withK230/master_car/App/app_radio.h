@@ -8,7 +8,6 @@
 
 #define RADIO_CMD_PING           0x03U
 #define RADIO_CMD_PONG           0x04U
-#define RADIO_CMD_USER           0x10U
 
 typedef struct {
     uint8_t header;
@@ -37,7 +36,6 @@ void App_Radio_ClearPendingCommands(void);
 uint8_t App_Radio_IsReady(void);
 
 #if CAR_ROLE_MASTER
-uint8_t App_Radio_SendCommand(uint8_t cmd, uint8_t value);
 uint8_t App_Radio_SendPing(uint8_t token);
 #endif
 

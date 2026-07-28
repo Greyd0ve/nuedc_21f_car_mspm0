@@ -172,7 +172,6 @@ int main(void)
     CarBase_Init();
 
 #if ECAR_TEST_RADIO_ENABLE
-    Serial_Init();
     App_Radio_Init();
 #endif
 
