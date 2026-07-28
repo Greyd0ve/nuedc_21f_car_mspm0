@@ -3,33 +3,11 @@
 #include "Timer.h"
 #include <stdint.h>
 
-/*
- * WIT-motion JY61P serial protocol:
- *   Frame: 0x55 | frame_type(1) | data[8] | checksum(1)
- *   checksum = sum of first 10 bytes, low 8 bits
- *
- *   Type 0x52: wxL wxH wyL wyH wzL wzH TL TH  (angular velocity)
- *              The last data word is temperature.
- *   Type 0x53: RollL RollH PitchL PitchH YawL YawH VL VH  (angle)
- *              The last data word is a version/reserved field, depending on
- *              the module firmware; it is not temperature.
- *
- * Wire values are signed int16_t samples.  Convert them with the WIT standard
- * ranges: angle = raw / 32768 * 180 degrees and gyro = raw / 32768 * 2000 dps.
- * The driver exposes fixed-point 0.01 degree and 0.1 dps values.
- *
- * Baud rate: 9600 (JY61P default; verify with module manual).
- * Logic level: 3.3V compatible. If module outputs 5V UART, add level shifter.
- */
-
 #define JY61P_FRAME_LEN         11U
 #define JY61P_SYNC_BYTE         0x55U
 #define JY61P_FRAME_TYPE_GYRO   0x52U
 #define JY61P_FRAME_TYPE_ANGLE  0x53U
-/*
- * All freshness windows are far below 2^31 ms.  A larger wrap-safe elapsed
- * value therefore means that the timestamp is in the future or corrupted.
- */
+
 #define JY61P_MAX_VALID_AGE_MS  ((uint32_t)0x7FFFFFFFUL)
 
 typedef enum
@@ -56,6 +34,10 @@ static uint8_t s_initDone = 0U;
 
 static int32_t s_yawZeroOffsetX100 = 0;
 static uint8_t s_yawZeroValid = 0U;
+
+static uint8_t s_rawTrace[JY61P_RAW_TRACE_SIZE];
+static volatile uint8_t s_rawTraceIdx = 0U;
+static volatile uint8_t s_rawTraceCount = 0U;
 
 static int16_t JY61P_ReadInt16(const uint8_t *buf)
 {
@@ -274,6 +256,20 @@ static void JY61P_ProcessByte(uint8_t byte)
     }
 }
 
+static void JY61P_PushRawByte(uint8_t byte)
+{
+    s_rawTrace[s_rawTraceIdx] = byte;
+    s_rawTraceIdx++;
+    if (s_rawTraceIdx >= JY61P_RAW_TRACE_SIZE)
+    {
+        s_rawTraceIdx = 0U;
+    }
+    if (s_rawTraceCount < JY61P_RAW_TRACE_SIZE)
+    {
+        s_rawTraceCount++;
+    }
+}
+
 static uint8_t JY61P_CalculateAge(uint32_t now,
                                   uint8_t hasFrame,
                                   uint32_t timestamp,
@@ -344,6 +340,13 @@ void JY61P_Init(void)
     }
     JY61P_ResetParser();
 
+    for (i = 0U; i < JY61P_RAW_TRACE_SIZE; i++)
+    {
+        s_rawTrace[i] = 0U;
+    }
+    s_rawTraceIdx = 0U;
+    s_rawTraceCount = 0U;
+
     s_data.roll_x100 = 0;
     s_data.pitch_x100 = 0;
     s_data.yaw_x100 = 0;
@@ -401,6 +404,7 @@ void JY61P_Task10ms(void)
 
     while (Serial_ReadByte(&byte))
     {
+        JY61P_PushRawByte(byte);
         JY61P_ProcessByte(byte);
     }
 
@@ -465,4 +469,49 @@ uint8_t JY61P_GetData(JY61P_Data_t *data)
 uint8_t JY61P_IsOnline(void)
 {
     return s_data.online;
+}
+
+void JY61P_GetRawTrace(uint8_t *buf, uint8_t buf_size, uint8_t *valid_count)
+{
+    uint8_t count;
+    uint8_t start;
+    uint8_t i;
+
+    if (buf == 0 || buf_size == 0U || valid_count == 0)
+    {
+        if (valid_count != 0)
+        {
+            *valid_count = 0U;
+        }
+        return;
+    }
+
+    count = s_rawTraceCount;
+    if (count > buf_size)
+    {
+        count = buf_size;
+    }
+
+    if (count < JY61P_RAW_TRACE_SIZE)
+    {
+        for (i = 0U; i < count; i++)
+        {
+            buf[i] = s_rawTrace[i];
+        }
+    }
+    else
+    {
+        start = s_rawTraceIdx;
+        for (i = 0U; i < count; i++)
+        {
+            buf[i] = s_rawTrace[start];
+            start++;
+            if (start >= JY61P_RAW_TRACE_SIZE)
+            {
+                start = 0U;
+            }
+        }
+    }
+
+    *valid_count = count;
 }

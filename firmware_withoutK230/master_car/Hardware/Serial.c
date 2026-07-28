@@ -4,11 +4,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-#define SERIAL_RX_BUF_SIZE 512U /* 串口接收环形缓冲区大小，单位字节 */
+#define SERIAL_RX_BUF_SIZE 512U
 
-/* 中断驱动的 RX 环形缓冲区。
- * TX 保持阻塞发送，只允许前台短帧调用，不放入高频控制或定时器 ISR。
- */
 static volatile uint8_t s_rxBuf[SERIAL_RX_BUF_SIZE];
 static volatile uint16_t s_rxHead = 0U;
 static volatile uint16_t s_rxTail = 0U;
@@ -16,6 +13,13 @@ static volatile uint8_t s_rxFlag = 0U;
 static volatile uint8_t s_rxData = 0U;
 static volatile uint32_t s_rxOverflowCount = 0U;
 static volatile uint16_t s_rxHighWaterMark = 0U;
+
+static volatile uint32_t s_irqCount = 0U;
+static volatile uint32_t s_rxIrqCount = 0U;
+static volatile uint32_t s_otherIrqCount = 0U;
+static volatile uint32_t s_rxByteCount = 0U;
+static volatile uint32_t s_initDiscardCount = 0U;
+static volatile uint32_t s_lastInterruptIndex = 0U;
 
 static uint16_t Serial_NextIndex(uint16_t index)
 {
@@ -39,7 +43,6 @@ static void Serial_PushRx(uint8_t byte)
 
     if (next == s_rxTail)
     {
-        /* 缓冲区满时丢弃新字节，并累计溢出次数供遥测查看。 */
         s_rxOverflowCount++;
         return;
     }
@@ -60,21 +63,34 @@ static void Serial_PushRx(uint8_t byte)
 
 void Serial_Init(void)
 {
-    /* 使能 UART RX 中断前，先复位软件缓冲区状态。 */
+    NVIC_DisableIRQ(SERIAL_UART_IRQN);
+
     s_rxHead = 0U;
     s_rxTail = 0U;
     s_rxFlag = 0U;
     s_rxData = 0U;
     s_rxOverflowCount = 0U;
     s_rxHighWaterMark = 0U;
+    s_irqCount = 0U;
+    s_rxIrqCount = 0U;
+    s_otherIrqCount = 0U;
+    s_rxByteCount = 0U;
+    s_initDiscardCount = 0U;
+    s_lastInterruptIndex = 0U;
+
+    while (!DL_UART_Main_isRXFIFOEmpty(SERIAL_UART_INST))
+    {
+        (void)DL_UART_Main_receiveData(SERIAL_UART_INST);
+        s_initDiscardCount++;
+    }
 
     NVIC_ClearPendingIRQ(SERIAL_UART_IRQN);
+
     NVIC_EnableIRQ(SERIAL_UART_IRQN);
 }
 
 void Serial_SendByte(uint8_t byte)
 {
-    /* 阻塞式 TX 适合前台短遥测帧，逻辑简单可预测。 */
     DL_UART_Main_transmitDataBlocking(SERIAL_UART_INST, byte);
 }
 
@@ -424,7 +440,6 @@ uint8_t Serial_ReadByte(uint8_t *byte)
         return 0U;
     }
 
-    /* 前台单消费者读取；ISR 是唯一生产者。 */
     *byte = s_rxBuf[s_rxTail];
     s_rxTail = Serial_NextIndex(s_rxTail);
     s_rxFlag = (s_rxHead != s_rxTail) ? 1U : 0U;
@@ -466,19 +481,57 @@ uint16_t Serial_GetRxHighWaterMark(void)
     return highWater;
 }
 
+uint32_t Serial_GetIrqCount(void)
+{
+    return s_irqCount;
+}
+
+uint32_t Serial_GetRxIrqCount(void)
+{
+    return s_rxIrqCount;
+}
+
+uint32_t Serial_GetOtherIrqCount(void)
+{
+    return s_otherIrqCount;
+}
+
+uint32_t Serial_GetRxByteCount(void)
+{
+    return s_rxByteCount;
+}
+
+uint32_t Serial_GetInitDiscardCount(void)
+{
+    return s_initDiscardCount;
+}
+
+uint32_t Serial_GetLastInterruptIndex(void)
+{
+    return s_lastInterruptIndex;
+}
+
 void SERIAL_UART_IRQHandler(void)
 {
-    switch (DL_UART_Main_getPendingInterrupt(SERIAL_UART_INST))
+    uint32_t iidx;
+
+    s_irqCount++;
+    iidx = DL_UART_Main_getPendingInterrupt(SERIAL_UART_INST);
+    s_lastInterruptIndex = (uint32_t)iidx;
+
+    switch (iidx)
     {
         case DL_UART_MAIN_IIDX_RX:
-            /* ISR 只把 FIFO 搬进环形缓冲区，协议解析留给前台执行。 */
+            s_rxIrqCount++;
             while (!DL_UART_Main_isRXFIFOEmpty(SERIAL_UART_INST))
             {
                 Serial_PushRx(DL_UART_Main_receiveData(SERIAL_UART_INST));
+                s_rxByteCount++;
             }
             break;
 
         default:
+            s_otherIrqCount++;
             break;
     }
 }

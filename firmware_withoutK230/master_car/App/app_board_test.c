@@ -283,12 +283,19 @@ void BoardTest_Task200ms(void)
 #include "OLED.h"
 
 #define JY61P_PRINT_PERIOD_MS  1000U
+#define JY61P_RAW_PRINT_PERIOD_MS 2000U
+#define JY61P_PAGE_ANGLE       0U
+#define JY61P_PAGE_DIAGNOSTIC  1U
+#define JY61P_PAGE_RAW         2U
+#define JY61P_PAGE_MAX         3U
 
 static uint32_t s_jy61pLastPrintMs = 0U;
+static uint32_t s_jy61pLastRawPrintMs = 0U;
 static uint8_t s_jy61pPrintPaused = 0U;
 static uint8_t s_jy61pPage = 0U;
 static uint8_t s_jy61pPrevOnline = 0U;
 static uint8_t s_jy61pEverOnline = 0U;
+static uint32_t s_jy61pBootCount = 0U;
 
 #if JY61P_AUTO_ZERO_ON_FIRST_VALID
 static uint8_t s_jy61pAutoZeroDone = 0U;
@@ -373,28 +380,83 @@ static void BoardTest_ShowAngleRow(uint8_t row, const char *label,
 }
 #endif
 
+static const char *BoardTest_GetDiagnosis(const JY61P_Data_t *jdata,
+                                          uint32_t irqCount,
+                                          uint32_t rxByteCount)
+{
+    if (irqCount == 0U && rxByteCount == 0U)
+    {
+        return "no_uart_irq";
+    }
+    if (irqCount > 0U && rxByteCount == 0U)
+    {
+        return "irq_without_rx_data";
+    }
+    if (rxByteCount > 0U)
+    {
+        if (jdata->sync_error_count > 0U &&
+            jdata->angle_frame_count == 0U &&
+            jdata->gyro_frame_count == 0U)
+        {
+            return "baud_or_protocol_mismatch";
+        }
+        if (jdata->checksum_error_count > 0U &&
+            jdata->angle_frame_count == 0U &&
+            jdata->gyro_frame_count == 0U)
+        {
+            return "checksum_fail";
+        }
+        if (jdata->unsupported_frame_count > 0U &&
+            jdata->angle_frame_count == 0U &&
+            jdata->gyro_frame_count == 0U)
+        {
+            return "unsupported_frames_only";
+        }
+        if (jdata->angle_frame_count > 0U || jdata->gyro_frame_count > 0U)
+        {
+            return "receiving";
+        }
+    }
+    return "unknown";
+}
+
 void BoardTest_Init(void)
 {
+    uint32_t resetCause;
+
     App_Control_ForcePWMZero();
     Motor_StopAll();
     Servo_DisableAll();
 
     s_jy61pLastPrintMs = Timer_GetMillis();
+    s_jy61pLastRawPrintMs = s_jy61pLastPrintMs;
     s_jy61pPrintPaused = 0U;
     s_jy61pPage = 0U;
     s_jy61pPrevOnline = 0U;
     s_jy61pEverOnline = 0U;
+    s_jy61pBootCount++;
 
 #if JY61P_AUTO_ZERO_ON_FIRST_VALID
     s_jy61pAutoZeroDone = 0U;
 #endif
 
-    DebugSerial_SendString("[fw,jy61p-test,rev=3]\r\n");
+    resetCause = (uint32_t)DL_SYSCTL_getResetCause();
+
+    DebugSerial_Printf("[fw,jy61p-test,rev=4,boot=%lu]\r\n", (unsigned long)s_jy61pBootCount);
+    DebugSerial_Printf("[reset,cause=0x%08lX]\r\n", (unsigned long)resetCause);
     DebugSerial_SendString("[board-test,mode=jy61p]\r\n");
     DebugSerial_SendString("[jy61p,uart2,tx=pa23,rx=pa24,baud=9600]\r\n");
     DebugSerial_SendString("[jy61p,key,k1=yaw_zero,k2=print_pause,k3=page,k4=clear_stats]\r\n");
+    DebugSerial_SendString("[jy61p,page,0=angle,1=diag,2=raw]\r\n");
 
     JY61P_Init();
+
+    DebugSerial_SendString("[jy61p,selfcheck,inst=uart2,tx=pa23,rx=pa24,baud=9600]\r\n");
+    DebugSerial_Printf("[jy61p,selfcheck,irqn=uart2_int,raw=%lu]\r\n",
+        (unsigned long)(uint32_t)UART2_INT_IRQn);
+    DebugSerial_Printf("[jy61p,selfcheck,rx_fifo_discard=%lu]\r\n",
+        (unsigned long)Serial_GetInitDiscardCount());
+    DebugSerial_SendString("[jy61p,selfcheck,serial_ready=1]\r\n");
 }
 
 void BoardTest_Task10ms(void)
@@ -496,14 +558,22 @@ void BoardTest_Task10ms(void)
             }
             break;
         case 3U:
-            s_jy61pPage ^= 1U;
-            if (s_jy61pPage == 0U)
+            s_jy61pPage++;
+            if (s_jy61pPage >= JY61P_PAGE_MAX)
+            {
+                s_jy61pPage = 0U;
+            }
+            if (s_jy61pPage == JY61P_PAGE_ANGLE)
             {
                 DebugSerial_SendString("[jy61p,page=angle]\r\n");
             }
-            else
+            else if (s_jy61pPage == JY61P_PAGE_DIAGNOSTIC)
             {
                 DebugSerial_SendString("[jy61p,page=diagnostic]\r\n");
+            }
+            else
+            {
+                DebugSerial_SendString("[jy61p,page=raw]\r\n");
             }
             break;
         case 4U:
@@ -539,7 +609,7 @@ void BoardTest_Task100ms(void)
     BoardTest_FormatAge(gyroAge, jdata.gyro_age_ms);
     BoardTest_FormatAge(linkAge, jdata.link_age_ms);
 
-    if (s_jy61pPage == 0U)
+    if (s_jy61pPage == JY61P_PAGE_ANGLE)
     {
         if (jdata.angle_valid == 0U)
         {
@@ -573,22 +643,53 @@ void BoardTest_Task100ms(void)
                 (int)jdata.yaw_zero_offset_x100);
         }
     }
-    else
+    else if (s_jy61pPage == JY61P_PAGE_DIAGNOSTIC)
     {
+        uint32_t irqCount = Serial_GetIrqCount();
+        uint32_t rxIrqCount = Serial_GetRxIrqCount();
+        uint32_t otherIrqCount = Serial_GetOtherIrqCount();
+        uint32_t lastIidx = Serial_GetLastInterruptIndex();
+        uint32_t rxByteCount = Serial_GetRxByteCount();
+        uint32_t initDiscard = Serial_GetInitDiscardCount();
+        uint32_t ovfCount = jdata.rx_overflow_count;
+
         DebugSerial_Printf(
-            "[jy61p,af=%lu,gf=%lu,ign=%lu,cs=%lu,sync=%lu,ovf=%lu,rpend=%u,rmax=%u,tdrop=%lu,tf=%lu,yf=%lu,age=%s]\r\n",
+            "[jy61p,af=%lu,gf=%lu,ign=%lu,cs=%lu,sync=%lu,age=%s]\r\n",
             (unsigned long)jdata.angle_frame_count,
             (unsigned long)jdata.gyro_frame_count,
             (unsigned long)jdata.unsupported_frame_count,
             (unsigned long)jdata.checksum_error_count,
             (unsigned long)jdata.sync_error_count,
-            (unsigned long)jdata.rx_overflow_count,
-            (unsigned int)Serial_GetRxPendingCount(),
-            (unsigned int)Serial_GetRxHighWaterMark(),
-            (unsigned long)DebugSerial_GetTxOverflowCount(),
-            (unsigned long)jdata.timebase_fault_count,
-            (unsigned long)jdata.yaw_state_fault_count,
             linkAge);
+
+        DebugSerial_Printf(
+            "[uart2,irq=%lu,rxirq=%lu,other=%lu,last=%lu,bytes=%lu,discard=%lu,ovf=%lu,pend=%u,max=%u]\r\n",
+            (unsigned long)irqCount,
+            (unsigned long)rxIrqCount,
+            (unsigned long)otherIrqCount,
+            (unsigned long)lastIidx,
+            (unsigned long)rxByteCount,
+            (unsigned long)initDiscard,
+            (unsigned long)ovfCount,
+            (unsigned int)Serial_GetRxPendingCount(),
+            (unsigned int)Serial_GetRxHighWaterMark());
+
+        {
+            const char *diag = BoardTest_GetDiagnosis(
+                &jdata, irqCount, rxByteCount);
+            DebugSerial_Printf("[jy61p,diagnosis=%s]\r\n", diag);
+        }
+    }
+    else
+    {
+        {
+            uint32_t irqCount = Serial_GetIrqCount();
+            uint32_t rxByteCount = Serial_GetRxByteCount();
+            const char *diag = BoardTest_GetDiagnosis(
+                &jdata, irqCount, rxByteCount);
+            DebugSerial_Printf("[jy61p,on=%u,diag=%s,raw=(see_next)]\r\n",
+                (unsigned int)jdata.online, diag);
+        }
     }
 }
 
@@ -612,7 +713,7 @@ void BoardTest_Task200ms(void)
         OLED_ShowString(0, 0, "JY61P OK", OLED_6X8);
     }
 
-    if (s_jy61pPage == 0U)
+    if (s_jy61pPage == JY61P_PAGE_ANGLE)
     {
         BoardTest_ShowAngleRow(2, "R:", odata.roll_x100, odata.angle_valid);
         BoardTest_ShowAngleRow(4, "P:", odata.pitch_x100, odata.angle_valid);
@@ -638,6 +739,35 @@ void BoardTest_Task200ms(void)
         }
     }
 #endif
+
+    if (s_jy61pPage == JY61P_PAGE_RAW && !s_jy61pPrintPaused)
+    {
+        uint32_t now = Timer_GetMillis();
+        if ((uint32_t)(now - s_jy61pLastRawPrintMs) >= JY61P_RAW_PRINT_PERIOD_MS)
+        {
+            uint8_t rawBuf[JY61P_RAW_TRACE_SIZE];
+            uint8_t rawCount = 0U;
+            uint8_t i;
+
+            s_jy61pLastRawPrintMs = now;
+            JY61P_GetRawTrace(rawBuf, JY61P_RAW_TRACE_SIZE, &rawCount);
+
+            if (rawCount > 0U)
+            {
+                DebugSerial_SendString("[raw");
+                for (i = 0U; i < rawCount; i++)
+                {
+                    DebugSerial_SendByte(',');
+                    DebugSerial_Printf("%02X", (unsigned int)rawBuf[i]);
+                }
+                DebugSerial_SendString("]\r\n");
+            }
+            else
+            {
+                DebugSerial_SendString("[raw,<empty>]\r\n");
+            }
+        }
+    }
 }
 
 #else

@@ -3,25 +3,12 @@
 
 #include <stdint.h>
 
-/*
- * JY61P (WIT-motion) 6-axis IMU driver via UART2.
- *
- * Protocol: 11-byte fixed frame, little-endian int16_t, sum-of-first-10-bytes
- * checksum.  Frame types decoded:
- *   0x52 = angular velocity (gyro)
- *   0x53 = angle (roll/pitch/yaw)
- *
- * Hardware check: JY61P TX/RX are 3.3V tolerant. If the module is powered from
- * 5V and its UART outputs 5V, add level shifting or power it from 3.3V.
- *
- * JY61P 6-axis yaw is integrated from gyro Z; it drifts over time.
- * Suitable for short-term heading correction, NOT long-term absolute heading.
- */
-
 #define JY61P_LINK_TIMEOUT_MS  1000U
 #define JY61P_ANGLE_TIMEOUT_MS  500U
 #define JY61P_GYRO_TIMEOUT_MS   500U
 #define JY61P_AGE_UNKNOWN_MS    ((uint32_t)0xFFFFFFFFUL)
+
+#define JY61P_RAW_TRACE_SIZE 32U
 
 typedef struct
 {
@@ -63,5 +50,7 @@ uint8_t JY61P_GetYawZero(int16_t *offset_x100);
 void JY61P_ClearStatistics(void);
 uint8_t JY61P_GetData(JY61P_Data_t *data);
 uint8_t JY61P_IsOnline(void);
+
+void JY61P_GetRawTrace(uint8_t *buf, uint8_t buf_size, uint8_t *valid_count);
 
 #endif
