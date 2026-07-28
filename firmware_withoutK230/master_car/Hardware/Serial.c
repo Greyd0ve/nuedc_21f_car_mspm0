@@ -466,7 +466,7 @@ uint16_t Serial_GetRxHighWaterMark(void)
     return highWater;
 }
 
-void UART_K230_INST_IRQHandler(void)
+void SERIAL_UART_IRQHandler(void)
 {
     switch (DL_UART_Main_getPendingInterrupt(SERIAL_UART_INST))
     {

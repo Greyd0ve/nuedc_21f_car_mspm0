@@ -391,7 +391,7 @@ void BoardTest_Init(void)
 
     DebugSerial_SendString("[fw,jy61p-test,rev=3]\r\n");
     DebugSerial_SendString("[board-test,mode=jy61p]\r\n");
-    DebugSerial_SendString("[jy61p,uart0,tx=pa0,rx=pa1,baud=9600]\r\n");
+    DebugSerial_SendString("[jy61p,uart2,tx=pa23,rx=pa24,baud=9600]\r\n");
     DebugSerial_SendString("[jy61p,key,k1=yaw_zero,k2=print_pause,k3=page,k4=clear_stats]\r\n");
 
     JY61P_Init();

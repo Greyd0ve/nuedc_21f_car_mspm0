@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /*
- * JY61P (WIT-motion) 6-axis IMU driver via UART0.
+ * JY61P (WIT-motion) 6-axis IMU driver via UART2.
  *
  * Protocol: 11-byte fixed frame, little-endian int16_t, sum-of-first-10-bytes
  * checksum.  Frame types decoded:
