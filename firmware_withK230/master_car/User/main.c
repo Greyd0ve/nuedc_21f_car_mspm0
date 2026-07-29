@@ -3,6 +3,7 @@
 #include "app_board_test.h"
 #include "app_car_base.h"
 #include "app_h26.h"
+#include "app_ball_link.h"
 #include "app_radio.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -12,6 +13,8 @@
 #include "Key.h"
 #include "Motor.h"
 #include "OLED.h"
+#include "RodEncoder.h"
+#include "RodStepper.h"
 #include "Serial.h"
 #include "DebugSerial.h"
 #include "Servo.h"
@@ -167,6 +170,9 @@ int main(void)
     Motor_Init();
     Motor_StopAll();
     Encoder_Init();
+    RodEncoder_Init();
+    RodStepper_Init();
+    Serial_Init();
     BeepLed_Init();
     DebugSerial_Init();
     /* H26 formal task does not use servo; future ball mechanism uses an independent stepper module. */
@@ -206,6 +212,7 @@ int main(void)
         }
         while (taskCount > 0U)
         {
+            App_BallLink_Task10ms();
             DebugSerial_Task10ms();
             H26_Task10ms();
             taskCount--;

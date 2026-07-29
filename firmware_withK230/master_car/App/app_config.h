@@ -4,14 +4,11 @@
 #include <stdint.h>
 
 /*
- * Temporary rod-stepper board test selection.
- * Restore formal H26 operation with:
- *   APP_MODE_H26 = 1U
- *   ECAR_BOARD_TEST_MODE = 0U
- *   ECAR_TEST_ROD_STEPPER_ENABLE = 0U
+ * Formal H26 task manager selection.  The board-test mode remains available
+ * for independent hardware diagnostics, but task 3 now runs through H26.
  */
 #ifndef APP_MODE_H26
-#define APP_MODE_H26                         0U
+#define APP_MODE_H26                         1U
 #endif
 
 /*
@@ -27,7 +24,7 @@
 
 /* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    1U
+#define ECAR_BOARD_TEST_MODE                    0U
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
@@ -53,7 +50,7 @@
 #define ECAR_TEST_STEPPER_ENCODER_ENABLE        0
 #endif
 #ifndef ECAR_TEST_ROD_STEPPER_ENABLE
-#define ECAR_TEST_ROD_STEPPER_ENABLE            1U
+#define ECAR_TEST_ROD_STEPPER_ENABLE            0U
 #endif
 #ifndef ECAR_TEST_JY61P_ENABLE
 #define ECAR_TEST_JY61P_ENABLE                  0

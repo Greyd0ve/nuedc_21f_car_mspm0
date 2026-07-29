@@ -60,7 +60,7 @@ void TIMG6_IRQHandler(void)
 #else
             H26_Tick1ms();
 #endif
-#if CAR_BOARD_TEST_MODE && CAR_TEST_ROD_STEPPER_ENABLE
+#if (CAR_BOARD_TEST_MODE && CAR_TEST_ROD_STEPPER_ENABLE) || APP_MODE_H26
             RodStepper_Tick1ms();
 #endif
 

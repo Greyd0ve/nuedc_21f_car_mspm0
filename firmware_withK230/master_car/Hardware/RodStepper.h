@@ -13,6 +13,9 @@ void RodStepper_Init(void);
 uint8_t RodStepper_MovePulses(RodStepperDirection_t direction,
                               uint32_t pulses,
                               uint32_t frequencyHz);
+/* Start or update a continuous STEP output.  Use RodStepper_Stop() for zero. */
+uint8_t RodStepper_SetVelocity(RodStepperDirection_t direction,
+                               uint32_t frequencyHz);
 void RodStepper_Stop(void);
 void RodStepper_Tick1ms(void);
 uint8_t RodStepper_IsBusy(void);
