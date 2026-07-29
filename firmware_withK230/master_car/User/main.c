@@ -233,7 +233,9 @@ int main(void)
     Encoder_Init();
     BeepLed_Init();
     DebugSerial_Init();
+#if CAR_TEST_SERVO_ENABLE
     Servo_Init();
+#endif
 #if !CAR_TEST_MOTOR_ENABLE && !CAR_TEST_SPEED_PID_ENABLE
     CarBase_Init();
 #endif

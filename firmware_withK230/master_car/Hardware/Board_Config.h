@@ -373,6 +373,38 @@
 #define SERVO3_PWM                      SERVO3_PWM_CC_INDEX
 #define SERVO4_PWM                      SERVO4_PWM_CC_INDEX
 
+/* ---------------- Rod ball stepper ----------------
+ * STEP: PA02 / TIMG7-C1 hardware PWM.  PA02 is also the ROSC pin on this
+ * board, so SYSCTL FCL/ROSC calibration must remain disabled.
+ * DIR: PB25 GPIO output.  EN: PB21 GPIO output, active low and held low.
+ * Encoder A/B: PB00/PB18 GPIOB dual-edge interrupts, decoded in RodEncoder.
+ */
+#define ROD_STEP_TIMER_INST              PWM_ROD_STEP_INST
+#define ROD_STEP_TIMER_IRQN              PWM_ROD_STEP_INST_INT_IRQN
+#define ROD_STEP_TIMER_CLK_HZ            PWM_ROD_STEP_INST_CLK_FREQ
+#define ROD_STEP_CC_INDEX                GPIO_PWM_ROD_STEP_C1_IDX
+#define ROD_STEP_PORT                    GPIO_PWM_ROD_STEP_C1_PORT
+#define ROD_STEP_PIN                     GPIO_PWM_ROD_STEP_C1_PIN
+#define ROD_STEP_IOMUX                   GPIO_PWM_ROD_STEP_C1_IOMUX
+#define ROD_STEP_IOMUX_FUNC              GPIO_PWM_ROD_STEP_C1_IOMUX_FUNC
+
+#define ROD_DIR_PORT                     GPIO_ROD_STEPPER_PORT
+#define ROD_DIR_PIN                      GPIO_ROD_STEPPER_ROD_DIR_PIN
+#define ROD_DIR_IOMUX                    GPIO_ROD_STEPPER_ROD_DIR_IOMUX
+
+#define ROD_EN_PORT                      GPIO_ROD_STEPPER_PORT
+#define ROD_EN_PIN                       GPIO_ROD_STEPPER_ROD_EN_PIN
+#define ROD_EN_IOMUX                     GPIO_ROD_STEPPER_ROD_EN_IOMUX
+#define ROD_EN_ACTIVE_LEVEL              0U
+
+#define ROD_ENCODER_A_PORT               GPIO_ROD_ENCODER_PORT
+#define ROD_ENCODER_A_PIN                GPIO_ROD_ENCODER_ROD_ENC_A_PIN
+#define ROD_ENCODER_A_IOMUX              GPIO_ROD_ENCODER_ROD_ENC_A_IOMUX
+#define ROD_ENCODER_B_PORT               GPIO_ROD_ENCODER_PORT
+#define ROD_ENCODER_B_PIN                GPIO_ROD_ENCODER_ROD_ENC_B_PIN
+#define ROD_ENCODER_B_IOMUX              GPIO_ROD_ENCODER_ROD_ENC_B_IOMUX
+#define ROD_ENCODER_IRQN                 GPIO_ROD_ENCODER_INT_IRQN
+
 /* ---------------- UARTs ----------------
  * UART_DEBUG  = UART1, PB6/PB7, 9600    for debug/HC-04 BLE.
  * UART_K230   = UART0, PA0/PA1, 460800  for K230 vision.

@@ -533,9 +533,14 @@
               <FilePath>..\Hardware\Servo.c</FilePath>
             </File>
             <File>
-              <FileName>StepperEncoder.c</FileName>
+              <FileName>RodStepper.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Hardware\StepperEncoder.c</FilePath>
+              <FilePath>..\Hardware\RodStepper.c</FilePath>
+            </File>
+            <File>
+              <FileName>RodEncoder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\RodEncoder.c</FilePath>
             </File>
             <File>
               <FileName>NRF24L01.c</FileName>

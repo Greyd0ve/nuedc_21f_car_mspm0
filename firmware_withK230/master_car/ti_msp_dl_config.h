@@ -126,6 +126,18 @@ extern "C" {
 #define GPIO_PWM_SERVO_C3_IOMUX_FUNC                 IOMUX_PINCM39_PF_TIMA0_CCP3
 #define GPIO_PWM_SERVO_C3_IDX                                DL_TIMER_CC_3_INDEX
 
+/* Defines for PWM_ROD_STEP */
+#define PWM_ROD_STEP_INST                                                  TIMG7
+#define PWM_ROD_STEP_INST_IRQHandler                            TIMG7_IRQHandler
+#define PWM_ROD_STEP_INST_INT_IRQN                              (TIMG7_INT_IRQn)
+#define PWM_ROD_STEP_INST_CLK_FREQ                                       1000000
+/* GPIO defines for channel 1 */
+#define GPIO_PWM_ROD_STEP_C1_PORT                                          GPIOA
+#define GPIO_PWM_ROD_STEP_C1_PIN                                   DL_GPIO_PIN_2
+#define GPIO_PWM_ROD_STEP_C1_IOMUX                                (IOMUX_PINCM7)
+#define GPIO_PWM_ROD_STEP_C1_IOMUX_FUNC               IOMUX_PINCM7_PF_TIMG7_CCP1
+#define GPIO_PWM_ROD_STEP_C1_IDX                             DL_TIMER_CC_1_INDEX
+
 
 
 /* Defines for TIMER_SYS */
@@ -300,21 +312,29 @@ extern "C" {
 #define GPIO_NRF_NRF_MISO_PORT                                           (GPIOA)
 #define GPIO_NRF_NRF_MISO_PIN                                   (DL_GPIO_PIN_10)
 #define GPIO_NRF_NRF_MISO_IOMUX                                  (IOMUX_PINCM21)
-/* Port definition for Pin Group GPIO_STEPPER_ENCODER */
-#define GPIO_STEPPER_ENCODER_PORT                                        (GPIOB)
+/* Port definition for Pin Group GPIO_ROD_STEPPER */
+#define GPIO_ROD_STEPPER_PORT                                            (GPIOB)
 
-/* Defines for X_A: GPIOB.15 with pinCMx 32 on package pin 3 */
-#define GPIO_STEPPER_ENCODER_X_A_PIN                            (DL_GPIO_PIN_15)
-#define GPIO_STEPPER_ENCODER_X_A_IOMUX                           (IOMUX_PINCM32)
-/* Defines for X_B: GPIOB.16 with pinCMx 33 on package pin 4 */
-#define GPIO_STEPPER_ENCODER_X_B_PIN                            (DL_GPIO_PIN_16)
-#define GPIO_STEPPER_ENCODER_X_B_IOMUX                           (IOMUX_PINCM33)
-/* Defines for Y_A: GPIOB.0 with pinCMx 12 on package pin 47 */
-#define GPIO_STEPPER_ENCODER_Y_A_PIN                             (DL_GPIO_PIN_0)
-#define GPIO_STEPPER_ENCODER_Y_A_IOMUX                           (IOMUX_PINCM12)
-/* Defines for Y_B: GPIOB.18 with pinCMx 44 on package pin 15 */
-#define GPIO_STEPPER_ENCODER_Y_B_PIN                            (DL_GPIO_PIN_18)
-#define GPIO_STEPPER_ENCODER_Y_B_IOMUX                           (IOMUX_PINCM44)
+/* Defines for ROD_DIR: GPIOB.25 with pinCMx 56 on package pin 27 */
+#define GPIO_ROD_STEPPER_ROD_DIR_PIN                            (DL_GPIO_PIN_25)
+#define GPIO_ROD_STEPPER_ROD_DIR_IOMUX                           (IOMUX_PINCM56)
+/* Defines for ROD_EN: GPIOB.21 with pinCMx 49 on package pin 20 */
+#define GPIO_ROD_STEPPER_ROD_EN_PIN                             (DL_GPIO_PIN_21)
+#define GPIO_ROD_STEPPER_ROD_EN_IOMUX                            (IOMUX_PINCM49)
+/* Port definition for Pin Group GPIO_ROD_ENCODER */
+#define GPIO_ROD_ENCODER_PORT                                            (GPIOB)
+
+/* Defines for ROD_ENC_A: GPIOB.0 with pinCMx 12 on package pin 47 */
+// pins affected by this interrupt request:["ROD_ENC_A","ROD_ENC_B"]
+#define GPIO_ROD_ENCODER_INT_IRQN                               (GPIOB_INT_IRQn)
+#define GPIO_ROD_ENCODER_INT_IIDX               (DL_INTERRUPT_GROUP1_IIDX_GPIOB)
+#define GPIO_ROD_ENCODER_ROD_ENC_A_IIDX                      (DL_GPIO_IIDX_DIO0)
+#define GPIO_ROD_ENCODER_ROD_ENC_A_PIN                           (DL_GPIO_PIN_0)
+#define GPIO_ROD_ENCODER_ROD_ENC_A_IOMUX                         (IOMUX_PINCM12)
+/* Defines for ROD_ENC_B: GPIOB.18 with pinCMx 44 on package pin 15 */
+#define GPIO_ROD_ENCODER_ROD_ENC_B_IIDX                     (DL_GPIO_IIDX_DIO18)
+#define GPIO_ROD_ENCODER_ROD_ENC_B_PIN                          (DL_GPIO_PIN_18)
+#define GPIO_ROD_ENCODER_ROD_ENC_B_IOMUX                         (IOMUX_PINCM44)
 
 /* clang-format on */
 
@@ -324,6 +344,7 @@ void SYSCFG_DL_GPIO_init(void);
 void SYSCFG_DL_SYSCTL_init(void);
 void SYSCFG_DL_PWM_MOTOR_init(void);
 void SYSCFG_DL_PWM_SERVO_init(void);
+void SYSCFG_DL_PWM_ROD_STEP_init(void);
 void SYSCFG_DL_TIMER_SYS_init(void);
 void SYSCFG_DL_I2C_SHARED_init(void);
 void SYSCFG_DL_UART_DEBUG_init(void);

@@ -5,7 +5,8 @@
 #include "app_control.h"
 #include "app_car_state.h"
 #include "Encoder.h"
-#include "StepperEncoder.h"
+#include "RodEncoder.h"
+#include "RodStepper.h"
 #include "DebugSerial.h"
 #include "Key.h"
 #include "Motor.h"
@@ -637,86 +638,256 @@ void BoardTest_Task100ms(void)
 
 void BoardTest_Task200ms(void) { }
 
-#elif CAR_TEST_STEPPER_ENCODER_ENABLE
+#elif CAR_TEST_ROD_STEPPER_ENABLE
 
-#include "Servo.h"
+#define ROD_TEST_JOG_PULSES             32U
+#define ROD_TEST_STEP_FREQ_HZ          400U
+#define ROD_TEST_SOFT_LIMIT_COUNT      512
+#define ROD_TEST_SETTLE_MS             100U
+#define ROD_TEST_BAD_TRANSITION_LIMIT    8U
+#define ROD_TEST_TIMEOUT_MARGIN_MS     100U
 
-static StepperEncoderSnapshot_t s_lastSnap;
-static uint8_t s_snapValid = 0U;
+typedef enum
+{
+    ROD_TEST_IDLE = 0,
+    ROD_TEST_MOVING,
+    ROD_TEST_SETTLING,
+    ROD_TEST_FAULT
+} RodStepperTestState_t;
+
+static RodStepperTestState_t s_rodTestState = ROD_TEST_IDLE;
+static int32_t s_moveStartCount = 0;
+static int32_t s_expectedCountDelta = 0;
+static int32_t s_commandPulse = 0;
+static uint32_t s_moveStartBad = 0U;
+static uint32_t s_moveElapsedMs = 0U;
+static uint32_t s_moveTimeoutMs = 0U;
+static uint16_t s_settleMs = 0U;
+static uint8_t s_statDivider = 0U;
+
+static int32_t BoardTest_RodExpectedCount(RodStepperDirection_t direction,
+                                          uint32_t pulses)
+{
+    uint64_t numerator = (uint64_t)pulses * (uint64_t)ECAR_STEPPER_ENCODER_CPR;
+    uint32_t roundedCount = (uint32_t)((numerator +
+        ((uint64_t)ECAR_STEPPER_DRIVER_PULSE_PER_REV / 2U)) /
+        (uint64_t)ECAR_STEPPER_DRIVER_PULSE_PER_REV);
+
+    return (direction == ROD_STEPPER_DIR_POSITIVE) ?
+        (int32_t)roundedCount : -(int32_t)roundedCount;
+}
+
+static void BoardTest_RodEnterFault(const char *reason)
+{
+    RodStepper_Stop();
+    s_rodTestState = ROD_TEST_FAULT;
+    DebugSerial_Printf("[rod-test,fault,%s]\r\n", reason);
+}
+
+static void BoardTest_RodStartMove(RodStepperDirection_t direction)
+{
+    RodEncoderSnapshot_t snapshot;
+    int32_t targetCount;
+    uint64_t durationMs;
+
+    if (s_rodTestState != ROD_TEST_IDLE || RodStepper_IsBusy() != 0U)
+    {
+        BoardTest_RodEnterFault("busy");
+        return;
+    }
+    if (direction != ROD_STEPPER_DIR_POSITIVE &&
+        direction != ROD_STEPPER_DIR_NEGATIVE)
+    {
+        BoardTest_RodEnterFault("direction");
+        return;
+    }
+
+    RodEncoder_GetSnapshot(&snapshot);
+    s_expectedCountDelta = BoardTest_RodExpectedCount(direction,
+                                                       ROD_TEST_JOG_PULSES);
+    targetCount = snapshot.count + s_expectedCountDelta;
+    if (targetCount < -ROD_TEST_SOFT_LIMIT_COUNT ||
+        targetCount > ROD_TEST_SOFT_LIMIT_COUNT)
+    {
+        BoardTest_RodEnterFault("soft-limit");
+        return;
+    }
+
+    if (RodStepper_MovePulses(direction, ROD_TEST_JOG_PULSES,
+                               ROD_TEST_STEP_FREQ_HZ) == 0U)
+    {
+        BoardTest_RodEnterFault("move-reject");
+        return;
+    }
+
+    s_moveStartCount = snapshot.count;
+    s_moveStartBad = snapshot.badTransitionCount;
+    s_commandPulse = (direction == ROD_STEPPER_DIR_POSITIVE) ?
+        (int32_t)ROD_TEST_JOG_PULSES : -(int32_t)ROD_TEST_JOG_PULSES;
+    s_moveElapsedMs = 0U;
+    durationMs = (((uint64_t)ROD_TEST_JOG_PULSES * 1000U) +
+                  (ROD_TEST_STEP_FREQ_HZ - 1U)) / ROD_TEST_STEP_FREQ_HZ;
+    s_moveTimeoutMs = (uint32_t)durationMs + ROD_TEST_TIMEOUT_MARGIN_MS;
+    s_rodTestState = ROD_TEST_MOVING;
+
+    DebugSerial_Printf("[rod-test,move,dir=%d,pulses=%u,freq=%u,start_count=%ld]\r\n",
+        (int)direction, (unsigned int)ROD_TEST_JOG_PULSES,
+        (unsigned int)ROD_TEST_STEP_FREQ_HZ, (long)s_moveStartCount);
+}
 
 void BoardTest_Init(void)
 {
     App_Control_ForcePWMZero();
     Motor_StopAll();
-    Servo_DisableAll();
 
-    StepperEncoder_Init();
-    StepperEncoder_ResetCounts();
-    s_snapValid = 0U;
+    RodStepper_Init();
+    RodEncoder_Init();
+    RodEncoder_Reset();
+    s_rodTestState = ROD_TEST_IDLE;
+    s_statDivider = 0U;
 
-    DebugSerial_SendString("[board-test,start]\r\n");
-    DebugSerial_SendString("[board-test,mode=stepper-encoder]\r\n");
-    DebugSerial_Printf("[step-enc,cpr=%u]\r\n", (unsigned int)ECAR_STEPPER_ENCODER_CPR);
-    DebugSerial_SendString("[step-enc,key,k1=reset,k4=stop]\r\n");
+    DebugSerial_SendString("[rod-test,start]\r\n");
+    DebugSerial_SendString("[rod-test,pin,step=PA02/TIMG7_C1,dir=PB25,en=PB21,enc_a=PB00,enc_b=PB18]\r\n");
+    DebugSerial_SendString("[rod-test,en=active-low,constant-enabled]\r\n");
+    DebugSerial_Printf("[rod-test,cpr=%u,step_per_rev=%u]\r\n",
+        (unsigned int)ECAR_STEPPER_ENCODER_CPR,
+        (unsigned int)ECAR_STEPPER_DRIVER_PULSE_PER_REV);
+    DebugSerial_SendString("[rod-test,key,k1=positive-jog,k2=negative-jog,k3=stop,k4=zero]\r\n");
 }
 
 void BoardTest_Task10ms(void)
 {
     uint8_t key = Key_GetNum();
+    RodEncoderSnapshot_t snapshot;
+
     App_Control_ForcePWMZero();
     Motor_StopAll();
 
+    if (key == 3U)
+    {
+        RodStepper_Stop();
+        if (s_rodTestState != ROD_TEST_FAULT)
+        {
+            s_rodTestState = ROD_TEST_IDLE;
+        }
+        DebugSerial_SendString("[rod-test,stop,en=active]\r\n");
+        return;
+    }
+
+    if (key == 4U)
+    {
+        if (RodStepper_IsBusy() != 0U)
+        {
+            DebugSerial_SendString("[rod-test,zero,rejected=busy]\r\n");
+        }
+        else
+        {
+            RodStepper_Stop();
+            RodEncoder_Reset();
+            s_rodTestState = ROD_TEST_IDLE;
+            DebugSerial_SendString("[rod-test,zero]\r\n");
+        }
+        return;
+    }
+
+    if (s_rodTestState == ROD_TEST_FAULT)
+    {
+        return;
+    }
+
     if (key == 1U)
     {
-        StepperEncoder_ResetCounts();
-        s_snapValid = 0U;
-        DebugSerial_SendString("[step-enc,reset]\r\n");
+        BoardTest_RodStartMove(ROD_STEPPER_DIR_POSITIVE);
+        return;
     }
-    else if (key == 4U)
+    if (key == 2U)
     {
-        App_Control_ForcePWMZero();
-        Motor_StopAll();
-        Servo_DisableAll();
-        DebugSerial_SendString("[step-enc,stop]\r\n");
+        BoardTest_RodStartMove(ROD_STEPPER_DIR_NEGATIVE);
+        return;
+    }
+
+    if (s_rodTestState == ROD_TEST_MOVING)
+    {
+        RodEncoder_GetSnapshot(&snapshot);
+        if (snapshot.count < -ROD_TEST_SOFT_LIMIT_COUNT ||
+            snapshot.count > ROD_TEST_SOFT_LIMIT_COUNT)
+        {
+            BoardTest_RodEnterFault("soft-limit");
+            return;
+        }
+        if ((snapshot.badTransitionCount - s_moveStartBad) >
+            ROD_TEST_BAD_TRANSITION_LIMIT)
+        {
+            BoardTest_RodEnterFault("encoder-transition");
+            return;
+        }
+
+        if (RodStepper_TakeCompletionEvent() != 0U)
+        {
+            s_settleMs = 0U;
+            s_rodTestState = ROD_TEST_SETTLING;
+            return;
+        }
+
+        s_moveElapsedMs += 10U;
+        if (s_moveElapsedMs > s_moveTimeoutMs || RodStepper_IsBusy() == 0U)
+        {
+            BoardTest_RodEnterFault("timg7-status");
+        }
+        return;
+    }
+
+    if (s_rodTestState == ROD_TEST_SETTLING)
+    {
+        s_settleMs = (s_settleMs > (uint16_t)(0xFFFFU - 10U)) ?
+            0xFFFFU : (uint16_t)(s_settleMs + 10U);
+        if (s_settleMs >= ROD_TEST_SETTLE_MS)
+        {
+            int32_t actualCountDelta;
+            int32_t errorCount;
+
+            RodEncoder_GetSnapshot(&snapshot);
+            actualCountDelta = snapshot.count - s_moveStartCount;
+            errorCount = actualCountDelta - s_expectedCountDelta;
+            DebugSerial_Printf("[rod-test,done,cmd_pulse=%ld,expected_count=%ld,actual_count=%ld,error=%ld,bad=%lu]\r\n",
+                (long)s_commandPulse, (long)s_expectedCountDelta,
+                (long)actualCountDelta, (long)errorCount,
+                (unsigned long)snapshot.badTransitionCount);
+            s_rodTestState = ROD_TEST_IDLE;
+        }
     }
 }
 
-void BoardTest_Task100ms(void) { }
-
-void BoardTest_Task200ms(void)
+void BoardTest_Task100ms(void)
 {
-    StepperEncoderSnapshot_t snap;
-    int32_t xWin, yWin, xRev, yRev, xRem, yRem;
-    int32_t cpr = (int32_t)ECAR_STEPPER_ENCODER_CPR;
+    RodEncoderSnapshot_t snapshot;
 
-    StepperEncoder_GetSnapshot(&snap);
-
-    if (s_snapValid)
+    s_statDivider++;
+    if (s_statDivider < 5U)
     {
-        xWin = snap.xCount - s_lastSnap.xCount;
-        yWin = snap.yCount - s_lastSnap.yCount;
+        return;
     }
-    else
-    {
-        xWin = 0;
-        yWin = 0;
-        s_snapValid = 1U;
-    }
+    s_statDivider = 0U;
 
-    s_lastSnap = snap;
-
-    xRev = snap.xCount / cpr;
-    xRem = snap.xCount % cpr;
-    if (xRem < 0) { xRem = -xRem; }
-
-    yRev = snap.yCount / cpr;
-    yRem = snap.yCount % cpr;
-    if (yRem < 0) { yRem = -yRem; }
-
-    DebugSerial_Printf("[step-enc,x=%ld,x_win=%ld,x_rev=%ld,x_rem=%ld,x_bad=%lu,y=%ld,y_win=%ld,y_rev=%ld,y_rem=%ld,y_bad=%lu]\r\n",
-        (long)snap.xCount, (long)xWin, (long)xRev, (long)xRem, (unsigned long)snap.xBad,
-        (long)snap.yCount, (long)yWin, (long)yRev, (long)yRem, (unsigned long)snap.yBad);
+    RodEncoder_GetSnapshot(&snapshot);
+    DebugSerial_Printf("[rod-test,stat,state=%u,en=%u,busy=%u,dir=%d,remaining=%lu,cmd_total=%ld,done_total=%lu,count=%ld,bad=%lu]\r\n",
+        (unsigned int)s_rodTestState, (unsigned int)RodStepper_IsEnabled(),
+        (unsigned int)RodStepper_IsBusy(), (int)RodStepper_GetDirection(),
+        (unsigned long)RodStepper_GetRemainingPulses(),
+        (long)RodStepper_GetSignedCommandPulseTotal(),
+        (unsigned long)RodStepper_GetCompletedPulseCount(),
+        (long)snapshot.count, (unsigned long)snapshot.badTransitionCount);
 }
+
+void BoardTest_Task200ms(void) { }
+
+#elif CAR_TEST_STEPPER_ENCODER_ENABLE
+
+/* Historical dual-axis module is retained on disk but no longer compiled. */
+void BoardTest_Init(void) { Motor_StopAll(); DebugSerial_SendString("[board-test,mode=stepper-encoder-removed]\r\n"); }
+void BoardTest_Task10ms(void) { Motor_StopAll(); }
+void BoardTest_Task100ms(void) { }
+void BoardTest_Task200ms(void) { }
 
 #elif CAR_TEST_JY61P_ENABLE
 

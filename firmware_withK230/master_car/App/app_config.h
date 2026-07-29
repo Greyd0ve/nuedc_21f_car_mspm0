@@ -3,9 +3,15 @@
 
 #include <stdint.h>
 
-/* H26 is the only formal top-level task manager permitted to command motors. */
+/*
+ * Temporary rod-stepper board test selection.
+ * Restore formal H26 operation with:
+ *   APP_MODE_H26 = 1U
+ *   ECAR_BOARD_TEST_MODE = 0U
+ *   ECAR_TEST_ROD_STEPPER_ENABLE = 0U
+ */
 #ifndef APP_MODE_H26
-#define APP_MODE_H26                         1U
+#define APP_MODE_H26                         0U
 #endif
 
 /*
@@ -21,7 +27,7 @@
 
 /* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    0
+#define ECAR_BOARD_TEST_MODE                    1U
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
@@ -29,7 +35,7 @@
 #define ECAR_TEST_MOTOR_ENABLE                  0
 #endif
 #ifndef ECAR_TEST_SPEED_PID_ENABLE
-#define ECAR_TEST_SPEED_PID_ENABLE              1
+#define ECAR_TEST_SPEED_PID_ENABLE              0U
 #endif
 #ifndef ECAR_TEST_SERVO_ENABLE
 #define ECAR_TEST_SERVO_ENABLE                  0
@@ -46,6 +52,9 @@
 #ifndef ECAR_TEST_STEPPER_ENCODER_ENABLE
 #define ECAR_TEST_STEPPER_ENCODER_ENABLE        0
 #endif
+#ifndef ECAR_TEST_ROD_STEPPER_ENABLE
+#define ECAR_TEST_ROD_STEPPER_ENABLE            1U
+#endif
 #ifndef ECAR_TEST_JY61P_ENABLE
 #define ECAR_TEST_JY61P_ENABLE                  0
 #endif
@@ -61,6 +70,7 @@
       ECAR_TEST_OLED_ENABLE + \
       ECAR_TEST_RADIO_ENABLE + \
       ECAR_TEST_STEPPER_ENCODER_ENABLE + \
+      ECAR_TEST_ROD_STEPPER_ENABLE + \
       ECAR_TEST_JY61P_ENABLE) > 1)
 #error "Only one board test sub-mode can be enabled at a time"
 #endif
@@ -94,6 +104,7 @@
 #define CAR_TEST_OLED_ENABLE            ECAR_TEST_OLED_ENABLE
 #define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
 #define CAR_TEST_STEPPER_ENCODER_ENABLE ECAR_TEST_STEPPER_ENCODER_ENABLE
+#define CAR_TEST_ROD_STEPPER_ENABLE     ECAR_TEST_ROD_STEPPER_ENABLE
 #define CAR_TEST_JY61P_ENABLE           ECAR_TEST_JY61P_ENABLE
 #define CAR_ENCODER_MINIMAL_DEBUG       ECAR_ENCODER_MINIMAL_DEBUG
 #define CAR_ENCODER_SPEED_PERIOD_MS     ECAR_ENCODER_SPEED_PERIOD_MS
