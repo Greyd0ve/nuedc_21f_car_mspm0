@@ -643,6 +643,8 @@ void BoardTest_Task200ms(void) { }
 /* 3200 STEP pulses/rev: 640 pulses equals one 72-degree jog. */
 #define ROD_TEST_JOG_PULSES            640U
 #define ROD_TEST_STEP_FREQ_HZ          400U
+/* Encoder-count soft limit about the manually zeroed reference position. */
+#define ROD_TEST_SOFT_LIMIT_COUNT     3096
 
 typedef enum
 {
@@ -715,9 +717,19 @@ void BoardTest_Task10ms(void)
 
     if (s_rodTestState == ROD_TEST_MOVING)
     {
+        RodEncoder_GetSnapshot(&snapshot);
+        if (snapshot.count <= -ROD_TEST_SOFT_LIMIT_COUNT ||
+            snapshot.count >= ROD_TEST_SOFT_LIMIT_COUNT)
+        {
+            RodStepper_Stop();
+            s_rodTestState = ROD_TEST_IDLE;
+            DebugSerial_Printf("[rod-test,soft-limit,count=%ld]\r\n",
+                (long)snapshot.count);
+            return;
+        }
+
         if (RodStepper_TakeCompletionEvent() != 0U)
         {
-            RodEncoder_GetSnapshot(&snapshot);
             DebugSerial_Printf("[rod-test,done,cmd_pulse=%ld,count=%ld,bad=%lu]\r\n",
                 (long)s_commandPulse, (long)snapshot.count,
                 (unsigned long)snapshot.badTransitionCount);
