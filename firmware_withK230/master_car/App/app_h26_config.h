@@ -41,16 +41,27 @@
  * H26 task-3 (stationary vehicle ball motion) parameters.
  *
  * The K230 sends the ball's longitudinal location in 0.01 cm units over
- * UART1.  The camera script maps its detected pipe endpoints to 0..25 cm,
- * therefore O is the geometric centre (12.50 cm).  Confirm the physical
- * direction on the assembled mechanism before a run: change only
- * H26_T3_STEPPER_SIGN_FOR_POSITIVE_BALL when the rod direction is reversed.
+ * UART1.  Task 3 never uses that 0..25 cm camera coordinate directly: it is
+ * converted to the signed competition coordinate where O = 0.00 cm, the
+ * positive target is +5.00 cm, and the negative target is -5.00 cm.
+ *
+ * First-car calibration:
+ *  1. Place the ball at physical O and record raw position_centi_cm.
+ *  2. Place it at physical +5 cm and record H26_T3_RAW_POS5_CENTICM.
+ *  3. Place it at physical -5 cm and record H26_T3_RAW_NEG5_CENTICM.
+ * The +5/-5 raw values must lie on opposite sides of raw O.  This permits a
+ * reversed camera image without changing control code.
  */
 #define H26_T3_PIPE_LENGTH_CENTICM          2500U
-#define H26_T3_CENTER_CM                    12.50f
-#define H26_T3_OFFSET_CM                     5.00f
-#define H26_T3_START_O_TOLERANCE_CM          0.80f
-#define H26_T3_TARGET_TOLERANCE_CM           0.80f
+#define H26_T3_RAW_MIN_CENTICM                  0U
+#define H26_T3_RAW_MAX_CENTICM               2500U
+#define H26_T3_RAW_O_CENTICM                 1250U
+#define H26_T3_RAW_POS5_CENTICM              1750U
+#define H26_T3_RAW_NEG5_CENTICM               750U
+#define H26_T3_TARGET_POSITIVE_CM              5.00f
+#define H26_T3_TARGET_NEGATIVE_CM             -5.00f
+#define H26_T3_START_O_TOLERANCE_CM            0.60f
+#define H26_T3_TARGET_TOLERANCE_CM             0.60f
 #define H26_T3_COMMAND_DEADBAND_CM           0.12f
 #define H26_T3_STABLE_SPEED_CMPS             0.80f
 
@@ -59,11 +70,16 @@
 #define H26_T3_ACQUIRE_TIMEOUT_MS          1000U
 #define H26_T3_MAX_RUN_TIME_MS             5000U
 
-/* K230 packets are emitted at 50 Hz; reject a held / stale vision result. */
+/* K230 packets are emitted at 50 Hz.  Values are conservative first-run values. */
 #define H26_T3_MIN_CONFIDENCE                50U
-#define H26_T3_MAX_FRAME_AGE_MS              60U
+#define H26_T3_MAX_FRAME_AGE_MS             100U
 #define H26_T3_MIN_SPEED_DT_MS               10U
 #define H26_T3_MAX_SPEED_DT_MS              100U
+#define H26_T3_NOMINAL_FRAME_MS              20U
+#define H26_T3_VISION_SHORT_HOLD_MS          80U
+#define H26_T3_VISION_FAULT_MS              250U
+#define H26_T3_MAX_BALL_SPEED_CMPS           80.0f
+#define H26_T3_MAX_POSITION_JUMP_CM           2.00f
 #define H26_T3_SPEED_FILTER_ALPHA          0.55f
 
 /* Stepper velocity command tuning, in STEP pulse frequency (Hz). */
@@ -73,6 +89,18 @@
 #define H26_T3_MAX_COMMAND_HZ               700U
 #define H26_T3_COMMAND_SLEW_HZ_PER_TICK      40U
 #define H26_T3_STEPPER_SIGN_FOR_POSITIVE_BALL 1
+#define H26_T3_DIRECTION_GUARD_MS             2U
+
+/*
+ * Raw camera-coordinate end guard and relative rod-encoder protections.
+ * RodEncoder is reset at each task-3 start, so this is a travel envelope,
+ * not an absolute mechanical home.  Keep the mechanism near its known centre
+ * before K2 until a physical home/limit switch is added.
+ */
+#define H26_T3_RAW_END_GUARD_CENTICM         80U
+#define H26_T3_ROD_SOFT_LIMIT_COUNT        3096
+#define H26_T3_ROD_STALL_MIN_COMMAND_HZ      80U
+#define H26_T3_ROD_STALL_FAULT_MS           400U
 
 #define H26_LED_SHOW_ON_MS                 200U
 #define H26_LED_SHOW_OFF_MS                200U

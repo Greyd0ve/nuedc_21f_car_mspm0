@@ -168,8 +168,8 @@ static void DebugSerial_SendNumU(uint32_t num, uint8_t width, uint8_t zeroPad)
     uint8_t buf[10];
     uint8_t i = 0U;
     do { buf[i++] = (uint8_t)((num % 10U) + '0'); num /= 10U; } while (num > 0U);
-    while (zeroPad && i < width) { DebugSerial_SendByte('0'); width--; }
-    while (i > 0U) { DebugSerial_SendByte(buf[--i]); }
+    while (zeroPad && i < width) { (void)DebugSerial_TrySendByte('0'); width--; }
+    while (i > 0U) { (void)DebugSerial_TrySendByte(buf[--i]); }
 }
 
 void DebugSerial_Printf(const char *format, ...)
@@ -183,7 +183,7 @@ void DebugSerial_Printf(const char *format, ...)
     p = format;
     while (*p)
     {
-        if (*p != '%') { DebugSerial_SendByte((uint8_t)*p++); continue; }
+        if (*p != '%') { (void)DebugSerial_TrySendByte((uint8_t)*p++); continue; }
         p++;
         zeroPad = 0U; width = 0U;
         if (*p == '0') { zeroPad = 1U; p++; }
@@ -194,7 +194,7 @@ void DebugSerial_Printf(const char *format, ...)
         case 'u': DebugSerial_SendNumU(va_arg(args, uint32_t), width, zeroPad); break;
         case 'd':
             ival = va_arg(args, int32_t);
-            if (ival < 0) { DebugSerial_SendByte('-'); ival = -ival; }
+            if (ival < 0) { (void)DebugSerial_TrySendByte('-'); ival = -ival; }
             DebugSerial_SendNumU((uint32_t)ival, width, zeroPad);
             break;
         case 'x':
@@ -202,12 +202,12 @@ void DebugSerial_Printf(const char *format, ...)
             { uint32_t xv = va_arg(args, uint32_t); uint8_t xi; uint8_t xb[8];
               for (xi = 0U; xi < 8U; xi++) { uint8_t n = (uint8_t)((xv >> (xi * 4U)) & 0xFU); xb[7U - xi] = n < 10U ? (uint8_t)('0' + n) : (uint8_t)((*p == 'X' ? 'A' : 'a') + n - 10U); }
               xi = 0U; while (xi < 7U && xb[xi] == '0' && !zeroPad) xi++; if (width > 0U && (7U - xi) < width) { xi = 7U - width; if (xi > 7U) xi = 7U; }
-              while (xi < 8U) DebugSerial_SendByte(xb[xi++]); }
+              while (xi < 8U) (void)DebugSerial_TrySendByte(xb[xi++]); }
             break;
-        case 'c': DebugSerial_SendByte((uint8_t)va_arg(args, int32_t)); break;
-        case 's': { const char *sp = va_arg(args, const char *); while (*sp) DebugSerial_SendByte((uint8_t)*sp++); } break;
-        case '%': DebugSerial_SendByte('%'); break;
-        default: DebugSerial_SendByte('%'); DebugSerial_SendByte((uint8_t)*p); break;
+        case 'c': (void)DebugSerial_TrySendByte((uint8_t)va_arg(args, int32_t)); break;
+        case 's': { const char *sp = va_arg(args, const char *); while (*sp) (void)DebugSerial_TrySendByte((uint8_t)*sp++); } break;
+        case '%': (void)DebugSerial_TrySendByte('%'); break;
+        default: (void)DebugSerial_TrySendByte('%'); (void)DebugSerial_TrySendByte((uint8_t)*p); break;
         }
         p++;
     }

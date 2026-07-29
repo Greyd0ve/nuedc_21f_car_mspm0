@@ -9,6 +9,8 @@
 #define BALL_LINK_HEADER_1         0x55U
 #define BALL_LINK_VERSION          0x01U
 #define BALL_LINK_MESSAGE_BALL     0x21U
+#define BALL_LINK_MAX_POSITION_CENTICM 2500U
+#define BALL_LINK_MAX_X_PIXEL       639U
 
 #define BALL_LINK_FLAG_BALL_VALID  0x01U
 #define BALL_LINK_FLAG_PIPE_VALID  0x02U
@@ -35,6 +37,7 @@ uint8_t App_BallLink_HasNewFrame(void);
 uint32_t App_BallLink_GetFrameAgeMs(uint32_t nowMs);
 uint32_t App_BallLink_GetValidFrameCount(void);
 uint32_t App_BallLink_GetCrcErrorCount(void);
+uint32_t App_BallLink_GetFormatErrorCount(void);
 uint32_t App_BallLink_GetRxOverflowCount(void);
 
 #endif

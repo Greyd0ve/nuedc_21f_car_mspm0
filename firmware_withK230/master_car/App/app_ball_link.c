@@ -3,20 +3,18 @@
 #include "Timer.h"
 #include <stdint.h>
 
-typedef enum
-{
-    BALL_RX_WAIT_AA = 0,
-    BALL_RX_WAIT_55,
-    BALL_RX_COLLECT
-} BallRxState_t;
-
-static BallRxState_t s_rxState = BALL_RX_WAIT_AA;
-static uint8_t s_rxBuf[BALL_LINK_FRAME_SIZE];
-static uint8_t s_rxIndex = 0U;
+/*
+ * A rolling 14-byte window is intentionally used instead of a fixed COLLECT
+ * state.  After any byte loss, the next AA 55 at an arbitrary byte offset is
+ * found as soon as the following complete packet has arrived.
+ */
+static uint8_t s_rxWindow[BALL_LINK_FRAME_SIZE];
+static uint8_t s_rxCount = 0U;
 static BallLinkFrame_t s_latest;
 static uint8_t s_hasNewFrame = 0U;
 static uint32_t s_validFrameCount = 0U;
 static uint32_t s_crcErrorCount = 0U;
+static uint32_t s_formatErrorCount = 0U;
 
 static uint16_t BallLink_ReadLe16(const uint8_t *data)
 {
@@ -47,23 +45,24 @@ static uint16_t BallLink_Crc16CcittFalse(const uint8_t *data, uint16_t length)
     return crc;
 }
 
-static void BallLink_ParseFrame(const uint8_t *frame)
+static uint8_t BallLink_ParseWindow(const uint8_t *frame)
 {
     uint16_t crcRx;
     uint16_t crcCalc;
     BallLinkFrame_t next;
+
+    if (frame[0] != BALL_LINK_HEADER_0 || frame[1] != BALL_LINK_HEADER_1 ||
+        frame[2] != BALL_LINK_VERSION || frame[3] != BALL_LINK_MESSAGE_BALL)
+    {
+        return 0U;
+    }
 
     crcRx = BallLink_ReadLe16(&frame[12]);
     crcCalc = BallLink_Crc16CcittFalse(frame, 12U);
     if (crcRx != crcCalc)
     {
         s_crcErrorCount++;
-        return;
-    }
-
-    if (frame[2] != BALL_LINK_VERSION || frame[3] != BALL_LINK_MESSAGE_BALL)
-    {
-        return;
+        return 0U;
     }
 
     next.sequence = BallLink_ReadLe16(&frame[4]);
@@ -71,14 +70,49 @@ static void BallLink_ParseFrame(const uint8_t *frame)
     next.confidence = frame[7];
     next.ballXPixel = BallLink_ReadLe16(&frame[8]);
     next.positionCentiCm = BallLink_ReadLe16(&frame[10]);
-    next.receiveTimeMs = Timer_GetMillis();
-    next.transportValid = 1U;
     next.ballValid = ((next.flags & BALL_LINK_FLAG_BALL_VALID) != 0U) ? 1U : 0U;
     next.pipeValid = ((next.flags & BALL_LINK_FLAG_PIPE_VALID) != 0U) ? 1U : 0U;
 
+    if (next.confidence > 100U ||
+        (next.ballValid != 0U &&
+         (next.positionCentiCm > BALL_LINK_MAX_POSITION_CENTICM ||
+          next.ballXPixel > BALL_LINK_MAX_X_PIXEL)))
+    {
+        s_formatErrorCount++;
+        return 0U;
+    }
+
+    next.receiveTimeMs = Timer_GetMillis();
+    next.transportValid = 1U;
     s_latest = next;
     s_hasNewFrame = 1U;
     s_validFrameCount++;
+    return 1U;
+}
+
+static void BallLink_PushByte(uint8_t byte)
+{
+    uint8_t index;
+
+    if (s_rxCount < BALL_LINK_FRAME_SIZE)
+    {
+        s_rxWindow[s_rxCount++] = byte;
+    }
+    else
+    {
+        for (index = 0U; index < (BALL_LINK_FRAME_SIZE - 1U); index++)
+        {
+            s_rxWindow[index] = s_rxWindow[index + 1U];
+        }
+        s_rxWindow[BALL_LINK_FRAME_SIZE - 1U] = byte;
+    }
+
+    if (s_rxCount == BALL_LINK_FRAME_SIZE &&
+        BallLink_ParseWindow(s_rxWindow) != 0U)
+    {
+        /* Normal packets are exactly adjacent, so begin collecting the next. */
+        s_rxCount = 0U;
+    }
 }
 
 void App_BallLink_Init(void)
@@ -86,12 +120,12 @@ void App_BallLink_Init(void)
     App_BallLink_Reset();
     s_validFrameCount = 0U;
     s_crcErrorCount = 0U;
+    s_formatErrorCount = 0U;
 }
 
 void App_BallLink_Reset(void)
 {
-    s_rxState = BALL_RX_WAIT_AA;
-    s_rxIndex = 0U;
+    s_rxCount = 0U;
     s_hasNewFrame = 0U;
     s_latest.sequence = 0U;
     s_latest.flags = 0U;
@@ -111,48 +145,7 @@ void App_BallLink_Task10ms(void)
     s_hasNewFrame = 0U;
     while (Serial_ReadByte(&byte) != 0U)
     {
-        switch (s_rxState)
-        {
-        case BALL_RX_WAIT_AA:
-            if (byte == BALL_LINK_HEADER_0)
-            {
-                s_rxBuf[0] = byte;
-                s_rxState = BALL_RX_WAIT_55;
-            }
-            break;
-
-        case BALL_RX_WAIT_55:
-            if (byte == BALL_LINK_HEADER_1)
-            {
-                s_rxBuf[1] = byte;
-                s_rxIndex = 2U;
-                s_rxState = BALL_RX_COLLECT;
-            }
-            else if (byte == BALL_LINK_HEADER_0)
-            {
-                s_rxBuf[0] = byte;
-            }
-            else
-            {
-                s_rxState = BALL_RX_WAIT_AA;
-            }
-            break;
-
-        case BALL_RX_COLLECT:
-            s_rxBuf[s_rxIndex++] = byte;
-            if (s_rxIndex >= BALL_LINK_FRAME_SIZE)
-            {
-                BallLink_ParseFrame(s_rxBuf);
-                s_rxIndex = 0U;
-                s_rxState = BALL_RX_WAIT_AA;
-            }
-            break;
-
-        default:
-            s_rxIndex = 0U;
-            s_rxState = BALL_RX_WAIT_AA;
-            break;
-        }
+        BallLink_PushByte(byte);
     }
 }
 
@@ -188,6 +181,11 @@ uint32_t App_BallLink_GetValidFrameCount(void)
 uint32_t App_BallLink_GetCrcErrorCount(void)
 {
     return s_crcErrorCount;
+}
+
+uint32_t App_BallLink_GetFormatErrorCount(void)
+{
+    return s_formatErrorCount;
 }
 
 uint32_t App_BallLink_GetRxOverflowCount(void)
