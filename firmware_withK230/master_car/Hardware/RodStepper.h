@@ -3,9 +3,6 @@
 
 #include <stdint.h>
 
-#define ROD_STEPPER_MIN_FREQ_HZ  100U
-#define ROD_STEPPER_MAX_FREQ_HZ 2000U
-
 typedef enum
 {
     ROD_STEPPER_DIR_NEGATIVE = -1,
