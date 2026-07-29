@@ -109,15 +109,12 @@
 #define MOTOR_R_IN2                     MOTOR_R_IN2_PIN
 
 /*
- * The camera-view direction is the new vehicle front.  With the logical
- * left/right wheels swapped above, these signs make
- * Motor_SetPWM(+150, +150) drive toward that camera-view direction.
- *
- * Do not change the encoder signs below: their existing mapping already
- * reports positive speed for this physical travel direction.
+ * The wheel test showed that the old signs made positive logical PWM drive
+ * both wheels backward.  These signs make Motor_SetPWM(+150, +150) drive
+ * toward the camera-view forward direction.
  */
-#define LEFT_MOTOR_DIR                  (-1)
-#define RIGHT_MOTOR_DIR                 (+1)
+#define LEFT_MOTOR_DIR                  (+1)
+#define RIGHT_MOTOR_DIR                 (-1)
 
 #else
 
@@ -184,14 +181,15 @@
 #define ENC_R_B_PIN                     GPIO_ENCODER_L_B_PIN
 
 /*
- * With the rear-camera motor polarity below, pushing the car toward the
- * camera-view front must produce positive logical wheel speed.
+ * The motor polarity above was inverted after the wheel test.  Keep the
+ * encoder signs paired with it so travel toward the camera-view front
+ * produces positive logical wheel speed.
  * Verify:
  * g_leftEncoderDelta > 0, g_rightEncoderDelta > 0,
  * g_forwardEncoderTotal increases.
  */
-#define LEFT_ENCODER_DIR                (+1)
-#define RIGHT_ENCODER_DIR               (-1)
+#define LEFT_ENCODER_DIR                (-1)
+#define RIGHT_ENCODER_DIR               (+1)
 
 #else
 
@@ -340,7 +338,7 @@
 #define KEY3_PORT                       GPIO_KEYS_KEY3_PORT  /* B27 / SW3 */
 #define KEY3_PIN                        GPIO_KEYS_KEY3_PIN
 #define KEY3                            KEY3_PIN
-#define KEY4_PORT                       GPIO_KEYS_KEY4_PORT  /* B26 / SW4 */
+#define KEY4_PORT                       GPIO_KEYS_KEY4_PORT  /* A29 / SW4 */
 #define KEY4_PIN                        GPIO_KEYS_KEY4_PIN
 #define KEY4                            KEY4_PIN
 

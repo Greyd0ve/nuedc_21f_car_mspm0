@@ -268,10 +268,10 @@ extern "C" {
 #define GPIO_KEYS_KEY3_PORT                                              (GPIOB)
 #define GPIO_KEYS_KEY3_PIN                                      (DL_GPIO_PIN_27)
 #define GPIO_KEYS_KEY3_IOMUX                                     (IOMUX_PINCM58)
-/* Defines for KEY4: GPIOB.26 with pinCMx 57 on package pin 28 */
-#define GPIO_KEYS_KEY4_PORT                                              (GPIOB)
-#define GPIO_KEYS_KEY4_PIN                                      (DL_GPIO_PIN_26)
-#define GPIO_KEYS_KEY4_IOMUX                                     (IOMUX_PINCM57)
+/* Defines for KEY4: GPIOA.29 with pinCMx 4 on package pin 36 */
+#define GPIO_KEYS_KEY4_PORT                                              (GPIOA)
+#define GPIO_KEYS_KEY4_PIN                                      (DL_GPIO_PIN_29)
+#define GPIO_KEYS_KEY4_IOMUX                                      (IOMUX_PINCM4)
 /* Defines for LED_USER: GPIOB.4 with pinCMx 17 on package pin 52 */
 #define GPIO_BOARD_IO_LED_USER_PORT                                      (GPIOB)
 #define GPIO_BOARD_IO_LED_USER_PIN                               (DL_GPIO_PIN_4)

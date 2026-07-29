@@ -151,9 +151,9 @@ GPIO4.associatedPins[2].pin.$assign      = "PB27";
 GPIO4.associatedPins[2].direction        = "INPUT";
 GPIO4.associatedPins[2].internalResistor = "PULL_UP";
 GPIO4.associatedPins[3].$name            = "KEY4";
-GPIO4.associatedPins[3].assignedPort     = "PORTB";
-GPIO4.associatedPins[3].assignedPin      = "26";
-GPIO4.associatedPins[3].pin.$assign      = "PB26";
+GPIO4.associatedPins[3].assignedPort     = "PORTA";
+GPIO4.associatedPins[3].assignedPin      = "29";
+GPIO4.associatedPins[3].pin.$assign      = "PA29";
 GPIO4.associatedPins[3].direction        = "INPUT";
 GPIO4.associatedPins[3].internalResistor = "PULL_UP";
 
