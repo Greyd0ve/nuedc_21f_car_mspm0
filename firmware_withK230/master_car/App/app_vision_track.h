@@ -106,8 +106,9 @@
 #define VISION_TRACK_MIN_CONFIDENCE           30U
 
 /*
- * UART_DEBUG is the 9600-baud Bluetooth/debug port.  A full self-describing
- * record needs nearly 0.5 s on the wire, so 600 ms is the safe default.
+ * UART_DEBUG is the UART0 9600-baud USB-TTL debug port. A full
+ * self-describing record needs nearly 0.5 s on the wire, so 600 ms is the
+ * safe default. UART1 remains reserved for the K230 binary protocol.
  */
 #define VISION_TRACK_DEBUG_ENABLE              1
 #define VISION_TRACK_DEBUG_PERIOD_MS           600U

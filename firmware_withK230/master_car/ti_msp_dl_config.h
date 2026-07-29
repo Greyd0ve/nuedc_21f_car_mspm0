@@ -165,34 +165,34 @@ extern "C" {
 
 
 /* Defines for UART_DEBUG */
-#define UART_DEBUG_INST                                                    UART1
+#define UART_DEBUG_INST                                                    UART0
 #define UART_DEBUG_INST_FREQUENCY                                       32000000
-#define UART_DEBUG_INST_IRQHandler                              UART1_IRQHandler
-#define UART_DEBUG_INST_INT_IRQN                                  UART1_INT_IRQn
-#define GPIO_UART_DEBUG_RX_PORT                                            GPIOB
-#define GPIO_UART_DEBUG_TX_PORT                                            GPIOB
-#define GPIO_UART_DEBUG_RX_PIN                                     DL_GPIO_PIN_7
-#define GPIO_UART_DEBUG_TX_PIN                                     DL_GPIO_PIN_6
-#define GPIO_UART_DEBUG_IOMUX_RX                                 (IOMUX_PINCM24)
-#define GPIO_UART_DEBUG_IOMUX_TX                                 (IOMUX_PINCM23)
-#define GPIO_UART_DEBUG_IOMUX_RX_FUNC                  IOMUX_PINCM24_PF_UART1_RX
-#define GPIO_UART_DEBUG_IOMUX_TX_FUNC                  IOMUX_PINCM23_PF_UART1_TX
+#define UART_DEBUG_INST_IRQHandler                              UART0_IRQHandler
+#define UART_DEBUG_INST_INT_IRQN                                  UART0_INT_IRQn
+#define GPIO_UART_DEBUG_RX_PORT                                            GPIOA
+#define GPIO_UART_DEBUG_TX_PORT                                            GPIOA
+#define GPIO_UART_DEBUG_RX_PIN                                     DL_GPIO_PIN_1
+#define GPIO_UART_DEBUG_TX_PIN                                     DL_GPIO_PIN_0
+#define GPIO_UART_DEBUG_IOMUX_RX                                  (IOMUX_PINCM2)
+#define GPIO_UART_DEBUG_IOMUX_TX                                  (IOMUX_PINCM1)
+#define GPIO_UART_DEBUG_IOMUX_RX_FUNC                   IOMUX_PINCM2_PF_UART0_RX
+#define GPIO_UART_DEBUG_IOMUX_TX_FUNC                   IOMUX_PINCM1_PF_UART0_TX
 #define UART_DEBUG_BAUD_RATE                                              (9600)
 #define UART_DEBUG_IBRD_32_MHZ_9600_BAUD                                   (208)
 #define UART_DEBUG_FBRD_32_MHZ_9600_BAUD                                    (21)
 /* Defines for UART_K230 */
-#define UART_K230_INST                                                     UART0
+#define UART_K230_INST                                                     UART1
 #define UART_K230_INST_FREQUENCY                                        32000000
-#define UART_K230_INST_IRQHandler                               UART0_IRQHandler
-#define UART_K230_INST_INT_IRQN                                   UART0_INT_IRQn
-#define GPIO_UART_K230_RX_PORT                                             GPIOA
-#define GPIO_UART_K230_TX_PORT                                             GPIOA
-#define GPIO_UART_K230_RX_PIN                                      DL_GPIO_PIN_1
-#define GPIO_UART_K230_TX_PIN                                      DL_GPIO_PIN_0
-#define GPIO_UART_K230_IOMUX_RX                                   (IOMUX_PINCM2)
-#define GPIO_UART_K230_IOMUX_TX                                   (IOMUX_PINCM1)
-#define GPIO_UART_K230_IOMUX_RX_FUNC                    IOMUX_PINCM2_PF_UART0_RX
-#define GPIO_UART_K230_IOMUX_TX_FUNC                    IOMUX_PINCM1_PF_UART0_TX
+#define UART_K230_INST_IRQHandler                               UART1_IRQHandler
+#define UART_K230_INST_INT_IRQN                                   UART1_INT_IRQn
+#define GPIO_UART_K230_RX_PORT                                             GPIOB
+#define GPIO_UART_K230_TX_PORT                                             GPIOB
+#define GPIO_UART_K230_RX_PIN                                      DL_GPIO_PIN_7
+#define GPIO_UART_K230_TX_PIN                                      DL_GPIO_PIN_6
+#define GPIO_UART_K230_IOMUX_RX                                  (IOMUX_PINCM24)
+#define GPIO_UART_K230_IOMUX_TX                                  (IOMUX_PINCM23)
+#define GPIO_UART_K230_IOMUX_RX_FUNC                   IOMUX_PINCM24_PF_UART1_RX
+#define GPIO_UART_K230_IOMUX_TX_FUNC                   IOMUX_PINCM23_PF_UART1_TX
 #define UART_K230_BAUD_RATE                                             (460800)
 #define UART_K230_IBRD_32_MHZ_460800_BAUD                                    (4)
 #define UART_K230_FBRD_32_MHZ_460800_BAUD                                   (22)

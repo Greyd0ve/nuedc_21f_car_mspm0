@@ -406,8 +406,10 @@
 #define ROD_ENCODER_IRQN                 GPIO_ROD_ENCODER_INT_IRQN
 
 /* ---------------- UARTs ----------------
- * UART_DEBUG  = UART1, PB6/PB7, 9600    for debug/HC-04 BLE.
- * UART_K230   = UART0, PA0/PA1, 460800  for K230 vision.
+ * UART_DEBUG  = UART0, PA0/TX and PA1/RX, 9600, for USB-TTL diagnostics.
+ * UART_K230   = UART1, PB6/TX and PB7/RX, 460800, for K230 vision.
+ * Connect TX to the peer's RX and share a 3.3 V logic ground. Do not send
+ * DebugSerial output over UART1: it would corrupt the K230 binary protocol.
  * UART_JY61P  = UART2, PA23/PA24, 9600  for JY61P IMU.
  */
 #define SERIAL_UART_INST                UART_K230_INST
