@@ -4,6 +4,7 @@
 #include "Key.h"
 #include "BeepLed.h"
 #include "app_car_base.h"
+#include "app_h26.h"
 #include <stdint.h>
 
 extern volatile uint8_t g_task_1ms_count;
@@ -29,6 +30,7 @@ uint32_t Timer_GetMillis(void)
 
 void Timer_Init(void)
 {
+    s_systemMillis = 0U;
     DL_TimerG_clearInterruptStatus(SYSTEM_TIMER_INST, DL_TIMER_INTERRUPT_ZERO_EVENT);
     NVIC_ClearPendingIRQ(SYSTEM_TIMER_IRQN);
     NVIC_EnableIRQ(SYSTEM_TIMER_IRQN);
@@ -52,7 +54,11 @@ void TIMG6_IRQHandler(void)
 #else
             Key_Tick();
             BeepLed_Tick1ms();
+#if !APP_MODE_H26
             CarBase_PromptTick1ms();
+#else
+            H26_Tick1ms();
+#endif
 
             Timer_SaturatingInc(&g_task_1ms_count);
 

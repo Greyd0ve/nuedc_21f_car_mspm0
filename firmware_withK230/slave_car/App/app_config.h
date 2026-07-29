@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/* Exactly one top-level task manager may write chassis targets. */
+#ifndef APP_MODE_H26
+#define APP_MODE_H26                         1U
+#endif
+
 /*
  * Select motor type for slave car.
  * 0 = DC motor + TB6612 (legacy)

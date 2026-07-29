@@ -16,6 +16,7 @@ static volatile uint8_t  s_txBuf[DEBUG_TX_BUF_SIZE];
 static volatile uint16_t s_txHead = 0U;
 static volatile uint16_t s_txTail = 0U;
 static volatile uint32_t s_txDropCount = 0U;
+static DebugSerial_LineHandler_t s_lineHandler = 0;
 
 static uint16_t DebugSerial_NextTxIndex(uint16_t index)
 {
@@ -70,10 +71,16 @@ void DebugSerial_Init(void)
     s_txHead = 0U;
     s_txTail = 0U;
     s_txDropCount = 0U;
+    s_lineHandler = 0;
     DL_UART_Main_disableInterrupt(
         UART_DEBUG_INST, DL_UART_MAIN_INTERRUPT_TX);
     NVIC_ClearPendingIRQ(UART_DEBUG_INST_INT_IRQN);
     NVIC_EnableIRQ(UART_DEBUG_INST_INT_IRQN);
+}
+
+void DebugSerial_SetLineHandler(DebugSerial_LineHandler_t handler)
+{
+    s_lineHandler = handler;
 }
 
 uint32_t DebugSerial_GetRxOverflowCount(void)
@@ -227,6 +234,10 @@ void DebugSerial_Task10ms(void)
         {
             buf[idx] = '\0';
             idx = 0U;
+            if (s_lineHandler != 0)
+            {
+                s_lineHandler(buf);
+            }
             if (buf[0] == '[' && buf[1] == 'p' && buf[2] == 'i' && buf[3] == 'n'
                 && buf[4] == 'g' && buf[5] == ']')
             {

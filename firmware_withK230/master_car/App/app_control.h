@@ -9,6 +9,10 @@ void App_Control_Init(void);
 /* 将运行时调好的 PID 参数同步到当前 PID 对象。 */
 void App_Control_UpdatePIDParam(void);
 
+/* Configure the per-wheel speed-loop gains used by App_Control_ApplyMotorOutput. */
+void App_Control_SetSpeedPIDParam(float kp, float ki, float kd);
+void App_Control_GetSpeedPIDParam(float *kp, float *ki, float *kd);
+
 /* 清空 PID 积分和上次误差，不直接操作电机 GPIO。 */
 void App_Control_ResetPID(void);
 

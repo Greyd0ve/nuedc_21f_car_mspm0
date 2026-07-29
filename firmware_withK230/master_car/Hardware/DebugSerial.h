@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 
+typedef void (*DebugSerial_LineHandler_t)(const char *line);
+
 void DebugSerial_Init(void);
+void DebugSerial_SetLineHandler(DebugSerial_LineHandler_t handler);
 void DebugSerial_SendByte(uint8_t byte);
 uint8_t DebugSerial_TrySendByte(uint8_t byte);
 uint8_t DebugSerial_TrySendBuffer(const uint8_t *data, uint16_t length);

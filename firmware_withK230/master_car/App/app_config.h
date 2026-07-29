@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/* H26 is the only formal top-level task manager permitted to command motors. */
+#ifndef APP_MODE_H26
+#define APP_MODE_H26                         1U
+#endif
+
 /*
  * All ECAR_* test macros MUST be defined (with #ifndef guard) before any
  * #if check that references them.  Undefined identifiers in #if evaluate
@@ -16,12 +21,15 @@
 
 /* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    1
+#define ECAR_BOARD_TEST_MODE                    0
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
 #ifndef ECAR_TEST_MOTOR_ENABLE
-#define ECAR_TEST_MOTOR_ENABLE                  1
+#define ECAR_TEST_MOTOR_ENABLE                  0
+#endif
+#ifndef ECAR_TEST_SPEED_PID_ENABLE
+#define ECAR_TEST_SPEED_PID_ENABLE              1
 #endif
 #ifndef ECAR_TEST_SERVO_ENABLE
 #define ECAR_TEST_SERVO_ENABLE                  0
@@ -47,6 +55,7 @@
 
 /* Mutual exclusion: only one board test sub-mode at a time. */
 #if ((ECAR_TEST_MOTOR_ENABLE + \
+      ECAR_TEST_SPEED_PID_ENABLE + \
       ECAR_TEST_SERVO_ENABLE + \
       ECAR_TEST_BEEP_ENABLE + \
       ECAR_TEST_OLED_ENABLE + \
@@ -79,6 +88,7 @@
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
 #define CAR_TEST_MOTOR_ENABLE           ECAR_TEST_MOTOR_ENABLE
+#define CAR_TEST_SPEED_PID_ENABLE       ECAR_TEST_SPEED_PID_ENABLE
 #define CAR_TEST_SERVO_ENABLE           ECAR_TEST_SERVO_ENABLE
 #define CAR_TEST_BEEP_ENABLE            ECAR_TEST_BEEP_ENABLE
 #define CAR_TEST_OLED_ENABLE            ECAR_TEST_OLED_ENABLE
@@ -123,7 +133,7 @@
 /* Master OLED switch. Set to 1 only when the display is physically connected.
  * When 0, all OLED_Init / OLED_Clear / status display calls are compiled out. */
 #ifndef ECAR_OLED_ENABLE
-#define ECAR_OLED_ENABLE                        0
+#define ECAR_OLED_ENABLE                        1
 #endif
 
 /* Periodic task intervals driven by the 1ms timer ISR. */
@@ -202,7 +212,8 @@
 /* Top-level execution mode mutual exclusion. */
 #if ((ECAR_ENCODER_MINIMAL_DEBUG + \
       ECAR_BOARD_TEST_MODE + \
-      ECAR_VISION_TRACK_MODE) > 1)
+      ECAR_VISION_TRACK_MODE + \
+      APP_MODE_H26) > 1)
 #error "Only one top-level execution mode can be enabled"
 #endif
 

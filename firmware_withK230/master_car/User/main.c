@@ -2,6 +2,7 @@
 #include "app_config.h"
 #include "app_board_test.h"
 #include "app_car_base.h"
+#include "app_h26.h"
 #include "app_radio.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -159,6 +160,70 @@ int main(void)
         }
     }
 
+#elif APP_MODE_H26
+
+    Key_Init();
+    Grayscale_Init();
+    Motor_Init();
+    Motor_StopAll();
+    Encoder_Init();
+    BeepLed_Init();
+    DebugSerial_Init();
+    Servo_Init();
+    CarBase_Init();
+    App_Line_GPIOForceInit();
+
+#if CAR_OLED_ENABLE
+    OLED_Init();
+    OLED_Clear();
+#endif
+
+    H26_Init();
+#if CAR_OLED_ENABLE
+    H26_Task200ms();
+#endif
+    Timer_Init();
+
+    DebugSerial_SendString("[boot,mode=h26]\r\n");
+
+    while (1)
+    {
+        uint8_t taskCount;
+
+        (void)Main_TakeTaskCounterAll(&g_task_1ms_count);
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
+        if (taskCount > 0U)
+        {
+            App_Control_UpdateEncoderSpeed(
+                (uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
+        }
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
+        if (taskCount > 2U)
+        {
+            taskCount = 2U;
+        }
+        while (taskCount > 0U)
+        {
+            DebugSerial_Task10ms();
+            H26_Task10ms();
+            taskCount--;
+        }
+
+        H26_KeyProcess();
+
+        if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
+        {
+            H26_Task100ms();
+        }
+
+        if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
+        {
+            H26_Task200ms();
+        }
+    }
+
 #elif ECAR_BOARD_TEST_MODE
 
     Key_Init();
@@ -169,7 +234,7 @@ int main(void)
     BeepLed_Init();
     DebugSerial_Init();
     Servo_Init();
-#if !CAR_TEST_MOTOR_ENABLE
+#if !CAR_TEST_MOTOR_ENABLE && !CAR_TEST_SPEED_PID_ENABLE
     CarBase_Init();
 #endif
 

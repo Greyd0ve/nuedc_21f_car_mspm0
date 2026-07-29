@@ -329,16 +329,16 @@
 /* If LED2 uses a 10k series resistor, visible brightness may be low. */
 
 /* ---------------- Keys, active low with internal pull-up ---------------- */
-#define KEY1_PORT                       GPIO_KEYS_KEY1_PORT  /* B14 / SW1 */
+#define KEY1_PORT                       GPIO_KEYS_KEY1_PORT  /* PB22 / K1 */
 #define KEY1_PIN                        GPIO_KEYS_KEY1_PIN
 #define KEY1                            KEY1_PIN
-#define KEY2_PORT                       GPIO_KEYS_KEY2_PORT  /* B11 / SW2 */
+#define KEY2_PORT                       GPIO_KEYS_KEY2_PORT  /* PA30 / K2 */
 #define KEY2_PIN                        GPIO_KEYS_KEY2_PIN
 #define KEY2                            KEY2_PIN
-#define KEY3_PORT                       GPIO_KEYS_KEY3_PORT  /* B27 / SW3 */
+#define KEY3_PORT                       GPIO_KEYS_KEY3_PORT  /* PB27 / K3 */
 #define KEY3_PIN                        GPIO_KEYS_KEY3_PIN
 #define KEY3                            KEY3_PIN
-#define KEY4_PORT                       GPIO_KEYS_KEY4_PORT  /* A29 / SW4 */
+#define KEY4_PORT                       GPIO_KEYS_KEY4_PORT  /* PA29 / K4 */
 #define KEY4_PIN                        GPIO_KEYS_KEY4_PIN
 #define KEY4                            KEY4_PIN
 

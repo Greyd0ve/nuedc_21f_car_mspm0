@@ -2,9 +2,12 @@
 #include "app_config.h"
 #include "app_board_test.h"
 #include "app_car_base.h"
+#include "app_h26.h"
+#if !APP_MODE_H26
 #include "app_21f_car.h"
 #include "app_coop.h"
 #include "app_task_mode.h"
+#endif
 #include "app_radio.h"
 #include "app_control.h"
 #include "app_line.h"
@@ -117,10 +120,14 @@ int main(void)
 #endif
     Servo_Init();
     CarBase_Init();
+#if APP_MODE_H26
+    H26_Init();
+#else
     F21Car_Init();
     F21Coop_Init();
     App_TaskMode_Init();
     App_Radio_Init();
+#endif
 
     /*
      * OLED disabled in stepper-test mode:
@@ -135,7 +142,11 @@ int main(void)
 #if CAR_OLED_ENABLE
     OLED_Init();
     OLED_Clear();
+#if APP_MODE_H26
+    H26_Task200ms();
+#else
     F21Car_Task200ms();
+#endif
 #endif
 #endif
 
@@ -163,6 +174,10 @@ int main(void)
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task10ms();
 #else
+#if APP_MODE_H26
+            DebugSerial_Task10ms();
+            H26_Task10ms();
+#else
             App_Radio_Task10ms();
             DebugSerial_Task10ms();
             if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
@@ -174,17 +189,25 @@ int main(void)
                 F21Coop_Task10ms();
             }
 #endif
+#endif
             taskCount--;
         }
 
 #if !CAR_BOARD_TEST_MODE
+#if APP_MODE_H26
+        H26_KeyProcess();
+#else
         App_TaskMode_KeyProcess();
+#endif
 #endif
 
         if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
         {
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task100ms();
+#else
+#if APP_MODE_H26
+            H26_Task100ms();
 #else
             if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
             {
@@ -195,12 +218,16 @@ int main(void)
                 F21Coop_Task100ms();
             }
 #endif
+#endif
         }
 
         if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
         {
 #if CAR_BOARD_TEST_MODE
             BoardTest_Task200ms();
+#else
+#if APP_MODE_H26
+            H26_Task200ms();
 #else
             if (App_TaskMode_Get() == F21_TASK_MODE_BASIC)
             {
@@ -210,6 +237,7 @@ int main(void)
             {
                 F21Coop_Task200ms();
             }
+#endif
 #endif
         }
     }

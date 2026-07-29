@@ -17,6 +17,11 @@ static PID_TypeDef TurnPID;
 
 static float s_leftSpeedI = 0.0f;
 static float s_rightSpeedI = 0.0f;
+static float s_leftSpeedLastError = 0.0f;
+static float s_rightSpeedLastError = 0.0f;
+static float s_speedPidKp = TUNE_SPEED_PI_KP;
+static float s_speedPidKi = TUNE_SPEED_PI_KI;
+static float s_speedPidKd = TUNE_SPEED_PID_KD;
 static uint8_t s_lowSpeedTrackSafety = 0U;
 
 volatile int16_t g_rightLastNonZeroDelta = 0;
@@ -158,6 +163,10 @@ void App_Control_Init(void)
     PID_Init(&TurnPID, g_turnKp, g_turnKi, g_turnKd,
              (float)PWM_MAX_DUTY * 0.85f, APP_TURN_I_LIMIT);
 
+    s_speedPidKp = TUNE_SPEED_PI_KP;
+    s_speedPidKi = TUNE_SPEED_PI_KI;
+    s_speedPidKd = TUNE_SPEED_PID_KD;
+    App_Control_ResetPID();
     s_lowSpeedTrackSafety = 0U;
 }
 
@@ -167,6 +176,20 @@ void App_Control_UpdatePIDParam(void)
     PID_SetTunings(&TurnPID, g_turnKp, g_turnKi, g_turnKd);
 }
 
+void App_Control_SetSpeedPIDParam(float kp, float ki, float kd)
+{
+    s_speedPidKp = App_Control_LimitFloat(kp, 0.0f, 20.0f);
+    s_speedPidKi = App_Control_LimitFloat(ki, 0.0f, 5.0f);
+    s_speedPidKd = App_Control_LimitFloat(kd, 0.0f, 20.0f);
+}
+
+void App_Control_GetSpeedPIDParam(float *kp, float *ki, float *kd)
+{
+    if (kp != 0) *kp = s_speedPidKp;
+    if (ki != 0) *ki = s_speedPidKi;
+    if (kd != 0) *kd = s_speedPidKd;
+}
+
 void App_Control_ResetPID(void)
 {
     PID_Reset(&ForwardPID);
@@ -174,6 +197,8 @@ void App_Control_ResetPID(void)
 
     s_leftSpeedI = 0.0f;
     s_rightSpeedI = 0.0f;
+    s_leftSpeedLastError = 0.0f;
+    s_rightSpeedLastError = 0.0f;
 }
 
 void App_Control_SetLowSpeedTrackSafety(uint8_t enable)
@@ -258,6 +283,8 @@ void App_Control_ApplyMotorOutput(void)
 
     float leftErr;
     float rightErr;
+    float leftDerivative;
+    float rightDerivative;
 
     float leftFF;
     float rightFF;
@@ -309,6 +336,10 @@ void App_Control_ApplyMotorOutput(void)
 
     leftErr = leftTarget - g_leftSpeed;
     rightErr = rightTarget - g_rightSpeed;
+    leftDerivative = leftErr - s_leftSpeedLastError;
+    rightDerivative = rightErr - s_rightSpeedLastError;
+    s_leftSpeedLastError = leftErr;
+    s_rightSpeedLastError = rightErr;
 
     s_leftSpeedI += leftErr;
     s_rightSpeedI += rightErr;
@@ -323,8 +354,10 @@ void App_Control_ApplyMotorOutput(void)
     leftFF = App_Control_SpeedFeedForward(leftTarget);
     rightFF = App_Control_SpeedFeedForward(rightTarget);
 
-    leftPwmF = leftFF + TUNE_SPEED_PI_KP * leftErr + TUNE_SPEED_PI_KI * s_leftSpeedI;
-    rightPwmF = rightFF + TUNE_SPEED_PI_KP * rightErr + TUNE_SPEED_PI_KI * s_rightSpeedI;
+    leftPwmF = leftFF + s_speedPidKp * leftErr +
+               s_speedPidKi * s_leftSpeedI + s_speedPidKd * leftDerivative;
+    rightPwmF = rightFF + s_speedPidKp * rightErr +
+                s_speedPidKi * s_rightSpeedI + s_speedPidKd * rightDerivative;
 
     leftPwmF = App_Control_ApplyOverspeedCut(leftPwmF,
                                               leftTarget,

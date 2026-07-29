@@ -17,6 +17,7 @@
 
 #define TUNE_SPEED_PI_KP                    1.5f
 #define TUNE_SPEED_PI_KI                    0.08f
+#define TUNE_SPEED_PID_KD                   0.0f
 #define TUNE_SPEED_I_LIMIT                  45.0f
 #define TUNE_WHEEL_TARGET_LIMIT_CMPS        80.0f
 

@@ -5,7 +5,9 @@
 #include "BeepLed.h"
 #include "app_car_base.h"
 #include "app_task_mode.h"
+#include "app_h26.h"
 #include "StepperMotor.h"
+#include "cmsis_compiler.h"
 #include <stdint.h>
 
 extern volatile uint8_t g_task_1ms_count;
@@ -13,6 +15,8 @@ extern volatile uint8_t g_task_5ms_count;
 extern volatile uint8_t g_task_10ms_count;
 extern volatile uint8_t g_task_100ms_count;
 extern volatile uint8_t g_task_200ms_count;
+
+static volatile uint32_t s_systemMs = 0U;
 
 static void Timer_SaturatingInc(volatile uint8_t *counter)
 {
@@ -24,10 +28,25 @@ static void Timer_SaturatingInc(volatile uint8_t *counter)
 
 void Timer_Init(void)
 {
+    s_systemMs = 0U;
     DL_TimerG_clearInterruptStatus(SYSTEM_TIMER_INST, DL_TIMER_INTERRUPT_ZERO_EVENT);
     NVIC_ClearPendingIRQ(SYSTEM_TIMER_IRQN);
     NVIC_EnableIRQ(SYSTEM_TIMER_IRQN);
     DL_TimerG_startCounter(SYSTEM_TIMER_INST);
+}
+
+uint32_t Timer_GetMs(void)
+{
+    uint32_t nowMs;
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    nowMs = s_systemMs;
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+    return nowMs;
 }
 
 void TIMG6_IRQHandler(void)
@@ -42,13 +61,20 @@ void TIMG6_IRQHandler(void)
     switch (DL_TimerG_getPendingInterrupt(SYSTEM_TIMER_INST))
     {
         case DL_TIMER_IIDX_ZERO:
+            s_systemMs++;
 #if CAR_ENCODER_MINIMAL_DEBUG
             Timer_SaturatingInc(&g_task_1ms_count);
 #else
             Key_Tick();
             BeepLed_Tick1ms();
+#if !APP_MODE_H26
             CarBase_PromptTick1ms();
+#endif
+#if APP_MODE_H26
+            H26_Tick1ms();
+#else
             App_TaskMode_Tick1ms();
+#endif
             StepperMotor_Task1ms();
 
             Timer_SaturatingInc(&g_task_1ms_count);

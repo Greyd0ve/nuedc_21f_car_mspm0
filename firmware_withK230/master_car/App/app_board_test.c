@@ -384,6 +384,259 @@ void BoardTest_Task100ms(void)
 
 void BoardTest_Task200ms(void) { }
 
+#elif CAR_TEST_SPEED_PID_ENABLE
+
+#define SPEED_PID_TEST_DEFAULT_TARGET_X10   200
+#define SPEED_PID_TEST_MAX_TARGET_X10       800
+
+static uint8_t s_speedPidTestRun = 0U;
+static int32_t s_speedPidTestTargetX10 = SPEED_PID_TEST_DEFAULT_TARGET_X10;
+
+static int32_t BoardTest_SpeedPidFloatToX10(float value)
+{
+    if (value >= 0.0f)
+    {
+        return (int32_t)(value * 10.0f + 0.5f);
+    }
+
+    return (int32_t)(value * 10.0f - 0.5f);
+}
+
+static int32_t BoardTest_SpeedPidFloatToX100(float value)
+{
+    if (value >= 0.0f)
+    {
+        return (int32_t)(value * 100.0f + 0.5f);
+    }
+
+    return (int32_t)(value * 100.0f - 0.5f);
+}
+
+static uint8_t BoardTest_SpeedPidLineIs(const char *line, const char *expected)
+{
+    while (*line != '\0' && *expected != '\0')
+    {
+        if (*line != *expected)
+        {
+            return 0U;
+        }
+        line++;
+        expected++;
+    }
+
+    return (*line == '\0' && *expected == '\0') ? 1U : 0U;
+}
+
+static uint8_t BoardTest_SpeedPidParseValue(const char *line,
+                                             const char *prefix,
+                                             int32_t *value)
+{
+    uint32_t parsed = 0U;
+    uint8_t digitCount = 0U;
+
+    while (*prefix != '\0')
+    {
+        if (*line != *prefix)
+        {
+            return 0U;
+        }
+        line++;
+        prefix++;
+    }
+
+    while (*line >= '0' && *line <= '9')
+    {
+        if (parsed > 100000000U)
+        {
+            return 0U;
+        }
+        parsed = parsed * 10U + (uint32_t)(*line - '0');
+        digitCount++;
+        line++;
+    }
+
+    if ((digitCount == 0U) || (*line != ']'))
+    {
+        return 0U;
+    }
+
+    *value = (int32_t)parsed;
+    return 1U;
+}
+
+static void BoardTest_SpeedPidPrintStatus(void)
+{
+    float kp;
+    float ki;
+    float kd;
+
+    App_Control_GetSpeedPIDParam(&kp, &ki, &kd);
+    DebugSerial_Printf(
+        "[pid-test,status,run=%u,target10=%ld,kp100=%ld,ki100=%ld,kd100=%ld]\r\n",
+        (unsigned int)s_speedPidTestRun,
+        (long)s_speedPidTestTargetX10,
+        (long)BoardTest_SpeedPidFloatToX100(kp),
+        (long)BoardTest_SpeedPidFloatToX100(ki),
+        (long)BoardTest_SpeedPidFloatToX100(kd));
+}
+
+static void BoardTest_SpeedPidStop(void)
+{
+    s_speedPidTestRun = 0U;
+    App_Control_ForcePWMZero();
+    DebugSerial_SendString("[pid-test,run=0]\r\n");
+}
+
+static void BoardTest_SpeedPidStart(void)
+{
+    if (s_speedPidTestTargetX10 <= 0)
+    {
+        DebugSerial_SendString("[pid-test,run=rejected,target10=0]\r\n");
+        return;
+    }
+
+    App_Control_ResetPID();
+    App_Control_SetLowSpeedTrackSafety(0U);
+    s_speedPidTestRun = 1U;
+    DebugSerial_SendString("[pid-test,run=1]\r\n");
+}
+
+static void BoardTest_SpeedPidSetTarget(int32_t targetX10)
+{
+    if ((targetX10 <= 0) || (targetX10 > SPEED_PID_TEST_MAX_TARGET_X10))
+    {
+        DebugSerial_Printf("[pid-test,target=rejected,value10=%ld]\r\n", (long)targetX10);
+        return;
+    }
+
+    s_speedPidTestTargetX10 = targetX10;
+    App_Control_ResetPID();
+    DebugSerial_Printf("[pid-test,target10=%ld]\r\n", (long)s_speedPidTestTargetX10);
+}
+
+static void BoardTest_SpeedPidSetGain(uint8_t gainIndex, int32_t gainX100)
+{
+    float kp;
+    float ki;
+    float kd;
+
+    if (gainX100 > 2000)
+    {
+        DebugSerial_Printf("[pid-test,gain=rejected,value100=%ld]\r\n", (long)gainX100);
+        return;
+    }
+
+    App_Control_GetSpeedPIDParam(&kp, &ki, &kd);
+    if (gainIndex == 0U) kp = (float)gainX100 / 100.0f;
+    else if (gainIndex == 1U) ki = (float)gainX100 / 100.0f;
+    else kd = (float)gainX100 / 100.0f;
+
+    App_Control_SetSpeedPIDParam(kp, ki, kd);
+    App_Control_ResetPID();
+    BoardTest_SpeedPidPrintStatus();
+}
+
+static void BoardTest_SpeedPidHandleCommand(const char *line)
+{
+    int32_t value;
+
+    if (BoardTest_SpeedPidLineIs(line, "[pid,run]"))
+    {
+        BoardTest_SpeedPidStart();
+    }
+    else if (BoardTest_SpeedPidLineIs(line, "[pid,stop]"))
+    {
+        BoardTest_SpeedPidStop();
+    }
+    else if (BoardTest_SpeedPidLineIs(line, "[pid,status]"))
+    {
+        BoardTest_SpeedPidPrintStatus();
+    }
+    else if (BoardTest_SpeedPidParseValue(line, "[pid,target,", &value))
+    {
+        BoardTest_SpeedPidSetTarget(value);
+    }
+    else if (BoardTest_SpeedPidParseValue(line, "[pid,kp,", &value))
+    {
+        BoardTest_SpeedPidSetGain(0U, value);
+    }
+    else if (BoardTest_SpeedPidParseValue(line, "[pid,ki,", &value))
+    {
+        BoardTest_SpeedPidSetGain(1U, value);
+    }
+    else if (BoardTest_SpeedPidParseValue(line, "[pid,kd,", &value))
+    {
+        BoardTest_SpeedPidSetGain(2U, value);
+    }
+    else if (!BoardTest_SpeedPidLineIs(line, "[ping]"))
+    {
+        DebugSerial_SendString("[pid-test,cmd=invalid]\r\n");
+    }
+}
+
+void BoardTest_Init(void)
+{
+    App_Control_Init();
+    App_Control_ForcePWMZero();
+    App_Control_SetLowSpeedTrackSafety(0U);
+
+    s_speedPidTestRun = 0U;
+    s_speedPidTestTargetX10 = SPEED_PID_TEST_DEFAULT_TARGET_X10;
+    DebugSerial_SetLineHandler(BoardTest_SpeedPidHandleCommand);
+
+    DebugSerial_SendString("[board-test,start]\r\n");
+    DebugSerial_SendString("[board-test,mode=speed-pid]\r\n");
+    DebugSerial_SendString("[pid-test,safety=lift_wheels_before_run]\r\n");
+    DebugSerial_SendString("[pid-test,plot=[p,target10,actual10,error10],unit=0.1cmps,period_ms=100]\r\n");
+    DebugSerial_SendString("[pid-test,cmd=[pid,run]|[pid,stop]|[pid,status]\r\n");
+    DebugSerial_SendString("[pid-test,cmd=[pid,target,200]|[pid,kp,150]|[pid,ki,8]|[pid,kd,0]\r\n");
+    DebugSerial_SendString("[pid-test,key,k1=run_or_stop,k3=stop]\r\n");
+    BoardTest_SpeedPidPrintStatus();
+}
+
+void BoardTest_Task10ms(void)
+{
+    uint8_t key = Key_GetNum();
+
+    if (key == 1U)
+    {
+        if (s_speedPidTestRun != 0U) BoardTest_SpeedPidStop();
+        else BoardTest_SpeedPidStart();
+    }
+    else if (key == 3U)
+    {
+        BoardTest_SpeedPidStop();
+    }
+
+    if (s_speedPidTestRun != 0U)
+    {
+        g_targetForwardSpeed = (float)s_speedPidTestTargetX10 / 10.0f;
+        g_targetTurnSpeed = 0.0f;
+        g_carEnable = 1U;
+        App_Control_ApplyMotorOutput();
+    }
+}
+
+void BoardTest_Task100ms(void)
+{
+    int32_t actualX10;
+    int32_t errorX10;
+
+    if (s_speedPidTestRun == 0U)
+    {
+        return;
+    }
+
+    actualX10 = BoardTest_SpeedPidFloatToX10(g_forwardSpeed);
+    errorX10 = BoardTest_SpeedPidFloatToX10(g_targetForwardSpeed - g_forwardSpeed);
+    DebugSerial_Printf("[p,%ld,%ld,%ld]\r\n",
+        (long)s_speedPidTestTargetX10,
+        (long)actualX10,
+        (long)errorX10);
+}
+
+void BoardTest_Task200ms(void) { }
+
 #elif CAR_TEST_STEPPER_ENCODER_ENABLE
 
 #include "Servo.h"
