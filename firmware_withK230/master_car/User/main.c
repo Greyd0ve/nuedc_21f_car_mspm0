@@ -169,7 +169,7 @@ int main(void)
     Encoder_Init();
     BeepLed_Init();
     DebugSerial_Init();
-    Servo_Init();
+    /* H26 formal task does not use servo; future ball mechanism uses an independent stepper module. */
     CarBase_Init();
     App_Line_GPIOForceInit();
 

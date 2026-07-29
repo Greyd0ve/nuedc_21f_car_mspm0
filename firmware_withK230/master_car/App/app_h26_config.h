@@ -4,8 +4,23 @@
 #include "app_config.h"
 
 /* H26 task-2 control and confirmation parameters.  Calibrate on the real track. */
-#define H26_T2_BASE_SPEED_CMPS             25.0f
-#define H26_T2_TURN_LIMIT_CMPS              6.0f
+#define H26_T2_STRAIGHT_SPEED_CMPS          42.0f
+#define H26_T2_CURVE_SPEED_CMPS             34.0f
+#define H26_T2_FINISH_SPEED_CMPS            15.0f
+#define H26_T2_TURN_LIMIT_CMPS               6.0f
+
+/* Turn-command hysteresis for straight/curve speed-zone selection. */
+#define H26_T2_CURVE_ENTER_TURN_CMPS         2.5f
+#define H26_T2_CURVE_EXIT_TURN_CMPS          1.2f
+#define H26_T2_CURVE_ENTER_HOLD_MS          50U
+#define H26_T2_CURVE_EXIT_HOLD_MS          100U
+
+/* Per-10-ms command ramp; avoids an abrupt speed step at zone boundaries. */
+#define H26_T2_SPEED_SLEW_CMPS_PER_TICK      0.8f
+
+/* Slow down before the guarded A-point finish window; not a finish predicate. */
+#define H26_T2_FINISH_SLOWDOWN_DISTANCE_CM 550.0f
+#define H26_T2_FINISH_SLOWDOWN_MIN_TIME_MS 12000U
 
 #define H26_T2_LEAVE_DISTANCE_CM            15.0f
 #define H26_T2_LEAVE_LINE_STABLE_MS         80U

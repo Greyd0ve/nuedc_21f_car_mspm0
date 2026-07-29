@@ -16,6 +16,12 @@ static volatile uint8_t s_finishEnable = 0U;
 static volatile uint8_t s_finishLatched = 0U;
 static volatile uint32_t s_finishDetectMs = 0U;
 static volatile int32_t s_finishDetectPulse = 0;
+static volatile H26_Task2SpeedZone_t s_speedZone = H26_T2_SPEED_ZONE_STRAIGHT;
+static volatile uint8_t s_curveMode = 0U;
+static volatile uint8_t s_finishApproachLatched = 0U;
+static volatile uint16_t s_curveEnterHoldMs = 0U;
+static volatile uint16_t s_curveExitHoldMs = 0U;
+static volatile float s_commandForwardSpeed = 0.0f;
 
 static uint16_t H26_T2_SaturatingAddMs(uint16_t value, uint16_t addMs)
 {
@@ -29,6 +35,26 @@ static uint16_t H26_T2_SaturatingAddMs(uint16_t value, uint16_t addMs)
 static float H26_T2_AbsFloat(float value)
 {
     return (value < 0.0f) ? -value : value;
+}
+
+static float H26_T2_SlewFloat(float current, float target, float maxStep)
+{
+    if (maxStep <= 0.0f)
+    {
+        return target;
+    }
+
+    if (current < target)
+    {
+        current += maxStep;
+        return (current > target) ? target : current;
+    }
+    if (current > target)
+    {
+        current -= maxStep;
+        return (current < target) ? target : current;
+    }
+    return current;
 }
 
 static float H26_T2_GetDistanceCmFromStart(void)
@@ -47,7 +73,84 @@ static void H26_T2_StopCommand(void)
     App_Control_ForcePWMZero();
 }
 
-static uint8_t H26_T2_ApplyLineControl(void)
+static void H26_T2_UpdateCurveMode(float turnCmd)
+{
+    float turnAbs = H26_T2_AbsFloat(turnCmd);
+
+    if (s_curveMode == 0U)
+    {
+        s_curveExitHoldMs = 0U;
+        if (turnAbs >= H26_T2_CURVE_ENTER_TURN_CMPS)
+        {
+            s_curveEnterHoldMs = H26_T2_SaturatingAddMs(
+                s_curveEnterHoldMs, CAR_CONTROL_PERIOD_MS);
+            if (s_curveEnterHoldMs >= H26_T2_CURVE_ENTER_HOLD_MS)
+            {
+                s_curveMode = 1U;
+                s_curveEnterHoldMs = 0U;
+            }
+        }
+        else
+        {
+            s_curveEnterHoldMs = 0U;
+        }
+    }
+    else
+    {
+        s_curveEnterHoldMs = 0U;
+        if (turnAbs <= H26_T2_CURVE_EXIT_TURN_CMPS)
+        {
+            s_curveExitHoldMs = H26_T2_SaturatingAddMs(
+                s_curveExitHoldMs, CAR_CONTROL_PERIOD_MS);
+            if (s_curveExitHoldMs >= H26_T2_CURVE_EXIT_HOLD_MS)
+            {
+                s_curveMode = 0U;
+                s_curveExitHoldMs = 0U;
+            }
+        }
+        else
+        {
+            s_curveExitHoldMs = 0U;
+        }
+    }
+}
+
+static void H26_T2_UpdateFinishApproach(uint32_t nowMs)
+{
+    if (s_finishApproachLatched == 0U &&
+        H26_T2_GetDistanceCmFromStart() >= H26_T2_FINISH_SLOWDOWN_DISTANCE_CM &&
+        (nowMs - s_startMs) >= H26_T2_FINISH_SLOWDOWN_MIN_TIME_MS)
+    {
+        s_finishApproachLatched = 1U;
+    }
+}
+
+static float H26_T2_SelectForwardSpeed(void)
+{
+    float targetSpeed;
+
+    if (s_finishApproachLatched != 0U)
+    {
+        s_speedZone = H26_T2_SPEED_ZONE_FINISH;
+        targetSpeed = H26_T2_FINISH_SPEED_CMPS;
+    }
+    else if (s_curveMode != 0U)
+    {
+        s_speedZone = H26_T2_SPEED_ZONE_CURVE;
+        targetSpeed = H26_T2_CURVE_SPEED_CMPS;
+    }
+    else
+    {
+        s_speedZone = H26_T2_SPEED_ZONE_STRAIGHT;
+        targetSpeed = H26_T2_STRAIGHT_SPEED_CMPS;
+    }
+
+    s_commandForwardSpeed = H26_T2_SlewFloat(
+        s_commandForwardSpeed, targetSpeed, H26_T2_SPEED_SLEW_CMPS_PER_TICK);
+    return s_commandForwardSpeed;
+}
+
+static uint8_t H26_T2_ApplyLineControl(uint32_t nowMs, uint8_t allowFinishApproach)
 {
     float turnCmd;
 
@@ -68,7 +171,13 @@ static uint8_t H26_T2_ApplyLineControl(void)
         turnCmd = -H26_T2_TURN_LIMIT_CMPS;
     }
 
-    g_targetForwardSpeed = H26_T2_BASE_SPEED_CMPS;
+    H26_T2_UpdateCurveMode(turnCmd);
+    if (allowFinishApproach != 0U)
+    {
+        H26_T2_UpdateFinishApproach(nowMs);
+    }
+
+    g_targetForwardSpeed = H26_T2_SelectForwardSpeed();
     g_targetTurnSpeed = turnCmd;
     g_carEnable = 1U;
     App_Control_ApplyMotorOutput();
@@ -93,6 +202,12 @@ void H26_Task2_Reset(void)
     s_finishLatched = 0U;
     s_finishDetectMs = 0U;
     s_finishDetectPulse = 0;
+    s_speedZone = H26_T2_SPEED_ZONE_STRAIGHT;
+    s_curveMode = 0U;
+    s_finishApproachLatched = 0U;
+    s_curveEnterHoldMs = 0U;
+    s_curveExitHoldMs = 0U;
+    s_commandForwardSpeed = 0.0f;
 }
 
 void H26_Task2_Start(uint32_t startMs)
@@ -107,6 +222,12 @@ void H26_Task2_Start(uint32_t startMs)
     s_finishLatched = 0U;
     s_finishDetectMs = 0U;
     s_finishDetectPulse = 0;
+    s_speedZone = H26_T2_SPEED_ZONE_STRAIGHT;
+    s_curveMode = 0U;
+    s_finishApproachLatched = 0U;
+    s_curveEnterHoldMs = 0U;
+    s_curveExitHoldMs = 0U;
+    s_commandForwardSpeed = 0.0f;
     s_state = H26_T2_LEAVE_A;
 }
 
@@ -174,6 +295,26 @@ int32_t H26_Task2_GetFinishDetectPulse(void)
     return s_finishDetectPulse;
 }
 
+H26_Task2SpeedZone_t H26_Task2_GetSpeedZone(void)
+{
+    return s_speedZone;
+}
+
+uint8_t H26_Task2_IsCurveMode(void)
+{
+    return s_curveMode;
+}
+
+uint8_t H26_Task2_IsFinishApproach(void)
+{
+    return s_finishApproachLatched;
+}
+
+float H26_Task2_GetCommandForwardSpeed(void)
+{
+    return s_commandForwardSpeed;
+}
+
 H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
 {
     uint32_t elapsedMs = nowMs - s_startMs;
@@ -188,7 +329,7 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
     switch (s_state)
     {
     case H26_T2_LEAVE_A:
-        if (H26_T2_ApplyLineControl() == 0U)
+        if (H26_T2_ApplyLineControl(nowMs, 0U) == 0U)
         {
             H26_Task2_ForceFault();
             return H26_T2_RESULT_FAULT;
@@ -213,7 +354,7 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
         break;
 
     case H26_T2_LAP_RUNNING:
-        if (H26_T2_ApplyLineControl() == 0U)
+        if (H26_T2_ApplyLineControl(nowMs, 1U) == 0U)
         {
             H26_Task2_ForceFault();
             return H26_T2_RESULT_FAULT;

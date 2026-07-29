@@ -262,6 +262,7 @@ void H26_Task100ms(void)
     int32_t distanceCentiCm;
     int32_t leftSpeedCenti;
     int32_t rightSpeedCenti;
+    int32_t commandSpeedCenti;
 
     debugMs = (debugMs > (uint16_t)(0xFFFFU - 100U)) ? 0xFFFFU :
         (uint16_t)(debugMs + 100U);
@@ -275,13 +276,19 @@ void H26_Task100ms(void)
     distanceCentiCm = (int32_t)(H26_Task2_GetDistanceCm() * 100.0f);
     leftSpeedCenti = (int32_t)(g_leftSpeed * 100.0f);
     rightSpeedCenti = (int32_t)(g_rightSpeed * 100.0f);
+    commandSpeedCenti = (int32_t)(H26_Task2_GetCommandForwardSpeed() * 100.0f);
 
     DebugSerial_Printf(
-        "[h26,sys=%u,task=%u,t2=%u,mask=%02X,black=%u,hold=%u,fen=%u,flat=%u,"
-        "dist_c=%ld,elapsed=%lu,vl_c=%ld,vr_c=%ld,fdet=%lu,fp=%ld,final=%lu]\r\n",
+        "[h26,sys=%u,task=%u,t2=%u,zone=%u,curve=%u,finish_slow=%u,cmd_v_c=%ld,"
+        "mask=%02X,black=%u,hold=%u,fen=%u,flat=%u,dist_c=%ld,elapsed=%lu,"
+        "vl_c=%ld,vr_c=%ld,fdet=%lu,fp=%ld,final=%lu]\r\n",
         (unsigned int)s_systemState,
         (unsigned int)s_selectedTask,
         (unsigned int)H26_Task2_GetState(),
+        (unsigned int)H26_Task2_GetSpeedZone(),
+        (unsigned int)H26_Task2_IsCurveMode(),
+        (unsigned int)H26_Task2_IsFinishApproach(),
+        (long)commandSpeedCenti,
         (unsigned int)g_lineMask,
         (unsigned int)g_lineBlackCount,
         (unsigned int)H26_Task2_GetBlackHoldMs(),

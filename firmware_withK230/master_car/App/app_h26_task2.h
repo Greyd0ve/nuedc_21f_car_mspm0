@@ -16,6 +16,13 @@ typedef enum
 
 typedef enum
 {
+    H26_T2_SPEED_ZONE_STRAIGHT = 0,
+    H26_T2_SPEED_ZONE_CURVE,
+    H26_T2_SPEED_ZONE_FINISH
+} H26_Task2SpeedZone_t;
+
+typedef enum
+{
     H26_T2_RESULT_RUNNING = 0,
     H26_T2_RESULT_FINISHED,
     H26_T2_RESULT_FAULT
@@ -37,5 +44,9 @@ uint8_t H26_Task2_IsFinishEnabled(void);
 uint8_t H26_Task2_IsFinishLatched(void);
 uint32_t H26_Task2_GetFinishDetectMs(void);
 int32_t H26_Task2_GetFinishDetectPulse(void);
+H26_Task2SpeedZone_t H26_Task2_GetSpeedZone(void);
+uint8_t H26_Task2_IsCurveMode(void);
+uint8_t H26_Task2_IsFinishApproach(void);
+float H26_Task2_GetCommandForwardSpeed(void);
 
 #endif
