@@ -640,10 +640,11 @@ void BoardTest_Task200ms(void) { }
 
 #elif CAR_TEST_ROD_STEPPER_ENABLE
 
-/* 3200 STEP pulses/rev: 160 pulses equals one 18-degree jog. */
-#define ROD_TEST_JOG_PULSES            160U
+/* 3200 STEP pulses/rev: 640 pulses equals one 72-degree jog. */
+#define ROD_TEST_JOG_PULSES            640U
 #define ROD_TEST_STEP_FREQ_HZ          400U
-#define ROD_TEST_SOFT_LIMIT_COUNT      512
+/* 72 degrees equals about 819 encoder counts; retain a 90-degree guard. */
+#define ROD_TEST_SOFT_LIMIT_COUNT     1024
 #define ROD_TEST_SETTLE_MS             100U
 #define ROD_TEST_BAD_TRANSITION_LIMIT    8U
 #define ROD_TEST_TIMEOUT_MARGIN_MS     100U
