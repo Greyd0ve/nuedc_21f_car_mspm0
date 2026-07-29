@@ -16,10 +16,22 @@
 
 /* Master board test toggle.  0 = normal task mode, 1 = board test mode. */
 #ifndef ECAR_BOARD_TEST_MODE
-#define ECAR_BOARD_TEST_MODE                    0
+#define ECAR_BOARD_TEST_MODE                    1
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
+#ifndef ECAR_TEST_MOTOR_ENABLE
+#define ECAR_TEST_MOTOR_ENABLE                  1
+#endif
+#ifndef ECAR_TEST_SERVO_ENABLE
+#define ECAR_TEST_SERVO_ENABLE                  0
+#endif
+#ifndef ECAR_TEST_BEEP_ENABLE
+#define ECAR_TEST_BEEP_ENABLE                   0
+#endif
+#ifndef ECAR_TEST_OLED_ENABLE
+#define ECAR_TEST_OLED_ENABLE                   0
+#endif
 #ifndef ECAR_TEST_RADIO_ENABLE
 #define ECAR_TEST_RADIO_ENABLE                  0
 #endif
@@ -34,8 +46,11 @@
 #endif
 
 /* Mutual exclusion: only one board test sub-mode at a time. */
-#if ECAR_BOARD_TEST_MODE && \
-    ((ECAR_TEST_RADIO_ENABLE + \
+#if ((ECAR_TEST_MOTOR_ENABLE + \
+      ECAR_TEST_SERVO_ENABLE + \
+      ECAR_TEST_BEEP_ENABLE + \
+      ECAR_TEST_OLED_ENABLE + \
+      ECAR_TEST_RADIO_ENABLE + \
       ECAR_TEST_STEPPER_ENCODER_ENABLE + \
       ECAR_TEST_JY61P_ENABLE) > 1)
 #error "Only one board test sub-mode can be enabled at a time"
@@ -63,6 +78,10 @@
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
+#define CAR_TEST_MOTOR_ENABLE           ECAR_TEST_MOTOR_ENABLE
+#define CAR_TEST_SERVO_ENABLE           ECAR_TEST_SERVO_ENABLE
+#define CAR_TEST_BEEP_ENABLE            ECAR_TEST_BEEP_ENABLE
+#define CAR_TEST_OLED_ENABLE            ECAR_TEST_OLED_ENABLE
 #define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
 #define CAR_TEST_STEPPER_ENCODER_ENABLE ECAR_TEST_STEPPER_ENCODER_ENABLE
 #define CAR_TEST_JY61P_ENABLE           ECAR_TEST_JY61P_ENABLE

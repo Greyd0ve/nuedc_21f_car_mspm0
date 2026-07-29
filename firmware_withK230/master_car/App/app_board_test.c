@@ -3,10 +3,14 @@
 #include "Board_Config.h"
 #include "app_radio.h"
 #include "app_control.h"
+#include "app_car_state.h"
+#include "Encoder.h"
 #include "StepperEncoder.h"
 #include "DebugSerial.h"
 #include "Key.h"
 #include "Motor.h"
+#include "PWM.h"
+#include "cmsis_compiler.h"
 #include <stdint.h>
 
 #if CAR_TEST_RADIO_ENABLE
@@ -192,6 +196,192 @@ void BoardTest_Task10ms(void)
 }
 
 void BoardTest_Task100ms(void) { }
+void BoardTest_Task200ms(void) { }
+
+#elif CAR_TEST_MOTOR_ENABLE
+
+#define MOTOR_TEST_PRINT_PERIOD_100MS  10U
+
+static uint8_t s_motorTestLeftEnable = 0U;
+static uint8_t s_motorTestRightEnable = 0U;
+static uint8_t s_motorTestGear = 0U;
+static uint8_t s_motorTestPrintCount = 0U;
+
+static uint8_t BoardTest_MotorGetPercent(void)
+{
+    static const uint8_t percentTable[3] = { 10U, 20U, 30U };
+
+    if (s_motorTestGear >= (uint8_t)(sizeof(percentTable) / sizeof(percentTable[0])))
+    {
+        s_motorTestGear = 0U;
+    }
+
+    return percentTable[s_motorTestGear];
+}
+
+static int16_t BoardTest_MotorGetPwm(void)
+{
+    return (int16_t)(((int32_t)PWM_MAX_DUTY * (int32_t)BoardTest_MotorGetPercent()) / 100);
+}
+
+static void BoardTest_MotorApplyOutput(void)
+{
+    int16_t pwm = BoardTest_MotorGetPwm();
+    int16_t leftPwm = (s_motorTestLeftEnable != 0U) ? pwm : 0;
+    int16_t rightPwm = (s_motorTestRightEnable != 0U) ? pwm : 0;
+
+    if ((s_motorTestLeftEnable == 0U) && (s_motorTestRightEnable == 0U))
+    {
+        Motor_StopAll();
+        return;
+    }
+
+    Motor_SetPWM(leftPwm, rightPwm);
+}
+
+static void BoardTest_MotorPrintState(const char *event)
+{
+    DebugSerial_Printf(
+        "[motor-test,event=%s,gear=%u,pwm=%d,left_en=%u,right_en=%u]\r\n",
+        event,
+        (unsigned int)(s_motorTestGear + 1U),
+        (int)BoardTest_MotorGetPwm(),
+        (unsigned int)s_motorTestLeftEnable,
+        (unsigned int)s_motorTestRightEnable);
+}
+
+static void BoardTest_MotorPrintDiagnostic(void)
+{
+    int32_t leftSpeed10 = (int32_t)(g_leftSpeed * 10.0f);
+    int32_t rightSpeed10 = (int32_t)(g_rightSpeed * 10.0f);
+
+    DebugSerial_Printf(
+        "[motor-test,gear=%u,pwm=%d,le=%u,re=%u,ld=%d,rd=%d,lt=%ld,rt=%ld,ls10=%ld,rs10=%ld]\r\n",
+        (unsigned int)(s_motorTestGear + 1U),
+        (int)BoardTest_MotorGetPwm(),
+        (unsigned int)s_motorTestLeftEnable,
+        (unsigned int)s_motorTestRightEnable,
+        (int)g_leftEncoderDelta,
+        (int)g_rightEncoderDelta,
+        (long)g_leftEncoderTotal,
+        (long)g_rightEncoderTotal,
+        (long)leftSpeed10,
+        (long)rightSpeed10);
+}
+
+static void BoardTest_MotorResetEncoderState(void)
+{
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+
+    Encoder_ClearAll();
+
+    g_leftEncoderDelta = 0;
+    g_rightEncoderDelta = 0;
+    g_leftEncoderTotal = 0;
+    g_rightEncoderTotal = 0;
+    g_forwardEncoderTotal = 0;
+    g_turnEncoderTotal = 0;
+    g_leftSpeed = 0.0f;
+    g_rightSpeed = 0.0f;
+    g_forwardSpeed = 0.0f;
+    g_turnSpeed = 0.0f;
+
+    g_carEnable = 0U;
+    g_leftPwm = 0;
+    g_rightPwm = 0;
+    g_speedPwm = 0.0f;
+    g_diffPwm = 0.0f;
+    g_targetForwardSpeed = 0.0f;
+    g_targetTurnSpeed = 0.0f;
+
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+}
+
+void BoardTest_Init(void)
+{
+    Motor_StopAll();
+
+    s_motorTestLeftEnable = 0U;
+    s_motorTestRightEnable = 0U;
+    s_motorTestGear = 0U;
+    s_motorTestPrintCount = 0U;
+    BoardTest_MotorResetEncoderState();
+
+    DebugSerial_SendString("[board-test,start]\r\n");
+    DebugSerial_SendString("[board-test,mode=dc-motor-encoder]\r\n");
+    DebugSerial_SendString("[motor-test,key,k1=right_toggle,k2=left_toggle,k3=both_run_or_stop,k4=gear]\r\n");
+    DebugSerial_SendString("[motor-test,gear1=10,gear2=20,gear3=30]\r\n");
+    DebugSerial_Printf("[motor-test,rear_mode=%u]\r\n", (unsigned int)ECAR_REAR_LINE_SENSOR_MODE);
+    DebugSerial_SendString("[motor-test,safety=lift_wheels_before_run]\r\n");
+}
+
+void BoardTest_Task10ms(void)
+{
+    uint8_t key = Key_GetNum();
+    const char *event = 0;
+
+    switch (key)
+    {
+        case 1U:
+            s_motorTestRightEnable ^= 1U;
+            event = "k1";
+            break;
+
+        case 2U:
+            s_motorTestLeftEnable ^= 1U;
+            event = "k2";
+            break;
+
+        case 3U:
+            if ((s_motorTestLeftEnable != 0U) || (s_motorTestRightEnable != 0U))
+            {
+                s_motorTestLeftEnable = 0U;
+                s_motorTestRightEnable = 0U;
+            }
+            else
+            {
+                s_motorTestLeftEnable = 1U;
+                s_motorTestRightEnable = 1U;
+            }
+            event = "k3";
+            break;
+
+        case 4U:
+            s_motorTestGear++;
+            if (s_motorTestGear >= 3U)
+            {
+                s_motorTestGear = 0U;
+            }
+            event = "k4";
+            break;
+
+        default:
+            break;
+    }
+
+    BoardTest_MotorApplyOutput();
+
+    if (event != 0)
+    {
+        BoardTest_MotorPrintState(event);
+    }
+}
+
+void BoardTest_Task100ms(void)
+{
+    s_motorTestPrintCount++;
+    if (s_motorTestPrintCount >= MOTOR_TEST_PRINT_PERIOD_100MS)
+    {
+        s_motorTestPrintCount = 0U;
+        BoardTest_MotorPrintDiagnostic();
+    }
+}
+
 void BoardTest_Task200ms(void) { }
 
 #elif CAR_TEST_STEPPER_ENCODER_ENABLE

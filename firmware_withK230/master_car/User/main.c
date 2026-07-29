@@ -169,7 +169,9 @@ int main(void)
     BeepLed_Init();
     DebugSerial_Init();
     Servo_Init();
+#if !CAR_TEST_MOTOR_ENABLE
     CarBase_Init();
+#endif
 
 #if ECAR_TEST_RADIO_ENABLE
     App_Radio_Init();
