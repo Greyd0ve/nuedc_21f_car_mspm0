@@ -227,7 +227,7 @@
 
 /* ---------------- 8-channel grayscale module ----------------
  * P3-1 VCC = 5V, P3-6 GND.
- * GRAY_AD2 -> PB23, GRAY_AD1 -> PB10, GRAY_AD0 -> PB13, GRAY_OUT -> PB01.
+ * GRAY_AD2 -> PB23, GRAY_AD1 -> PB11, GRAY_AD0 -> PB13, GRAY_OUT -> PB01.
  *
  * Hardware warning:
  * The grayscale board is powered from 5V.  GRAY_OUT must be divided or level
@@ -287,9 +287,9 @@
  * Current display wiring is a 4-pin IIC OLED plugged into H8 first 4 pins:
  * GND, VCC, SCL/SKC, SDA -> PB9/PB8 through software I2C.
  *
- * H8 IIC mode only uses PB9/PB8. H8 SPI mode also takes PB10/PB11/PB14,
- * so grayscale AD1 and KEY1/KEY2 cannot be used at the same time unless
- * those signals are rewired.
+ * H8 IIC mode only uses PB9/PB8. H8 SPI mode also takes PB10/PB11/PB14;
+ * its DC pin on PB11 conflicts with grayscale AD1, so the two modes cannot
+ * be enabled together unless the grayscale address line is rerouted.
  */
 #ifndef BOARD_OLED_USE_H8_I2C
 #define BOARD_OLED_USE_H8_I2C           1U

@@ -40,7 +40,7 @@ static void Grayscale_SetAddress(uint8_t channel)
 void Grayscale_Init(void)
 {
 #if BOARD_OLED_H8_SPI_OWNS_GRAY_AD1
-    /* H8 SPI OLED uses PB10 as OLED_RES, which conflicts with GRAY_AD1. */
+    /* H8 SPI OLED uses PB11 as OLED_DC, which conflicts with GRAY_AD1. */
     return;
 #else
     /* 默认选择通道 0，等待第一次显式读取。 */
