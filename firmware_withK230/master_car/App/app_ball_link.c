@@ -15,6 +15,8 @@ static uint8_t s_hasNewFrame = 0U;
 static uint32_t s_validFrameCount = 0U;
 static uint32_t s_crcErrorCount = 0U;
 static uint32_t s_formatErrorCount = 0U;
+static uint32_t s_parserByteCount = 0U;
+static uint32_t s_headerSyncLossCount = 0U;
 
 static uint16_t BallLink_ReadLe16(const uint8_t *data)
 {
@@ -54,6 +56,7 @@ static uint8_t BallLink_ParseWindow(const uint8_t *frame)
     if (frame[0] != BALL_LINK_HEADER_0 || frame[1] != BALL_LINK_HEADER_1 ||
         frame[2] != BALL_LINK_VERSION || frame[3] != BALL_LINK_MESSAGE_BALL)
     {
+        s_headerSyncLossCount++;
         return 0U;
     }
 
@@ -118,9 +121,17 @@ static void BallLink_PushByte(uint8_t byte)
 void App_BallLink_Init(void)
 {
     App_BallLink_Reset();
+    App_BallLink_ResetDiagnostics();
+}
+
+void App_BallLink_ResetDiagnostics(void)
+{
     s_validFrameCount = 0U;
     s_crcErrorCount = 0U;
     s_formatErrorCount = 0U;
+    s_parserByteCount = 0U;
+    s_headerSyncLossCount = 0U;
+    Serial_ResetRxDiagnostics();
 }
 
 void App_BallLink_Reset(void)
@@ -145,6 +156,7 @@ void App_BallLink_Task10ms(void)
     s_hasNewFrame = 0U;
     while (Serial_ReadByte(&byte) != 0U)
     {
+        s_parserByteCount++;
         BallLink_PushByte(byte);
     }
 }
@@ -191,4 +203,14 @@ uint32_t App_BallLink_GetFormatErrorCount(void)
 uint32_t App_BallLink_GetRxOverflowCount(void)
 {
     return Serial_GetRxOverflowCount();
+}
+
+uint32_t App_BallLink_GetParserByteCount(void)
+{
+    return s_parserByteCount;
+}
+
+uint32_t App_BallLink_GetHeaderSyncLossCount(void)
+{
+    return s_headerSyncLossCount;
 }

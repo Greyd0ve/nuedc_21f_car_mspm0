@@ -686,7 +686,7 @@ void BoardTest_Init(void)
     DebugSerial_Printf("[rod-test,cpr=%u,step_per_rev=%u]\r\n",
         (unsigned int)ECAR_STEPPER_ENCODER_CPR,
         (unsigned int)ECAR_STEPPER_DRIVER_PULSE_PER_REV);
-    DebugSerial_SendString("[rod-test,key,k1=positive-jog,k2=negative-jog,k4=zero]\r\n");
+    DebugSerial_SendString("[rod-test,key,k1=positive-jog,k2=negative-jog,k3=stop,k4=zero]\r\n");
 }
 
 void BoardTest_Task10ms(void)
@@ -701,6 +701,14 @@ void BoardTest_Task10ms(void)
     {
         RodEncoder_Reset();
         DebugSerial_SendString("[rod-test,zero]\r\n");
+        return;
+    }
+
+    if (key == 3U)
+    {
+        RodStepper_Stop();
+        s_rodTestState = ROD_TEST_IDLE;
+        DebugSerial_SendString("[rod-test,manual-stop]\r\n");
         return;
     }
 

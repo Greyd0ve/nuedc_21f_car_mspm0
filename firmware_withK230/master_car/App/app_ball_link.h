@@ -30,6 +30,7 @@ typedef struct
 
 void App_BallLink_Init(void);
 void App_BallLink_Reset(void);
+void App_BallLink_ResetDiagnostics(void);
 void App_BallLink_Task10ms(void);
 
 uint8_t App_BallLink_GetLatest(BallLinkFrame_t *frame);
@@ -39,5 +40,7 @@ uint32_t App_BallLink_GetValidFrameCount(void);
 uint32_t App_BallLink_GetCrcErrorCount(void);
 uint32_t App_BallLink_GetFormatErrorCount(void);
 uint32_t App_BallLink_GetRxOverflowCount(void);
+uint32_t App_BallLink_GetParserByteCount(void);
+uint32_t App_BallLink_GetHeaderSyncLossCount(void);
 
 #endif

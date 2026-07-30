@@ -24,5 +24,18 @@ uint8_t Serial_ReadByte(uint8_t *byte);
 /* RX 环形缓冲区满时丢弃的字节累计数。 */
 uint32_t Serial_GetRxOverflowCount(void);
 
-#endif
+/* UART1 传输诊断计数。不参与协议解析，仅用于区分物理收包、
+ * UART 错误和上层帧解析异常。 */
+void Serial_ResetRxDiagnostics(void);
+uint32_t Serial_GetRxByteCount(void);
+uint32_t Serial_GetRxInterruptCount(void);
+uint32_t Serial_GetRxErrorCount(void);
+uint32_t Serial_GetRxLastInterruptIndex(void);
+uint32_t Serial_GetRxOverrunErrorCount(void);
+uint32_t Serial_GetRxBreakErrorCount(void);
+uint32_t Serial_GetRxParityErrorCount(void);
+uint32_t Serial_GetRxFramingErrorCount(void);
+uint32_t Serial_GetRxNoiseErrorCount(void);
+uint32_t Serial_GetRxTimeoutErrorCount(void);
 
+#endif

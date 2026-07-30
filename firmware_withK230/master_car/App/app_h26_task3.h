@@ -55,12 +55,16 @@ uint8_t H26_Task3_IsVisionValid(void);
 uint8_t H26_Task3_GetConfidence(void);
 uint32_t H26_Task3_GetFrameAgeMs(void);
 uint16_t H26_Task3_GetRawPositionCentiCm(void);
+uint16_t H26_Task3_GetOriginCentiCm(void);
+uint8_t H26_Task3_IsOriginCalibrated(void);
 uint16_t H26_Task3_GetLastSequence(void);
 uint8_t H26_Task3_GetLastFlags(void);
 uint16_t H26_Task3_GetStableHoldMs(void);
 float H26_Task3_GetPlusHoldPeakErrorCm(void);
 float H26_Task3_GetMinusHoldPeakErrorCm(void);
 int32_t H26_Task3_GetRodEncoderCount(void);
+int32_t H26_Task3_GetRodTargetCount(void);
+float H26_Task3_GetTiltCommandMm(void);
 uint8_t H26_Task3_IsRodSoftLimitActive(void);
 H26_Task3Fault_t H26_Task3_GetFault(void);
 

@@ -14,6 +14,16 @@ static volatile uint16_t s_rxTail = 0U;
 static volatile uint8_t s_rxFlag = 0U;
 static volatile uint8_t s_rxData = 0U;
 static volatile uint32_t s_rxOverflowCount = 0U;
+static volatile uint32_t s_rxByteCount = 0U;
+static volatile uint32_t s_rxInterruptCount = 0U;
+static volatile uint32_t s_rxErrorCount = 0U;
+static volatile uint32_t s_lastInterruptIndex = 0U;
+static volatile uint32_t s_rxOverrunErrorCount = 0U;
+static volatile uint32_t s_rxBreakErrorCount = 0U;
+static volatile uint32_t s_rxParityErrorCount = 0U;
+static volatile uint32_t s_rxFramingErrorCount = 0U;
+static volatile uint32_t s_rxNoiseErrorCount = 0U;
+static volatile uint32_t s_rxTimeoutErrorCount = 0U;
 
 static uint16_t Serial_NextIndex(uint16_t index)
 {
@@ -24,6 +34,10 @@ static uint16_t Serial_NextIndex(uint16_t index)
 static void Serial_PushRx(uint8_t byte)
 {
     uint16_t next = Serial_NextIndex(s_rxHead);
+
+    /* Count every byte drained from the hardware, including bytes dropped
+     * because the software ring is full. */
+    s_rxByteCount++;
 
     if (next == s_rxTail)
     {
@@ -38,6 +52,28 @@ static void Serial_PushRx(uint8_t byte)
     s_rxFlag = 1U;
 }
 
+static void Serial_DrainRxFifo(void)
+{
+    while (!DL_UART_Main_isRXFIFOEmpty(SERIAL_UART_INST))
+    {
+        Serial_PushRx(DL_UART_Main_receiveData(SERIAL_UART_INST));
+    }
+}
+
+void Serial_ResetRxDiagnostics(void)
+{
+    s_rxByteCount = 0U;
+    s_rxInterruptCount = 0U;
+    s_rxErrorCount = 0U;
+    s_lastInterruptIndex = 0U;
+    s_rxOverrunErrorCount = 0U;
+    s_rxBreakErrorCount = 0U;
+    s_rxParityErrorCount = 0U;
+    s_rxFramingErrorCount = 0U;
+    s_rxNoiseErrorCount = 0U;
+    s_rxTimeoutErrorCount = 0U;
+}
+
 void Serial_Init(void)
 {
     /* 使能 UART RX 中断前，先复位软件缓冲区状态。 */
@@ -46,6 +82,18 @@ void Serial_Init(void)
     s_rxFlag = 0U;
     s_rxData = 0U;
     s_rxOverflowCount = 0U;
+    Serial_ResetRxDiagnostics();
+
+    /* SysConfig enables RX.  Also make data-line errors observable and clear
+     * them in our ISR so one bad byte cannot leave UART1 in a stale state. */
+    DL_UART_Main_enableInterrupt(SERIAL_UART_INST,
+        DL_UART_MAIN_INTERRUPT_RX |
+        DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR |
+        DL_UART_MAIN_INTERRUPT_BREAK_ERROR |
+        DL_UART_MAIN_INTERRUPT_PARITY_ERROR |
+        DL_UART_MAIN_INTERRUPT_FRAMING_ERROR |
+        DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR |
+        DL_UART_MAIN_INTERRUPT_NOISE_ERROR);
 
     NVIC_ClearPendingIRQ(SERIAL_UART_IRQN);
     NVIC_EnableIRQ(SERIAL_UART_IRQN);
@@ -415,16 +463,78 @@ uint32_t Serial_GetRxOverflowCount(void)
     return s_rxOverflowCount;
 }
 
+uint32_t Serial_GetRxByteCount(void) { return s_rxByteCount; }
+uint32_t Serial_GetRxInterruptCount(void) { return s_rxInterruptCount; }
+uint32_t Serial_GetRxErrorCount(void) { return s_rxErrorCount; }
+uint32_t Serial_GetRxLastInterruptIndex(void) { return s_lastInterruptIndex; }
+uint32_t Serial_GetRxOverrunErrorCount(void) { return s_rxOverrunErrorCount; }
+uint32_t Serial_GetRxBreakErrorCount(void) { return s_rxBreakErrorCount; }
+uint32_t Serial_GetRxParityErrorCount(void) { return s_rxParityErrorCount; }
+uint32_t Serial_GetRxFramingErrorCount(void) { return s_rxFramingErrorCount; }
+uint32_t Serial_GetRxNoiseErrorCount(void) { return s_rxNoiseErrorCount; }
+uint32_t Serial_GetRxTimeoutErrorCount(void) { return s_rxTimeoutErrorCount; }
+
 void UART_K230_INST_IRQHandler(void)
 {
-    switch (DL_UART_Main_getPendingInterrupt(SERIAL_UART_INST))
+    DL_UART_IIDX interruptIndex =
+        DL_UART_Main_getPendingInterrupt(SERIAL_UART_INST);
+
+    s_rxInterruptCount++;
+    s_lastInterruptIndex = (uint32_t)interruptIndex;
+
+    switch (interruptIndex)
     {
         case DL_UART_MAIN_IIDX_RX:
             /* ISR 只把 FIFO 搬进环形缓冲区，协议解析留给前台执行。 */
-            while (!DL_UART_Main_isRXFIFOEmpty(SERIAL_UART_INST))
-            {
-                Serial_PushRx(DL_UART_Main_receiveData(SERIAL_UART_INST));
-            }
+            Serial_DrainRxFifo();
+            break;
+
+        case DL_UART_MAIN_IIDX_OVERRUN_ERROR:
+            s_rxErrorCount++;
+            s_rxOverrunErrorCount++;
+            DL_UART_Main_clearInterruptStatus(SERIAL_UART_INST,
+                DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR);
+            Serial_DrainRxFifo();
+            break;
+
+        case DL_UART_MAIN_IIDX_BREAK_ERROR:
+            s_rxErrorCount++;
+            s_rxBreakErrorCount++;
+            DL_UART_Main_clearInterruptStatus(SERIAL_UART_INST,
+                DL_UART_MAIN_INTERRUPT_BREAK_ERROR);
+            Serial_DrainRxFifo();
+            break;
+
+        case DL_UART_MAIN_IIDX_PARITY_ERROR:
+            s_rxErrorCount++;
+            s_rxParityErrorCount++;
+            DL_UART_Main_clearInterruptStatus(SERIAL_UART_INST,
+                DL_UART_MAIN_INTERRUPT_PARITY_ERROR);
+            Serial_DrainRxFifo();
+            break;
+
+        case DL_UART_MAIN_IIDX_FRAMING_ERROR:
+            s_rxErrorCount++;
+            s_rxFramingErrorCount++;
+            DL_UART_Main_clearInterruptStatus(SERIAL_UART_INST,
+                DL_UART_MAIN_INTERRUPT_FRAMING_ERROR);
+            Serial_DrainRxFifo();
+            break;
+
+        case DL_UART_MAIN_IIDX_NOISE_ERROR:
+            s_rxErrorCount++;
+            s_rxNoiseErrorCount++;
+            DL_UART_Main_clearInterruptStatus(SERIAL_UART_INST,
+                DL_UART_MAIN_INTERRUPT_NOISE_ERROR);
+            Serial_DrainRxFifo();
+            break;
+
+        case DL_UART_MAIN_IIDX_RX_TIMEOUT_ERROR:
+            s_rxErrorCount++;
+            s_rxTimeoutErrorCount++;
+            DL_UART_Main_clearInterruptStatus(SERIAL_UART_INST,
+                DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+            Serial_DrainRxFifo();
             break;
 
         default:
