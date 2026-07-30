@@ -410,6 +410,85 @@ void H26_Task10ms(void)
 
 void H26_Task100ms(void)
 {
+#if !H26_VERBOSE_TELEMETRY_ENABLE
+    static uint16_t debugMs = 0U;
+
+    debugMs = (debugMs > (uint16_t)(0xFFFFU - 100U)) ? 0xFFFFU :
+        (uint16_t)(debugMs + 100U);
+    if (debugMs < H26_DEBUG_PERIOD_MS)
+    {
+        return;
+    }
+    debugMs = 0U;
+
+    if (s_selectedTask == H26_TASK_3)
+    {
+        DebugSerial_Printf(
+            "[h26,sys=%u,task=3,t3=%u,pos_c=%ld,target_c=%ld,err_c=%ld,v_c=%ld,cmd_hz=%ld,vision=%u,conf=%u,age=%lu,stable=%u,plus_pk_c=%ld,minus_pk_c=%ld,rod=%ld,rod_t=%ld,tilt_um=%ld,elapsed=%lu,final=%lu]\r\n",
+            (unsigned int)s_systemState,
+            (unsigned int)H26_Task3_GetState(),
+            (long)(H26_Task3_GetPositionCm() * 100.0f),
+            (long)(H26_Task3_GetTargetCm() * 100.0f),
+            (long)(H26_Task3_GetErrorCm() * 100.0f),
+            (long)(H26_Task3_GetBallSpeedCmps() * 100.0f),
+            (long)H26_Task3_GetCommandHz(),
+            (unsigned int)H26_Task3_IsVisionValid(),
+            (unsigned int)H26_Task3_GetConfidence(),
+            (unsigned long)H26_Task3_GetFrameAgeMs(),
+            (unsigned int)H26_Task3_GetStableHoldMs(),
+            (long)(H26_Task3_GetPlusHoldPeakErrorCm() * 100.0f),
+            (long)(H26_Task3_GetMinusHoldPeakErrorCm() * 100.0f),
+            (long)H26_Task3_GetRodEncoderCount(),
+            (long)H26_Task3_GetRodTargetCount(),
+            (long)(H26_Task3_GetTiltCommandMm() * 1000.0f),
+            (unsigned long)H26_Task3_GetElapsedMs(Timer_GetMillis()),
+            (unsigned long)H26_Task3_GetFinalElapsedMs());
+        return;
+    }
+
+    if (s_selectedTask == H26_TASK_4)
+    {
+        DebugSerial_Printf(
+            "[h26,sys=%u,task=4,t4=%u,bpass=%u,dist_c=%ld,pos_c=%ld,v_c=%ld,peak_c=%ld,elapsed=%lu,final=%lu,fault=%u]\r\n",
+            (unsigned int)s_systemState,
+            (unsigned int)H26_Task4_GetState(),
+            (unsigned int)H26_Task4_IsBPassed(),
+            (long)(H26_Task4_GetDistanceCm() * 100.0f),
+            (long)(H26_Task4_GetBallPositionCm() * 100.0f),
+            (long)(H26_Task4_GetBallSpeedCmps() * 100.0f),
+            (long)(H26_Task4_GetBallPeakErrorCm() * 100.0f),
+            (unsigned long)H26_Task4_GetElapsedMs(Timer_GetMillis()),
+            (unsigned long)H26_Task4_GetFinalElapsedMs(),
+            (unsigned int)H26_Task4_GetFault());
+        return;
+    }
+
+    if (s_selectedTask == H26_TASK_5)
+    {
+        DebugSerial_Printf(
+            "[h26,sys=%u,task=5,t5=%u,dist_c=%ld,pos_c=%ld,peak_c=%ld,elapsed=%lu,final=%lu,fault=%u]\r\n",
+            (unsigned int)s_systemState,
+            (unsigned int)H26_Task5_GetState(),
+            (long)(H26_Task5_GetDistanceCm() * 100.0f),
+            (long)(H26_Task5_GetBallPositionCm() * 100.0f),
+            (long)(H26_Task5_GetBallPeakErrorCm() * 100.0f),
+            (unsigned long)H26_Task5_GetElapsedMs(Timer_GetMillis()),
+            (unsigned long)H26_Task5_GetFinalElapsedMs(),
+            (unsigned int)H26_Task5_GetFault());
+        return;
+    }
+
+    DebugSerial_Printf(
+        "[h26,sys=%u,task=2,t2=%u,dist_c=%ld,cmd_v_c=%ld,mask=%02X,black=%u,elapsed=%lu,final=%lu]\r\n",
+        (unsigned int)s_systemState,
+        (unsigned int)H26_Task2_GetState(),
+        (long)(H26_Task2_GetDistanceCm() * 100.0f),
+        (long)(H26_Task2_GetCommandForwardSpeed() * 100.0f),
+        (unsigned int)g_lineMask,
+        (unsigned int)g_lineBlackCount,
+        (unsigned long)H26_Task2_GetElapsedMs(Timer_GetMillis()),
+        (unsigned long)H26_Task2_GetFinalElapsedMs());
+#else
     static uint16_t debugMs = 0U;
     uint32_t elapsedMs;
     int32_t distanceCentiCm;
@@ -430,7 +509,7 @@ void H26_Task100ms(void)
         DebugSerial_Printf(
             "[h26,sys=%u,task=3,t3=%u,raw_c=%u,o_raw=%u,ocal=%u,pos_c=%ld,target_c=%ld,err_c=%ld,"
             "v_c=%ld,cmd_hz=%ld,seq=%u,flags=%02X,vision=%u,conf=%u,age=%lu,"
-            "stable=%u,plus_pk_c=%ld,minus_pk_c=%ld,rod=%ld,rod_t=%ld,tilt_um=%ld,limit=%u,fault=%u,"
+            "stable=%u,plus_pk_c=%ld,minus_pk_c=%ld,rod=%ld,rod_t=%ld,tilt_um=%ld,fault=%u,"
             "frames=%lu,crc=%lu,fmt=%lu,rxdrop=%lu,rb=%lu,pb=%lu,sync=%lu,"
             "ri=%lu,re=%lu,iidx=%lu,ovr=%lu,brk=%lu,par=%lu,frm=%lu,noi=%lu,"
             "rto=%lu,elapsed=%lu,final=%lu]\r\n",
@@ -455,7 +534,6 @@ void H26_Task100ms(void)
             (long)H26_Task3_GetRodEncoderCount(),
             (long)H26_Task3_GetRodTargetCount(),
             (long)(H26_Task3_GetTiltCommandMm() * 1000.0f),
-            (unsigned int)H26_Task3_IsRodSoftLimitActive(),
             (unsigned int)H26_Task3_GetFault(),
             (unsigned long)App_BallLink_GetValidFrameCount(),
             (unsigned long)App_BallLink_GetCrcErrorCount(),
@@ -541,6 +619,7 @@ void H26_Task100ms(void)
         (unsigned long)elapsedMs,
         (long)leftSpeedCenti,
         (long)rightSpeedCenti);
+#endif
 }
 
 void H26_Task200ms(void)

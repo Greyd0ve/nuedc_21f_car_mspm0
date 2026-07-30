@@ -166,9 +166,7 @@ int main(void)
 #elif APP_MODE_H26
 
     Key_Init();
-#if !CAR_LINE_SENSOR_IR4_ENABLE
     Grayscale_Init();
-#endif
     Motor_Init();
     Motor_StopAll();
     Encoder_Init();

@@ -12,6 +12,7 @@ static volatile uint16_t s_targetHoldMs = 0U;
 static volatile float s_targetCm = 0.0f;
 static volatile float s_plusHoldPeakErrorCm = 0.0f;
 static volatile float s_minusHoldPeakErrorCm = 0.0f;
+static volatile uint8_t s_minusEndpointCaptureStarted = 0U;
 
 static float H26_T3_AbsFloat(float value)
 {
@@ -39,12 +40,35 @@ static void H26_T3_EnterFault(H26_Task3Fault_t fault)
     s_state = H26_T3_FAULT;
 }
 
-static uint8_t H26_T3_IsTargetStable(float targetCm)
+static uint8_t H26_T3_IsWithinTolerance(float targetCm, float toleranceCm)
 {
+    /* Only the caller chooses whether this is a turnaround or final endpoint. */
     return (H26_T3_AbsFloat(H26_BallControl_GetPositionCm() - targetCm) <=
-                H26_T3_TARGET_TOLERANCE_CM &&
+                toleranceCm) ? 1U : 0U;
+}
+
+static uint8_t H26_T3_IsFinalEndpointStable(void)
+{
+    return (H26_T3_IsWithinTolerance(H26_T3_TARGET_NEGATIVE_CM,
+                                     H26_T3_MINUS_FINISH_TOLERANCE_CM) != 0U &&
             H26_T3_AbsFloat(H26_BallControl_GetBallSpeedCmps()) <=
                 H26_T3_STABLE_SPEED_CMPS) ? 1U : 0U;
+}
+
+static void H26_T3_UpdateMinusEndpointPeak(void)
+{
+    float endpointErrorCm;
+
+    if (s_minusEndpointCaptureStarted == 0U)
+    {
+        return;
+    }
+
+    endpointErrorCm = H26_T3_AbsFloat(H26_BallControl_GetErrorCm());
+    if (endpointErrorCm > s_minusHoldPeakErrorCm)
+    {
+        s_minusHoldPeakErrorCm = endpointErrorCm;
+    }
 }
 
 void H26_Task3_Init(void)
@@ -65,6 +89,7 @@ void H26_Task3_Reset(void)
     s_targetCm = 0.0f;
     s_plusHoldPeakErrorCm = 0.0f;
     s_minusHoldPeakErrorCm = 0.0f;
+    s_minusEndpointCaptureStarted = 0U;
 }
 
 void H26_Task3_Start(uint32_t startMs)
@@ -112,88 +137,89 @@ H26_Task3Result_t H26_Task3_Task10ms(uint32_t nowMs)
 
     case H26_T3_MOVE_PLUS_5:
         sample = H26_BallControl_Task10ms(nowMs, s_targetCm);
-        if (sample == H26_BALL_SAMPLE_NEW && H26_T3_IsTargetStable(s_targetCm) != 0U)
+        if (sample == H26_BALL_SAMPLE_NEW &&
+            H26_T3_IsWithinTolerance(s_targetCm,
+                                      H26_T3_PLUS_TURN_TOLERANCE_CM) != 0U)
         {
-            s_targetHoldMs = 0U;
             s_plusHoldPeakErrorCm = H26_T3_AbsFloat(
                 H26_BallControl_GetErrorCm());
-            s_state = H26_T3_HOLD_PLUS_5;
+            /* +5 cm is not a scored hold: begin the return immediately. */
+            s_targetCm = H26_T3_TARGET_NEGATIVE_CM;
+            s_targetHoldMs = 0U;
+            s_state = H26_T3_MOVE_MINUS_5;
         }
         break;
 
     case H26_T3_HOLD_PLUS_5:
-        sample = H26_BallControl_Task10ms(nowMs, s_targetCm);
-        if (sample == H26_BALL_SAMPLE_NEW && H26_T3_IsTargetStable(s_targetCm) != 0U)
-        {
-            if (H26_T3_AbsFloat(H26_BallControl_GetErrorCm()) >
-                s_plusHoldPeakErrorCm)
-            {
-                s_plusHoldPeakErrorCm = H26_T3_AbsFloat(
-                    H26_BallControl_GetErrorCm());
-            }
-            s_targetHoldMs = H26_T3_AddMs(s_targetHoldMs,
-                H26_BallControl_GetStableSampleMs());
-            if (s_targetHoldMs >= H26_T3_TARGET_HOLD_MS)
-            {
-                s_targetCm = H26_T3_TARGET_NEGATIVE_CM;
-                s_targetHoldMs = 0U;
-                s_state = H26_T3_MOVE_MINUS_5;
-            }
-        }
-        else if (sample == H26_BALL_SAMPLE_NEW)
-        {
-            s_targetHoldMs = 0U;
-            s_state = H26_T3_MOVE_PLUS_5;
-        }
-        else
-        {
-            s_targetHoldMs = 0U;
-        }
+        /* Legacy state value retained for log compatibility; normal flow
+         * now switches directly from MOVE_PLUS_5 to MOVE_MINUS_5. */
+        s_targetCm = H26_T3_TARGET_NEGATIVE_CM;
+        s_targetHoldMs = 0U;
+        s_state = H26_T3_MOVE_MINUS_5;
         break;
 
     case H26_T3_MOVE_MINUS_5:
         sample = H26_BallControl_Task10ms(nowMs, s_targetCm);
-        if (sample == H26_BALL_SAMPLE_NEW && H26_T3_IsTargetStable(s_targetCm) != 0U)
+        if (sample == H26_BALL_SAMPLE_NEW)
         {
-            s_targetHoldMs = 0U;
-            s_minusHoldPeakErrorCm = H26_T3_AbsFloat(
-                H26_BallControl_GetErrorCm());
-            s_state = H26_T3_HOLD_MINUS_5;
+            if (s_minusEndpointCaptureStarted != 0U)
+            {
+                H26_T3_UpdateMinusEndpointPeak();
+            }
+
+            if (H26_T3_IsWithinTolerance(s_targetCm,
+                                          H26_T3_ENDPOINT_MONITOR_TOLERANCE_CM) != 0U)
+            {
+                if (s_minusEndpointCaptureStarted == 0U)
+                {
+                    /* Start measuring all post-arrival overshoot.  Do not
+                     * reset this statistic if a high-speed crossing exits
+                     * the hold state again. */
+                    s_minusEndpointCaptureStarted = 1U;
+                    s_minusHoldPeakErrorCm = H26_T3_AbsFloat(
+                        H26_BallControl_GetErrorCm());
+                }
+
+                if (H26_T3_IsFinalEndpointStable() != 0U)
+                {
+                    s_targetHoldMs = 0U;
+                    s_state = H26_T3_HOLD_MINUS_5;
+                }
+            }
         }
         break;
 
     case H26_T3_HOLD_MINUS_5:
         sample = H26_BallControl_Task10ms(nowMs, s_targetCm);
-        if (sample == H26_BALL_SAMPLE_NEW && H26_T3_IsTargetStable(s_targetCm) != 0U)
+        if (sample == H26_BALL_SAMPLE_NEW)
         {
-            if (H26_T3_AbsFloat(H26_BallControl_GetErrorCm()) >
-                s_minusHoldPeakErrorCm)
+            H26_T3_UpdateMinusEndpointPeak();
+            if (H26_T3_IsFinalEndpointStable() != 0U)
             {
-                s_minusHoldPeakErrorCm = H26_T3_AbsFloat(
-                    H26_BallControl_GetErrorCm());
+                s_targetHoldMs = H26_T3_AddMs(s_targetHoldMs,
+                    H26_BallControl_GetStableSampleMs());
+                if (s_targetHoldMs >= H26_T3_MINUS_FINISH_HOLD_MS)
+                {
+                    s_finalElapsedMs = elapsedMs;
+                    /* Freeze the accepted result: no post-finish rod motion. */
+                    H26_T3_StopCommand();
+                    s_state = H26_T3_DONE_HOLD;
+                    return H26_T3_RESULT_FINISHED;
+                }
             }
-            s_targetHoldMs = H26_T3_AddMs(s_targetHoldMs,
-                H26_BallControl_GetStableSampleMs());
-            if (s_targetHoldMs >= H26_T3_TARGET_HOLD_MS)
+            else
             {
-                s_finalElapsedMs = elapsedMs;
-                s_state = H26_T3_DONE_HOLD;
-                return H26_T3_RESULT_FINISHED;
+                s_targetHoldMs = 0U;
+                s_state = H26_T3_MOVE_MINUS_5;
             }
         }
-        else if (sample == H26_BALL_SAMPLE_NEW)
-        {
-            s_targetHoldMs = 0U;
-            s_state = H26_T3_MOVE_MINUS_5;
-        }
-        else
-        {
-            s_targetHoldMs = 0U;
-        }
+        /* Keep the timer between valid K230 frames; only a new position or
+         * speed violation resets the continuous endpoint confirmation. */
         break;
 
     case H26_T3_DONE_HOLD:
-        (void)H26_BallControl_Task10ms(nowMs, H26_T3_TARGET_NEGATIVE_CM);
+        /* The final position/time were already accepted; keep the actuator
+         * stopped instead of continuing to chase the ball after completion. */
         return H26_T3_RESULT_FINISHED;
 
     case H26_T3_FAULT:
@@ -268,5 +294,4 @@ float H26_Task3_GetTiltCommandMm(void)
 {
     return H26_BallControl_GetTiltCommandMm();
 }
-uint8_t H26_Task3_IsRodSoftLimitActive(void) { return 0U; }
 H26_Task3Fault_t H26_Task3_GetFault(void) { return s_fault; }

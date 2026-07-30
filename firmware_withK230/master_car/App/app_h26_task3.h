@@ -60,12 +60,13 @@ uint8_t H26_Task3_IsOriginCalibrated(void);
 uint16_t H26_Task3_GetLastSequence(void);
 uint8_t H26_Task3_GetLastFlags(void);
 uint16_t H26_Task3_GetStableHoldMs(void);
+/* +5 is the immediate turnaround-entry error.  -5 is the largest absolute
+ * error observed after the first entry into its +/-1 cm monitor band. */
 float H26_Task3_GetPlusHoldPeakErrorCm(void);
 float H26_Task3_GetMinusHoldPeakErrorCm(void);
 int32_t H26_Task3_GetRodEncoderCount(void);
 int32_t H26_Task3_GetRodTargetCount(void);
 float H26_Task3_GetTiltCommandMm(void);
-uint8_t H26_Task3_IsRodSoftLimitActive(void);
 H26_Task3Fault_t H26_Task3_GetFault(void);
 
 #endif

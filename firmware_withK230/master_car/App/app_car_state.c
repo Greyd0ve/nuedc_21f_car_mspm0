@@ -35,6 +35,7 @@ volatile int32_t g_rightEncoderTotal = 0;
 volatile int32_t g_forwardEncoderTotal = 0;
 volatile int32_t g_turnEncoderTotal = 0;
 
+/* The CD4051 eight-channel grayscale module uses the original 1-on-black level. */
 volatile float g_lineBlackLevelF = 1.0f;
 
 #if ECAR_LINE_SENSOR_FORWARD_MOUNT

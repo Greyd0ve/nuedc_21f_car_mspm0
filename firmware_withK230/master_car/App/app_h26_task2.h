@@ -30,6 +30,8 @@ typedef enum
 
 void H26_Task2_Init(void);
 void H26_Task2_Start(uint32_t startMs);
+/* Starts the shared chassis machine with task-5-only line parameters. */
+void H26_Task2_StartForTask5(uint32_t startMs);
 void H26_Task2_Reset(void);
 void H26_Task2_ForceFault(void);
 /* Optional upper limit used by task 5's non-abrupt chassis launch. */

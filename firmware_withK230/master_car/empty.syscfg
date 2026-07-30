@@ -104,10 +104,9 @@ GPIO2.associatedPins[3].internalResistor = "PULL_UP";
 GPIO2.associatedPins[3].inputFilter      = "8_CYCLES";
 
 /*
- * Active board-test setup: a 4-channel infrared module reuses the former
- * 8-channel grayscale header.  PB23/PB11/PB13/PB01 are X1/X2/X3/X4 inputs.
- * All four external signals must be <= 3.3V.  Restore AD2/AD1/AD0 outputs
- * before reconnecting the CD4051-based 8-channel grayscale module.
+ * Formal H26 line sensor: CD4051-based 8-channel grayscale module.
+ * PB23/PB11/PB13 drive AD2/AD1/AD0, and PB01 reads the multiplexed OUT.
+ * GRAY_OUT must be level-shifted to <= 3.3V before it reaches PB01.
  */
 GPIO3.$name = "GPIO_GRAYSCALE";
 GPIO3.associatedPins.create(4);
@@ -115,23 +114,23 @@ GPIO3.associatedPins[0].$name        = "AD2";
 GPIO3.associatedPins[0].assignedPort = "PORTB";
 GPIO3.associatedPins[0].assignedPin  = "23";
 GPIO3.associatedPins[0].pin.$assign  = "PB23";
-GPIO3.associatedPins[0].direction    = "INPUT";
+GPIO3.associatedPins[0].direction    = "OUTPUT";
+GPIO3.associatedPins[0].initialValue = "CLEARED";
 GPIO3.associatedPins[0].internalResistor = "NONE";
-GPIO3.associatedPins[0].inputFilter  = "8_CYCLES";
 GPIO3.associatedPins[1].$name        = "AD1";
 GPIO3.associatedPins[1].assignedPort = "PORTB";
 GPIO3.associatedPins[1].assignedPin  = "11";
 GPIO3.associatedPins[1].pin.$assign  = "PB11";
-GPIO3.associatedPins[1].direction    = "INPUT";
+GPIO3.associatedPins[1].direction    = "OUTPUT";
+GPIO3.associatedPins[1].initialValue = "CLEARED";
 GPIO3.associatedPins[1].internalResistor = "NONE";
-GPIO3.associatedPins[1].inputFilter  = "8_CYCLES";
 GPIO3.associatedPins[2].$name        = "AD0";
 GPIO3.associatedPins[2].assignedPort = "PORTB";
 GPIO3.associatedPins[2].assignedPin  = "13";
 GPIO3.associatedPins[2].pin.$assign  = "PB13";
-GPIO3.associatedPins[2].direction    = "INPUT";
+GPIO3.associatedPins[2].direction    = "OUTPUT";
+GPIO3.associatedPins[2].initialValue = "CLEARED";
 GPIO3.associatedPins[2].internalResistor = "NONE";
-GPIO3.associatedPins[2].inputFilter  = "8_CYCLES";
 GPIO3.associatedPins[3].$name            = "OUT";
 GPIO3.associatedPins[3].assignedPort     = "PORTB";
 GPIO3.associatedPins[3].assignedPin      = "1";

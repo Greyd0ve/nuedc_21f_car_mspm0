@@ -38,16 +38,16 @@ static float H26_T5_GetChassisSpeedLimit(uint32_t nowMs)
 
     if (H26_T5_STRAIGHT_ACCEL_RAMP_MS == 0U)
     {
-        return H26_T2_STRAIGHT_SPEED_CMPS;
+        return H26_T5_STRAIGHT_SPEED_CMPS;
     }
 
     elapsedMs = nowMs - s_chassisStartMs;
     if (elapsedMs >= H26_T5_STRAIGHT_ACCEL_RAMP_MS)
     {
-        return H26_T2_STRAIGHT_SPEED_CMPS;
+        return H26_T5_STRAIGHT_SPEED_CMPS;
     }
 
-    return H26_T2_STRAIGHT_SPEED_CMPS * (float)elapsedMs /
+    return H26_T5_STRAIGHT_SPEED_CMPS * (float)elapsedMs /
         (float)H26_T5_STRAIGHT_ACCEL_RAMP_MS;
 }
 
@@ -128,8 +128,8 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
                 H26_BallControl_GetStableSampleMs());
             if (s_oAcquireHoldMs >= H26_T5_O_ACQUIRE_HOLD_MS)
             {
-                /* The complete chassis run is exactly task 2's profile. */
-                H26_Task2_Start(s_startMs);
+                /* Shared chassis machine, with task-5-only line parameters. */
+                H26_Task2_StartForTask5(s_startMs);
                 s_chassisStartMs = nowMs;
                 s_state = H26_T5_LEAVE_A;
             }

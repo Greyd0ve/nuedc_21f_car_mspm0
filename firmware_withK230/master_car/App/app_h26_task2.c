@@ -24,6 +24,10 @@ static volatile uint16_t s_curveEnterHoldMs = 0U;
 static volatile uint16_t s_curveExitHoldMs = 0U;
 static volatile float s_commandForwardSpeed = 0.0f;
 static volatile float s_forwardSpeedLimitCmps = H26_T2_STRAIGHT_SPEED_CMPS;
+static volatile uint8_t s_task5Profile = 0U;
+
+#define H26_T2_PROFILE_VALUE(task2Value, task5Value) \
+    ((s_task5Profile != 0U) ? (task5Value) : (task2Value))
 
 static uint16_t H26_T2_SaturatingAddMs(uint16_t value, uint16_t addMs)
 {
@@ -84,12 +88,15 @@ static uint8_t H26_T2_UpdateCurveMode(float turnCmd)
     {
         s_curveExitHoldMs = 0U;
         if ((g_forwardEncoderTotal - s_straightStartPulse) >=
-                H26_T2_CURVE_ENTER_STRAIGHT_PULSE &&
-            turnAbs >= H26_T2_CURVE_ENTER_TURN_CMPS)
+                H26_T2_PROFILE_VALUE(H26_T2_CURVE_ENTER_STRAIGHT_PULSE,
+                                     H26_T5_CURVE_ENTER_STRAIGHT_PULSE) &&
+            turnAbs >= H26_T2_PROFILE_VALUE(H26_T2_CURVE_ENTER_TURN_CMPS,
+                                             H26_T5_CURVE_ENTER_TURN_CMPS))
         {
             s_curveEnterHoldMs = H26_T2_SaturatingAddMs(
                 s_curveEnterHoldMs, CAR_CONTROL_PERIOD_MS);
-            if (s_curveEnterHoldMs >= H26_T2_CURVE_ENTER_HOLD_MS)
+            if (s_curveEnterHoldMs >= H26_T2_PROFILE_VALUE(
+                    H26_T2_CURVE_ENTER_HOLD_MS, H26_T5_CURVE_ENTER_HOLD_MS))
             {
                 s_curveMode = 1U;
                 s_curveEnterHoldMs = 0U;
@@ -105,12 +112,15 @@ static uint8_t H26_T2_UpdateCurveMode(float turnCmd)
     {
         s_curveEnterHoldMs = 0U;
         if ((g_leftEncoderTotal - s_curveLeftStartPulse) >=
-                H26_T2_CURVE_EXIT_LEFT_PULSE &&
-            turnAbs <= H26_T2_CURVE_EXIT_TURN_CMPS)
+                H26_T2_PROFILE_VALUE(H26_T2_CURVE_EXIT_LEFT_PULSE,
+                                     H26_T5_CURVE_EXIT_LEFT_PULSE) &&
+            turnAbs <= H26_T2_PROFILE_VALUE(H26_T2_CURVE_EXIT_TURN_CMPS,
+                                             H26_T5_CURVE_EXIT_TURN_CMPS))
         {
             s_curveExitHoldMs = H26_T2_SaturatingAddMs(
                 s_curveExitHoldMs, CAR_CONTROL_PERIOD_MS);
-            if (s_curveExitHoldMs >= H26_T2_CURVE_EXIT_HOLD_MS)
+            if (s_curveExitHoldMs >= H26_T2_PROFILE_VALUE(
+                    H26_T2_CURVE_EXIT_HOLD_MS, H26_T5_CURVE_EXIT_HOLD_MS))
             {
                 s_curveMode = 0U;
                 s_curveExitHoldMs = 0U;
@@ -134,12 +144,14 @@ static float H26_T2_SelectForwardSpeed(void)
     if (s_curveMode != 0U)
     {
         s_speedZone = H26_T2_SPEED_ZONE_CURVE;
-        targetSpeed = H26_T2_CURVE_SPEED_CMPS;
+        targetSpeed = H26_T2_PROFILE_VALUE(H26_T2_CURVE_SPEED_CMPS,
+                                            H26_T5_CURVE_SPEED_CMPS);
     }
     else
     {
         s_speedZone = H26_T2_SPEED_ZONE_STRAIGHT;
-        targetSpeed = H26_T2_STRAIGHT_SPEED_CMPS;
+        targetSpeed = H26_T2_PROFILE_VALUE(H26_T2_STRAIGHT_SPEED_CMPS,
+                                            H26_T5_STRAIGHT_SPEED_CMPS);
     }
 
     if (targetSpeed > s_forwardSpeedLimitCmps)
@@ -148,7 +160,8 @@ static float H26_T2_SelectForwardSpeed(void)
     }
 
     s_commandForwardSpeed = H26_T2_SlewFloat(s_commandForwardSpeed,
-        targetSpeed, H26_T2_SPEED_SLEW_CMPS_PER_TICK);
+        targetSpeed, H26_T2_PROFILE_VALUE(H26_T2_SPEED_SLEW_CMPS_PER_TICK,
+                                           H26_T5_SPEED_SLEW_CMPS_PER_TICK));
     return s_commandForwardSpeed;
 }
 
@@ -161,7 +174,8 @@ static uint8_t H26_T2_ApplyLineControl(void)
     App_Line_Update();
     if (g_lineValid == 0U)
     {
-        if (g_lineLostMs >= H26_T2_LINE_LOST_STOP_MS)
+        if (g_lineLostMs >= H26_T2_PROFILE_VALUE(H26_T2_LINE_LOST_STOP_MS,
+                                                  H26_T5_LINE_LOST_STOP_MS))
         {
             H26_T2_StopCommand();
             return 0U;
@@ -175,11 +189,13 @@ static uint8_t H26_T2_ApplyLineControl(void)
     turnCmd = App_Line_CalcTurnCmd();
     if (s_curveMode != 0U)
     {
-        turnLimit = H26_T2_CURVE_TURN_LIMIT_CMPS;
+        turnLimit = H26_T2_PROFILE_VALUE(H26_T2_CURVE_TURN_LIMIT_CMPS,
+                                         H26_T5_CURVE_TURN_LIMIT_CMPS);
     }
     else
     {
-        turnLimit = H26_T2_STRAIGHT_TURN_LIMIT_CMPS;
+        turnLimit = H26_T2_PROFILE_VALUE(H26_T2_STRAIGHT_TURN_LIMIT_CMPS,
+                                         H26_T5_STRAIGHT_TURN_LIMIT_CMPS);
     }
     if (turnCmd > turnLimit)
     {
@@ -224,6 +240,7 @@ void H26_Task2_Reset(void)
     s_curveExitHoldMs = 0U;
     s_commandForwardSpeed = 0.0f;
     s_forwardSpeedLimitCmps = H26_T2_STRAIGHT_SPEED_CMPS;
+    s_task5Profile = 0U;
 }
 
 void H26_Task2_Start(uint32_t startMs)
@@ -246,7 +263,15 @@ void H26_Task2_Start(uint32_t startMs)
     s_curveExitHoldMs = 0U;
     s_commandForwardSpeed = 0.0f;
     s_forwardSpeedLimitCmps = H26_T2_STRAIGHT_SPEED_CMPS;
+    s_task5Profile = 0U;
     s_state = H26_T2_LEAVE_A;
+}
+
+void H26_Task2_StartForTask5(uint32_t startMs)
+{
+    H26_Task2_Start(startMs);
+    s_task5Profile = 1U;
+    s_forwardSpeedLimitCmps = H26_T5_STRAIGHT_SPEED_CMPS;
 }
 
 void H26_Task2_ForceFault(void)
@@ -261,9 +286,11 @@ void H26_Task2_SetForwardSpeedLimit(float limitCmps)
     {
         limitCmps = 0.0f;
     }
-    if (limitCmps > H26_T2_STRAIGHT_SPEED_CMPS)
+    if (limitCmps > H26_T2_PROFILE_VALUE(H26_T2_STRAIGHT_SPEED_CMPS,
+                                          H26_T5_STRAIGHT_SPEED_CMPS))
     {
-        limitCmps = H26_T2_STRAIGHT_SPEED_CMPS;
+        limitCmps = H26_T2_PROFILE_VALUE(H26_T2_STRAIGHT_SPEED_CMPS,
+                                          H26_T5_STRAIGHT_SPEED_CMPS);
     }
     s_forwardSpeedLimitCmps = limitCmps;
 }
@@ -346,7 +373,8 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
     uint32_t elapsedMs = nowMs - s_startMs;
 
     if ((s_state == H26_T2_LEAVE_A || s_state == H26_T2_LAP_RUNNING) &&
-        elapsedMs >= H26_T2_MAX_RUN_TIME_MS)
+        elapsedMs >= H26_T2_PROFILE_VALUE(H26_T2_MAX_RUN_TIME_MS,
+                                          H26_T5_MAX_RUN_TIME_MS))
     {
         H26_Task2_ForceFault();
         return H26_T2_RESULT_FAULT;
@@ -357,8 +385,11 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
     case H26_T2_LEAVE_A:
         (void)H26_T2_ApplyLineControl();
 
-        if (H26_T2_GetDistanceCmFromStart() >= H26_T2_LEAVE_DISTANCE_CM &&
-            g_lineBlackCount < H26_T2_FINISH_BLACK_CHANNELS &&
+        if (H26_T2_GetDistanceCmFromStart() >= H26_T2_PROFILE_VALUE(
+                H26_T2_LEAVE_DISTANCE_CM, H26_T5_LEAVE_DISTANCE_CM) &&
+            g_lineBlackCount < H26_T2_PROFILE_VALUE(
+                H26_T2_FINISH_BLACK_CHANNELS,
+                H26_T5_LEAVE_CLEAR_BLACK_CHANNELS) &&
             g_lineValid != 0U)
         {
             s_leaveStableMs = H26_T2_SaturatingAddMs(
@@ -369,7 +400,8 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
             s_leaveStableMs = 0U;
         }
 
-        if (s_leaveStableMs >= H26_T2_LEAVE_LINE_STABLE_MS)
+        if (s_leaveStableMs >= H26_T2_PROFILE_VALUE(
+                H26_T2_LEAVE_LINE_STABLE_MS, H26_T5_LEAVE_LINE_STABLE_MS))
         {
             s_state = H26_T2_LAP_RUNNING;
         }
@@ -382,12 +414,16 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
         curveExitEvent = H26_T2_ApplyLineControl();
 
         if (curveExitEvent != 0U &&
-            s_finishEnable < H26_T2_A_DETECT_CURVE_EXIT_COUNT)
+            s_finishEnable < H26_T2_PROFILE_VALUE(
+                H26_T2_A_DETECT_CURVE_EXIT_COUNT,
+                H26_T5_A_DETECT_CURVE_EXIT_COUNT))
         {
             s_finishEnable++;
         }
 
-        if (s_finishEnable >= H26_T2_A_DETECT_CURVE_EXIT_COUNT)
+        if (s_finishEnable >= H26_T2_PROFILE_VALUE(
+                H26_T2_A_DETECT_CURVE_EXIT_COUNT,
+                H26_T5_A_DETECT_CURVE_EXIT_COUNT))
         {
             s_finishLatched = 1U;
             s_finishDetectMs = nowMs;
@@ -398,14 +434,21 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
     }
 
     case H26_T2_BRAKING:
-        s_commandForwardSpeed = H26_T2_SlewFloat(s_commandForwardSpeed, 0.0f,
-            H26_T2_FINISH_BRAKE_SLEW_CMPS_PER_TICK);
-        g_targetForwardSpeed = s_commandForwardSpeed;
-        g_targetTurnSpeed = 0.0f;
-        g_carEnable = 1U;
-        App_Control_ApplyMotorOutput();
-        if (s_commandForwardSpeed <= 0.0f)
+        if ((nowMs - s_finishDetectMs) < H26_T2_PROFILE_VALUE(
+                H26_T2_FINISH_EXIT_STOP_DELAY_MS,
+                H26_T5_FINISH_EXIT_STOP_DELAY_MS))
         {
+            /* Second curve exit is already observed.  Keep the last forward
+             * command for the calibrated overrun distance, without ramping
+             * down or commanding an unverified reverse brake. */
+            g_targetForwardSpeed = s_commandForwardSpeed;
+            g_targetTurnSpeed = 0.0f;
+            g_carEnable = 1U;
+            App_Control_ApplyMotorOutput();
+        }
+        else
+        {
+            H26_T2_StopCommand();
             s_stopHoldMs = 0U;
             s_state = H26_T2_WAIT_STOP;
         }
@@ -413,8 +456,10 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
 
     case H26_T2_WAIT_STOP:
         H26_T2_StopCommand();
-        if (H26_T2_AbsFloat(g_leftSpeed) < H26_T2_STOP_SPEED_CMPS &&
-            H26_T2_AbsFloat(g_rightSpeed) < H26_T2_STOP_SPEED_CMPS)
+        if (H26_T2_AbsFloat(g_leftSpeed) < H26_T2_PROFILE_VALUE(
+                H26_T2_STOP_SPEED_CMPS, H26_T5_STOP_SPEED_CMPS) &&
+            H26_T2_AbsFloat(g_rightSpeed) < H26_T2_PROFILE_VALUE(
+                H26_T2_STOP_SPEED_CMPS, H26_T5_STOP_SPEED_CMPS))
         {
             s_stopHoldMs = H26_T2_SaturatingAddMs(
                 s_stopHoldMs, CAR_CONTROL_PERIOD_MS);
@@ -424,7 +469,8 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
             s_stopHoldMs = 0U;
         }
 
-        if (s_stopHoldMs >= H26_T2_STOP_HOLD_MS)
+        if (s_stopHoldMs >= H26_T2_PROFILE_VALUE(H26_T2_STOP_HOLD_MS,
+                                                  H26_T5_STOP_HOLD_MS))
         {
             s_finalElapsedMs = nowMs - s_startMs;
             s_state = H26_T2_DONE;
