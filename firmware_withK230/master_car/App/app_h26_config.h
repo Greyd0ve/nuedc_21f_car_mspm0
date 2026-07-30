@@ -5,9 +5,11 @@
 
 /* H26 task-2 control and confirmation parameters.  Calibrate on the real track. */
 #define H26_T2_STRAIGHT_SPEED_CMPS          42.0f
-#define H26_T2_CURVE_SPEED_CMPS             34.0f
+/* Reduced speed gives the front-mounted grayscale sensor more correction time. */
+#define H26_T2_CURVE_SPEED_CMPS             28.0f
 #define H26_T2_FINISH_SPEED_CMPS            15.0f
-#define H26_T2_TURN_LIMIT_CMPS               6.0f
+#define H26_T2_STRAIGHT_TURN_LIMIT_CMPS      8.0f
+#define H26_T2_CURVE_TURN_LIMIT_CMPS        25.0f
 
 /* Turn-command hysteresis for straight/curve speed-zone selection. */
 #define H26_T2_CURVE_ENTER_TURN_CMPS         2.5f
@@ -15,12 +17,21 @@
 #define H26_T2_CURVE_ENTER_HOLD_MS          50U
 #define H26_T2_CURVE_EXIT_HOLD_MS          100U
 
+/* Each straight/curve segment must cover this distance before its transition. */
+#define H26_T2_CURVE_ENTER_STRAIGHT_CM     100.0f
+#define H26_T2_CURVE_EXIT_LEFT_CM          100.0f
+#define H26_T2_CURVE_ENTER_STRAIGHT_PULSE \
+    ((int32_t)((H26_T2_CURVE_ENTER_STRAIGHT_CM / ECAR_CM_PER_PULSE) + 0.5f))
+#define H26_T2_CURVE_EXIT_LEFT_PULSE \
+    ((int32_t)((H26_T2_CURVE_EXIT_LEFT_CM / ECAR_CM_PER_PULSE) + 0.5f))
+
+/* A is reached after the second stable curve-to-straight transition. */
+#define H26_T2_A_DETECT_CURVE_EXIT_COUNT      2U
+
 /* Per-10-ms command ramp; avoids an abrupt speed step at zone boundaries. */
 #define H26_T2_SPEED_SLEW_CMPS_PER_TICK      0.8f
-
-/* Slow down before the guarded A-point finish window; not a finish predicate. */
-#define H26_T2_FINISH_SLOWDOWN_DISTANCE_CM 550.0f
-#define H26_T2_FINISH_SLOWDOWN_MIN_TIME_MS 12000U
+/* Applied only after A is latched; 42 cm/s reaches zero in about 1.05 s. */
+#define H26_T2_FINISH_BRAKE_SLEW_CMPS_PER_TICK 0.4f
 
 #define H26_T2_LEAVE_DISTANCE_CM            15.0f
 #define H26_T2_LEAVE_LINE_STABLE_MS         80U
@@ -35,7 +46,8 @@
 
 #define H26_T2_STOP_SPEED_CMPS               1.0f
 #define H26_T2_STOP_HOLD_MS                 100U
-#define H26_T2_LINE_LOST_FAULT_MS     ECAR_LINE_LOST_FAULT_MS
+/* A short all-white sample keeps following the last valid line error. */
+#define H26_T2_LINE_LOST_STOP_MS             300U
 
 /*
  * H26 task-3 (stationary vehicle ball motion) parameters.
@@ -87,24 +99,32 @@
  * Chain/guide calibration measured on the vehicle:
  *   3200 STEP pulses = 1 motor revolution = 31.25 mm chain travel;
  *   4096 rod-encoder counts = 1 motor revolution.
- * A positive ball command raises the K230 0 cm (stepper) end.  The verified
- * rod encoder count becomes negative in that direction.
+ * The encoder and the ball-coordinate directions are intentionally kept
+ * separate.  The verified encoder decreases for ROD_STEPPER_DIR_POSITIVE.
+ * After the rack was mounted in the reverse orientation, a positive K230
+ * ball-coordinate command requires ROD_STEPPER_DIR_NEGATIVE.  Therefore a
+ * positive ball command produces a positive encoder target count.
  */
 #define H26_T3_ROD_TRAVEL_MM_PER_REV       31.25f
 #define H26_T3_ROD_ENCODER_COUNTS_PER_REV 4096.0f
 #define H26_T3_ROD_ENCODER_COUNTS_PER_MM \
     (H26_T3_ROD_ENCODER_COUNTS_PER_REV / H26_T3_ROD_TRAVEL_MM_PER_REV)
-#define H26_T3_ROD_ENCODER_SIGN_FOR_POSITIVE_BALL (-1)
+#define H26_T3_ROD_ENCODER_SIGN_FOR_STEPPER_POSITIVE (-1)
+#define H26_T3_STEPPER_SIGN_FOR_POSITIVE_BALL       (-1)
+#define H26_T3_ROD_ENCODER_SIGN_FOR_POSITIVE_BALL \
+    (H26_T3_ROD_ENCODER_SIGN_FOR_STEPPER_POSITIVE * \
+     H26_T3_STEPPER_SIGN_FOR_POSITIVE_BALL)
 
 /*
  * Outer ball PD: position/speed error -> requested height change at the
  * guide's 0 cm end.  This is intentionally a small relative height command,
- * not a direct stepper-frequency command.  +/-1.20 mm equals +/-157 encoder
- * counts, or approximately +/-0.28 degree over a 25 cm guide.
+ * not a direct stepper-frequency command.  A +5 cm ball error now requests
+ * about +2.25 mm at the guide end; the wider +/-3.00 mm range gives enough
+ * slope to overcome the measured mechanical rolling resistance.
  */
-#define H26_T3_BALL_POSITION_TO_TILT_MM_PER_CM    0.12f
+#define H26_T3_BALL_POSITION_TO_TILT_MM_PER_CM    0.45f
 #define H26_T3_BALL_SPEED_TO_TILT_MM_PER_CMPS     0.10f
-#define H26_T3_TILT_COMMAND_LIMIT_MM              1.20f
+#define H26_T3_TILT_COMMAND_LIMIT_MM              3.00f
 
 /* Inner rod-position loop: encoder count error -> STEP frequency. */
 #define H26_T3_ROD_POSITION_DEADBAND_COUNT           3
@@ -125,6 +145,12 @@
 #define H26_T4_TURN_LIMIT_CMPS                   5.0f
 #define H26_T4_O_TOLERANCE_CM                    0.60f
 #define H26_T4_O_ACQUIRE_HOLD_MS                100U
+
+/* Task 5 holds the ball at O while its chassis uses task 2 unchanged. */
+#define H26_T5_O_TOLERANCE_CM                    0.60f
+#define H26_T5_O_ACQUIRE_HOLD_MS                100U
+/* From the first chassis line-control tick, rise from 0 to task-2 straight speed. */
+#define H26_T5_STRAIGHT_ACCEL_RAMP_MS          2000U
 
 #define H26_LED_SHOW_ON_MS                 200U
 #define H26_LED_SHOW_OFF_MS                200U

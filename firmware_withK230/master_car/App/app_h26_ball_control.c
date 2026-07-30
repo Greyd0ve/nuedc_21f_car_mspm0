@@ -230,8 +230,8 @@ static void H26_Ball_ApplyRodPositionControl(void)
         commandHz = H26_T3_ROD_POSITION_MAX_HZ;
     }
 
-    if ((encoderError < 0 && H26_T3_ROD_ENCODER_SIGN_FOR_POSITIVE_BALL < 0) ||
-        (encoderError > 0 && H26_T3_ROD_ENCODER_SIGN_FOR_POSITIVE_BALL > 0))
+    if ((encoderError < 0 && H26_T3_ROD_ENCODER_SIGN_FOR_STEPPER_POSITIVE < 0) ||
+        (encoderError > 0 && H26_T3_ROD_ENCODER_SIGN_FOR_STEPPER_POSITIVE > 0))
     {
         direction = ROD_STEPPER_DIR_POSITIVE;
         s_commandHz = (int32_t)commandHz;

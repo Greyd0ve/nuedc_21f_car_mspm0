@@ -41,7 +41,7 @@
 /* Line-following default values. */
 #define TUNE_LINE_KP                        0.040f
 #define TUNE_LINE_KD                        0.025f
-#define TUNE_LINE_TURN_LIMIT_CMPS           ECAR_DEFAULT_TURN_LIMIT_CMPS
+#define TUNE_LINE_TURN_LIMIT_CMPS           12.0f
 #define TUNE_LINE_FILTER_ALPHA              0.58f
 
 #endif

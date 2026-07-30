@@ -4,6 +4,7 @@
 #include "app_h26_task2.h"
 #include "app_h26_task3.h"
 #include "app_h26_task4.h"
+#include "app_h26_task5.h"
 #include "app_ball_link.h"
 #include "app_car_state.h"
 #include "app_control.h"
@@ -76,6 +77,7 @@ static void H26_ClearRunData(void)
     H26_Task2_Reset();
     H26_Task3_Reset();
     H26_Task4_Reset();
+    H26_Task5_Reset();
     App_BallLink_Reset();
     RodEncoder_Reset();
 }
@@ -109,6 +111,7 @@ static void H26_EnterFault(const char *reason)
     H26_Task2_ForceFault();
     H26_Task3_ForceFault();
     H26_Task4_ForceFault();
+    H26_Task5_ForceFault();
     s_systemState = H26_SYS_FAULT;
     H26_LedSetMode(H26_LED_FAULT);
     DebugSerial_Printf("[h26,fault,%s]\r\n", reason);
@@ -150,7 +153,7 @@ static void H26_StartCurrentTask(void)
     }
 
     if (s_selectedTask != H26_TASK_2 && s_selectedTask != H26_TASK_3 &&
-        s_selectedTask != H26_TASK_4)
+        s_selectedTask != H26_TASK_4 && s_selectedTask != H26_TASK_5)
     {
         H26_ClearRunData();
         s_systemState = H26_SYS_SELECT;
@@ -172,9 +175,13 @@ static void H26_StartCurrentTask(void)
     {
         H26_Task3_Start(nowMs);
     }
-    else
+    else if (s_selectedTask == H26_TASK_4)
     {
         H26_Task4_Start(nowMs);
+    }
+    else
+    {
+        H26_Task5_Start(nowMs);
     }
     s_systemState = H26_SYS_PREPARE;
     H26_LedSetMode(H26_LED_RUNNING);
@@ -189,6 +196,7 @@ void H26_Init(void)
     H26_Task2_Init();
     H26_Task3_Init();
     H26_Task4_Init();
+    H26_Task5_Init();
     App_BallLink_Init();
     H26_ClearRunData();
     H26_LedInit();
@@ -252,6 +260,7 @@ void H26_Task10ms(void)
     H26_Task2Result_t task2Result;
     H26_Task3Result_t task3Result;
     H26_Task4Result_t task4Result;
+    H26_Task5Result_t task5Result;
     uint32_t nowMs = Timer_GetMillis();
 
     switch (s_systemState)
@@ -279,6 +288,12 @@ void H26_Task10ms(void)
             H26_SafeCarStop();
             H26_Task4_HoldBall10ms(nowMs);
         }
+        else if (s_selectedTask == H26_TASK_5)
+        {
+            /* Lap time is frozen; retain active O-point ball stabilization. */
+            H26_SafeCarStop();
+            H26_Task5_HoldBall10ms(nowMs);
+        }
         else
         {
             H26_SafeStop();
@@ -292,7 +307,9 @@ void H26_Task10ms(void)
             (s_selectedTask == H26_TASK_3 &&
              H26_Task3_GetState() == H26_T3_ACQUIRE_O) ||
             (s_selectedTask == H26_TASK_4 &&
-             H26_Task4_GetState() == H26_T4_ACQUIRE_O))
+             H26_Task4_GetState() == H26_T4_ACQUIRE_O) ||
+            (s_selectedTask == H26_TASK_5 &&
+             H26_Task5_GetState() == H26_T5_ACQUIRE_O))
         {
             s_systemState = H26_SYS_RUNNING;
         }
@@ -358,6 +375,25 @@ void H26_Task10ms(void)
                 DebugSerial_Printf("[h26,task4-fault,code=%u]\r\n",
                     (unsigned int)H26_Task4_GetFault());
                 H26_EnterFault("task4");
+            }
+        }
+        else if (s_selectedTask == H26_TASK_5)
+        {
+            task5Result = H26_Task5_Task10ms(nowMs);
+            if (task5Result == H26_T5_RESULT_FINISHED)
+            {
+                H26_SafeStop();
+                s_systemState = H26_SYS_FINISHED;
+                H26_LedSetMode(H26_LED_FINISHED);
+                DebugSerial_Printf("[h26,finish,task=5,ms=%lu,peak_c=%ld]\r\n",
+                    (unsigned long)H26_Task5_GetFinalElapsedMs(),
+                    (long)(H26_Task5_GetBallPeakErrorCm() * 100.0f));
+            }
+            else if (task5Result == H26_T5_RESULT_FAULT)
+            {
+                DebugSerial_Printf("[h26,task5-fault,code=%u]\r\n",
+                    (unsigned int)H26_Task5_GetFault());
+                H26_EnterFault("task5");
             }
         }
         else
@@ -490,28 +526,21 @@ void H26_Task100ms(void)
     commandSpeedCenti = (int32_t)(H26_Task2_GetCommandForwardSpeed() * 100.0f);
 
     DebugSerial_Printf(
-        "[h26,sys=%u,task=%u,t2=%u,zone=%u,curve=%u,finish_slow=%u,cmd_v_c=%ld,"
-        "mask=%02X,black=%u,hold=%u,fen=%u,flat=%u,dist_c=%ld,elapsed=%lu,"
-        "vl_c=%ld,vr_c=%ld,fdet=%lu,fp=%ld,final=%lu]\r\n",
+        "[h26,s=%u,task=%u,t2=%u,curve=%u,v_c=%ld,mask=%02X,black=%u,"
+        "exit=%u,finish=%u,dist_c=%ld,t=%lu,vl_c=%ld,vr_c=%ld]\r\n",
         (unsigned int)s_systemState,
         (unsigned int)s_selectedTask,
         (unsigned int)H26_Task2_GetState(),
-        (unsigned int)H26_Task2_GetSpeedZone(),
         (unsigned int)H26_Task2_IsCurveMode(),
-        (unsigned int)H26_Task2_IsFinishApproach(),
         (long)commandSpeedCenti,
         (unsigned int)g_lineMask,
         (unsigned int)g_lineBlackCount,
-        (unsigned int)H26_Task2_GetBlackHoldMs(),
         (unsigned int)H26_Task2_IsFinishEnabled(),
         (unsigned int)H26_Task2_IsFinishLatched(),
         (long)distanceCentiCm,
         (unsigned long)elapsedMs,
         (long)leftSpeedCenti,
-        (long)rightSpeedCenti,
-        (unsigned long)H26_Task2_GetFinishDetectMs(),
-        (long)H26_Task2_GetFinishDetectPulse(),
-        (unsigned long)H26_Task2_GetFinalElapsedMs());
+        (long)rightSpeedCenti);
 }
 
 void H26_Task200ms(void)
@@ -529,6 +558,10 @@ void H26_Task200ms(void)
     {
         elapsedMs = H26_Task4_GetElapsedMs(Timer_GetMillis());
     }
+    else if (s_selectedTask == H26_TASK_5)
+    {
+        elapsedMs = H26_Task5_GetElapsedMs(Timer_GetMillis());
+    }
     else
     {
         elapsedMs = H26_Task2_GetElapsedMs(Timer_GetMillis());
@@ -542,7 +575,8 @@ void H26_Task200ms(void)
         OLED_ShowString(0, 0, (s_selectedTask == H26_TASK_3) ?
                         "TASK 3 FINISH" :
                         ((s_selectedTask == H26_TASK_4) ? "TASK 4 FINISH" :
-                         "TASK 2 FINISH"), OLED_6X8);
+                         ((s_selectedTask == H26_TASK_5) ? "TASK 5 FINISH" :
+                          "TASK 2 FINISH")), OLED_6X8);
         OLED_ShowString(0, 16, "STOPPED", OLED_6X8);
     }
     else
@@ -552,11 +586,13 @@ void H26_Task200ms(void)
         OLED_ShowString(0, 16, "SYS:", OLED_6X8);
         OLED_ShowNum(24, 16, (uint32_t)s_systemState, 1, OLED_6X8);
         OLED_ShowString(48, 16, (s_selectedTask == H26_TASK_3) ? "T3:" :
-                        ((s_selectedTask == H26_TASK_4) ? "T4:" : "T2:"), OLED_6X8);
+                        ((s_selectedTask == H26_TASK_4) ? "T4:" :
+                         ((s_selectedTask == H26_TASK_5) ? "T5:" : "T2:")), OLED_6X8);
         OLED_ShowNum(66, 16,
             (s_selectedTask == H26_TASK_3) ? (uint32_t)H26_Task3_GetState() :
             ((s_selectedTask == H26_TASK_4) ? (uint32_t)H26_Task4_GetState() :
-             (uint32_t)H26_Task2_GetState()), 1, OLED_6X8);
+             ((s_selectedTask == H26_TASK_5) ? (uint32_t)H26_Task5_GetState() :
+              (uint32_t)H26_Task2_GetState())), 1, OLED_6X8);
     }
     OLED_ShowString(0, 32, "TIME:", OLED_6X8);
     OLED_ShowNum(36, 32, seconds, 2, OLED_6X8);
@@ -579,6 +615,14 @@ void H26_Task200ms(void)
             (int32_t)(H26_Task4_GetBallPositionCm() * 100.0f));
         OLED_ShowString(42, 48, "DST:", OLED_6X8);
         OLED_ShowNum(66, 48, (uint32_t)H26_Task4_GetDistanceCm(), 3, OLED_6X8);
+    }
+    else if (s_selectedTask == H26_TASK_5)
+    {
+        OLED_ShowString(0, 48, "P:", OLED_6X8);
+        H26_OledShowSignedCentiCm(12, 48,
+            (int32_t)(H26_Task5_GetBallPositionCm() * 100.0f));
+        OLED_ShowString(42, 48, "DST:", OLED_6X8);
+        OLED_ShowNum(66, 48, (uint32_t)H26_Task5_GetDistanceCm(), 3, OLED_6X8);
     }
     else
     {

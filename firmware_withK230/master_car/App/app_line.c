@@ -1,7 +1,11 @@
 #include "app_line.h"
 #include "app_config.h"
 #include "app_car_state.h"
+#if CAR_LINE_SENSOR_IR4_ENABLE
+#include "Board_Config.h"
+#else
 #include "Grayscale.h"
+#endif
 #include <stdint.h>
 
 /* 8 路灰度循迹处理，硬件通过 CD4051 多路复用读取。
@@ -32,7 +36,9 @@ static void App_Line_HoldLastError(void)
 
 void App_Line_GPIOForceInit(void)
 {
+#if !CAR_LINE_SENSOR_IR4_ENABLE
     Grayscale_Init();
+#endif
 }
 
 void App_Line_ResetState(void)
@@ -57,7 +63,12 @@ void App_Line_ResetState(void)
 void App_Line_Update(void)
 {
     uint8_t raw[GRAYSCALE_CHANNELS];
+#if CAR_LINE_SENSOR_IR4_ENABLE
+    /* IR4 occupies virtual channels 2/4/5/7; widen the outer correction. */
+    static const int16_t weight[GRAYSCALE_CHANNELS] = {-400, -350, -160, -60, 60, 160, 350, 400};
+#else
     static const int16_t weight[GRAYSCALE_CHANNELS] = {-400, -280, -160, -60, 60, 160, 280, 400};
+#endif
     int32_t sum = 0;
     int16_t count = 0;
     uint8_t mask = 0;
@@ -68,7 +79,25 @@ void App_Line_Update(void)
     blackLevel = (g_lineBlackLevelF <= 0.5f) ? 0U : 1U;
     reverseOrder = (g_lineReverseOrderF <= 0.5f) ? 0U : 1U;
 
+#if CAR_LINE_SENSOR_IR4_ENABLE
+    /*
+     * The four direct IR inputs are installed at the original eight-channel
+     * physical positions 7, 5, 4 and 2 respectively.  Keep an eight-channel
+     * virtual coordinate system so the existing error weights, g_lineMask,
+     * g_lineBlackCount and all H26 line-control users stay unchanged.
+     * White is 0 and black is 1 on this module.
+     */
+    for (i = 0U; i < GRAYSCALE_CHANNELS; i++)
+    {
+        raw[i] = 0U;
+    }
+    raw[1] = (DL_GPIO_readPins(IR4_X4_PORT, IR4_X4_PIN) != 0U) ? 1U : 0U;
+    raw[3] = (DL_GPIO_readPins(IR4_X3_PORT, IR4_X3_PIN) != 0U) ? 1U : 0U;
+    raw[4] = (DL_GPIO_readPins(IR4_X2_PORT, IR4_X2_PIN) != 0U) ? 1U : 0U;
+    raw[6] = (DL_GPIO_readPins(IR4_X1_PORT, IR4_X1_PIN) != 0U) ? 1U : 0U;
+#else
     Grayscale_ReadAll(raw);
+#endif
 
     g_lineRawMask = 0;
     for (i = 0; i < GRAYSCALE_CHANNELS; i++)

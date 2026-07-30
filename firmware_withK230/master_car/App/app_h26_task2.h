@@ -32,6 +32,8 @@ void H26_Task2_Init(void);
 void H26_Task2_Start(uint32_t startMs);
 void H26_Task2_Reset(void);
 void H26_Task2_ForceFault(void);
+/* Optional upper limit used by task 5's non-abrupt chassis launch. */
+void H26_Task2_SetForwardSpeedLimit(float limitCmps);
 H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs);
 
 H26_Task2State_t H26_Task2_GetState(void);
@@ -46,7 +48,6 @@ uint32_t H26_Task2_GetFinishDetectMs(void);
 int32_t H26_Task2_GetFinishDetectPulse(void);
 H26_Task2SpeedZone_t H26_Task2_GetSpeedZone(void);
 uint8_t H26_Task2_IsCurveMode(void);
-uint8_t H26_Task2_IsFinishApproach(void);
 float H26_Task2_GetCommandForwardSpeed(void);
 
 #endif

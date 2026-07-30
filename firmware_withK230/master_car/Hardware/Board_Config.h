@@ -23,6 +23,16 @@
 #define ECAR_REAR_LINE_SENSOR_MODE 1U
 #endif
 
+/*
+ * The eight-channel grayscale module is mounted in front of the drive-wheel
+ * axle.  This setting affects only grayscale channel order and line-control
+ * sign; it deliberately does not alter the verified motor/encoder mapping
+ * selected by ECAR_REAR_LINE_SENSOR_MODE above.
+ */
+#ifndef ECAR_LINE_SENSOR_FORWARD_MOUNT
+#define ECAR_LINE_SENSOR_FORWARD_MOUNT 1U
+#endif
+
 /* Compatibility aliases for SysConfig-generated grouped GPIO names. */
 #if !defined(GPIO_I2C0_SCL_PORT) && defined(GPIO_I2C_SHARED_SCL_PORT)
 #define GPIO_I2C0_SCL_PORT              GPIO_I2C_SHARED_SCL_PORT
@@ -225,15 +235,21 @@
 #define LEFT_ENCODER_SIGN               LEFT_ENCODER_DIR
 #define RIGHT_ENCODER_SIGN              RIGHT_ENCODER_DIR
 
-/* ---------------- 8-channel grayscale module ----------------
- * P3-1 VCC = 5V, P3-6 GND.
- * GRAY_AD2 -> PB23, GRAY_AD1 -> PB11, GRAY_AD0 -> PB13, GRAY_OUT -> PB01.
+/* ---------------- 8-channel grayscale module / 4-channel IR test ----------------
+ * P3-1 VCC = 5V, P3-6 GND.  In normal 8-channel mode the four MCU signals
+ * are GRAY_AD2 -> PB23, GRAY_AD1 -> PB11, GRAY_AD0 -> PB13, GRAY_OUT -> PB01.
+ *
+ * Four-channel infrared test module silk: GND X4 X3 X2 X1 VCC.
+ * Wire it to the same six-pin P3 header in the following order:
+ *   VCC -> P3-1, X1 -> P3-2/PB23, X2 -> P3-3/PB11,
+ *   X3 -> P3-4/PB13, X4 -> P3-5/PB01, GND -> P3-6.
+ * empty.syscfg configures all four signal pins as inputs for the active IR4
+ * board-test mode.  Restore AD2/AD1/AD0 to outputs before returning to the
+ * CD4051-based 8-channel grayscale module.
  *
  * Hardware warning:
- * The grayscale board is powered from 5V.  GRAY_OUT must be divided or level
- * shifted to <= 3.3V before it reaches MSPM0 PB01.  Software cannot make a
- * direct 5V GPIO input safe.  AD0/AD1/AD2 are normal 3.3V MSPM0 outputs; if
- * the 5V module does not recognize 3.3V high reliably, fix it in hardware.
+ * X1..X4 must be <= 3.3V at the MSPM0 pins.  A 5V-powered IR module can have
+ * 5V outputs; add level shifting or power its logic from 3.3V if necessary.
  */
 #define GRAY_AD0_PORT                   GPIO_GRAYSCALE_AD0_PORT
 #define GRAY_AD0_PIN                    GPIO_GRAYSCALE_AD0_PIN
@@ -256,6 +272,15 @@
 #define GRAYSCALE_AD2_PIN               GRAY_AD2_PIN
 #define GRAYSCALE_OUT_PORT              GRAY_OUT_PORT
 #define GRAYSCALE_OUT_PIN               GRAY_OUT_PIN
+
+#define IR4_X1_PORT                     GRAY_AD2_PORT
+#define IR4_X1_PIN                      GRAY_AD2_PIN
+#define IR4_X2_PORT                     GRAY_AD1_PORT
+#define IR4_X2_PIN                      GRAY_AD1_PIN
+#define IR4_X3_PORT                     GRAY_AD0_PORT
+#define IR4_X3_PIN                      GRAY_AD0_PIN
+#define IR4_X4_PORT                     GRAY_OUT_PORT
+#define IR4_X4_PIN                      GRAY_OUT_PIN
 
 /* ---------------- I2C0 shared bus ----------------
  * Use 3.3V power and pull SDA/SCL up to 3.3V.  Do not pull I2C to 5V.

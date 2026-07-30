@@ -468,6 +468,11 @@
               <FilePath>..\App\app_h26_task4.c</FilePath>
             </File>
             <File>
+              <FileName>app_h26_task5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\app_h26_task5.c</FilePath>
+            </File>
+            <File>
               <FileName>app_board_test.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\app_board_test.c</FilePath>

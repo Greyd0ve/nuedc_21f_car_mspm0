@@ -37,12 +37,12 @@ volatile int32_t g_turnEncoderTotal = 0;
 
 volatile float g_lineBlackLevelF = 1.0f;
 
-#if ECAR_REAR_LINE_SENSOR_MODE
-volatile float g_lineReverseOrderF = 1.0f;
-volatile float g_lineTurnSign = -1.0f;
-#else
+#if ECAR_LINE_SENSOR_FORWARD_MOUNT
 volatile float g_lineReverseOrderF = 0.0f;
 volatile float g_lineTurnSign = 1.0f;
+#else
+volatile float g_lineReverseOrderF = 1.0f;
+volatile float g_lineTurnSign = -1.0f;
 #endif
 volatile float g_lineKp = TUNE_LINE_KP;
 volatile float g_lineKd = TUNE_LINE_KD;

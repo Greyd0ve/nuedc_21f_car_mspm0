@@ -3,12 +3,24 @@
 
 #include <stdint.h>
 
-/*
- * Formal H26 task manager selection.  The board-test mode remains available
- * for independent hardware diagnostics, but task 3 now runs through H26.
- */
+/* Run the H26 task manager with the four-channel infrared line sensor. */
 #ifndef APP_MODE_H26
 #define APP_MODE_H26                         1U
+#endif
+
+/*
+ * Formal line-sensor selection.  This is independent of the board-test
+ * switches below: IR4 uses PB23/PB11/PB13/PB01 as four direct inputs, while
+ * GRAY8 uses the CD4051 address/output interface.
+ */
+#ifndef CAR_LINE_SENSOR_IR4_ENABLE
+#define CAR_LINE_SENSOR_IR4_ENABLE            1U
+#endif
+#ifndef CAR_LINE_SENSOR_GRAY8_ENABLE
+#define CAR_LINE_SENSOR_GRAY8_ENABLE           0U
+#endif
+#if ((CAR_LINE_SENSOR_IR4_ENABLE + CAR_LINE_SENSOR_GRAY8_ENABLE) != 1U)
+#error "Select exactly one formal line sensor: IR4 or GRAY8"
 #endif
 
 /*
@@ -28,6 +40,12 @@
 #endif
 
 /* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
+#ifndef ECAR_TEST_IR4_ENABLE
+#define ECAR_TEST_IR4_ENABLE                    0U
+#endif
+#ifndef ECAR_TEST_GRAYSCALE_ENABLE
+#define ECAR_TEST_GRAYSCALE_ENABLE              0U
+#endif
 #ifndef ECAR_TEST_MOTOR_ENABLE
 #define ECAR_TEST_MOTOR_ENABLE                  0
 #endif
@@ -60,7 +78,9 @@
 #endif
 
 /* Mutual exclusion: only one board test sub-mode at a time. */
-#if ((ECAR_TEST_MOTOR_ENABLE + \
+#if ((ECAR_TEST_IR4_ENABLE + \
+      ECAR_TEST_GRAYSCALE_ENABLE + \
+      ECAR_TEST_MOTOR_ENABLE + \
       ECAR_TEST_SPEED_PID_ENABLE + \
       ECAR_TEST_SERVO_ENABLE + \
       ECAR_TEST_BEEP_ENABLE + \
@@ -94,6 +114,8 @@
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
+#define CAR_TEST_IR4_ENABLE             ECAR_TEST_IR4_ENABLE
+#define CAR_TEST_GRAYSCALE_ENABLE       ECAR_TEST_GRAYSCALE_ENABLE
 #define CAR_TEST_MOTOR_ENABLE           ECAR_TEST_MOTOR_ENABLE
 #define CAR_TEST_SPEED_PID_ENABLE       ECAR_TEST_SPEED_PID_ENABLE
 #define CAR_TEST_SERVO_ENABLE           ECAR_TEST_SERVO_ENABLE

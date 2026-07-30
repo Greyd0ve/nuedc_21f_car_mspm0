@@ -8,8 +8,10 @@
 #include "RodEncoder.h"
 #include "RodStepper.h"
 #include "DebugSerial.h"
+#include "Grayscale.h"
 #include "Key.h"
 #include "Motor.h"
+#include "OLED.h"
 #include "PWM.h"
 #include "cmsis_compiler.h"
 #include <stdint.h>
@@ -198,6 +200,188 @@ void BoardTest_Task10ms(void)
 
 void BoardTest_Task100ms(void) { }
 void BoardTest_Task200ms(void) { }
+
+#elif CAR_TEST_IR4_ENABLE
+
+#define IR4_TEST_PRINT_PERIOD_100MS  2U
+
+static uint8_t s_ir4Level[4];
+static uint8_t s_ir4Mask = 0U;
+static uint8_t s_ir4PrintCount = 0U;
+
+static uint8_t BoardTest_IR4_ReadPin(GPIO_Regs *port, uint32_t pin)
+{
+    return ((DL_GPIO_readPins(port, pin) & pin) != 0U) ? 1U : 0U;
+}
+
+static void BoardTest_IR4_Sample(void)
+{
+    uint8_t mask = 0U;
+
+    s_ir4Level[0] = BoardTest_IR4_ReadPin(IR4_X1_PORT, IR4_X1_PIN);
+    s_ir4Level[1] = BoardTest_IR4_ReadPin(IR4_X2_PORT, IR4_X2_PIN);
+    s_ir4Level[2] = BoardTest_IR4_ReadPin(IR4_X3_PORT, IR4_X3_PIN);
+    s_ir4Level[3] = BoardTest_IR4_ReadPin(IR4_X4_PORT, IR4_X4_PIN);
+
+    if (s_ir4Level[0] != 0U) mask |= 0x01U;
+    if (s_ir4Level[1] != 0U) mask |= 0x02U;
+    if (s_ir4Level[2] != 0U) mask |= 0x04U;
+    if (s_ir4Level[3] != 0U) mask |= 0x08U;
+    s_ir4Mask = mask;
+}
+
+static void BoardTest_IR4_PrintSample(void)
+{
+    DebugSerial_Printf("[ir4-test,x1=%u,x2=%u,x3=%u,x4=%u,mask=0x%02X]\r\n",
+        (unsigned int)s_ir4Level[0],
+        (unsigned int)s_ir4Level[1],
+        (unsigned int)s_ir4Level[2],
+        (unsigned int)s_ir4Level[3],
+        (unsigned int)s_ir4Mask);
+}
+
+void BoardTest_Init(void)
+{
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+    s_ir4Mask = 0U;
+    s_ir4PrintCount = 0U;
+    BoardTest_IR4_Sample();
+
+    DebugSerial_SendString("[board-test,start]\r\n");
+    DebugSerial_SendString("[board-test,mode=infrared-4ch]\r\n");
+    DebugSerial_SendString("[ir4-test,map,x1=PB23,x2=PB11,x3=PB13,x4=PB01]\r\n");
+    DebugSerial_SendString("[ir4-test,level=1_means_gpio_high]\r\n");
+    BoardTest_IR4_PrintSample();
+}
+
+void BoardTest_Task10ms(void)
+{
+    /* Sensing-only test: keep the traction output disabled at all times. */
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+    BoardTest_IR4_Sample();
+}
+
+void BoardTest_Task100ms(void)
+{
+    s_ir4PrintCount++;
+    if (s_ir4PrintCount >= IR4_TEST_PRINT_PERIOD_100MS)
+    {
+        s_ir4PrintCount = 0U;
+        BoardTest_IR4_PrintSample();
+    }
+}
+
+void BoardTest_Task200ms(void)
+{
+#if CAR_OLED_ENABLE
+    OLED_Clear();
+    OLED_ShowString(0, 0, "IR4 TEST", OLED_6X8);
+    OLED_ShowString(0, 16, "X1 X2 X3 X4", OLED_6X8);
+    OLED_ShowNum(6, 32, (uint32_t)s_ir4Level[0], 1, OLED_6X8);
+    OLED_ShowNum(30, 32, (uint32_t)s_ir4Level[1], 1, OLED_6X8);
+    OLED_ShowNum(54, 32, (uint32_t)s_ir4Level[2], 1, OLED_6X8);
+    OLED_ShowNum(78, 32, (uint32_t)s_ir4Level[3], 1, OLED_6X8);
+    OLED_ShowString(0, 48, "MASK:", OLED_6X8);
+    OLED_ShowNum(36, 48, (uint32_t)s_ir4Mask, 3, OLED_6X8);
+    OLED_Update();
+#endif
+}
+
+#elif CAR_TEST_GRAYSCALE_ENABLE
+
+#define GRAYSCALE_TEST_PRINT_PERIOD_100MS  2U
+
+static uint8_t s_grayscaleRaw[GRAYSCALE_CHANNELS];
+static uint8_t s_grayscaleMask = 0U;
+static uint8_t s_grayscalePrintCount = 0U;
+
+static void BoardTest_GrayscaleSample(void)
+{
+    uint8_t index;
+    uint8_t mask = 0U;
+
+    Grayscale_ReadAll(s_grayscaleRaw);
+    for (index = 0U; index < GRAYSCALE_CHANNELS; index++)
+    {
+        if (s_grayscaleRaw[index] != 0U)
+        {
+            mask |= (uint8_t)(1U << index);
+        }
+    }
+    s_grayscaleMask = mask;
+}
+
+static void BoardTest_GrayscalePrintSample(void)
+{
+    DebugSerial_Printf(
+        "[grayscale-test,raw=%u%u%u%u%u%u%u%u,mask=0x%02X,out=%u]\r\n",
+        (unsigned int)s_grayscaleRaw[0],
+        (unsigned int)s_grayscaleRaw[1],
+        (unsigned int)s_grayscaleRaw[2],
+        (unsigned int)s_grayscaleRaw[3],
+        (unsigned int)s_grayscaleRaw[4],
+        (unsigned int)s_grayscaleRaw[5],
+        (unsigned int)s_grayscaleRaw[6],
+        (unsigned int)s_grayscaleRaw[7],
+        (unsigned int)s_grayscaleMask,
+        (unsigned int)Grayscale_RawOUT());
+}
+
+void BoardTest_Init(void)
+{
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+    Grayscale_Init();
+    s_grayscaleMask = 0U;
+    s_grayscalePrintCount = 0U;
+    BoardTest_GrayscaleSample();
+
+    DebugSerial_SendString("[board-test,start]\r\n");
+    DebugSerial_SendString("[board-test,mode=grayscale-8ch]\r\n");
+    DebugSerial_SendString("[grayscale-test,raw=ch0..ch7,level=1_means_gpio_high]\r\n");
+    BoardTest_GrayscalePrintSample();
+}
+
+void BoardTest_Task10ms(void)
+{
+    /* This is a sensing-only test mode: traction must remain disabled. */
+    App_Control_ForcePWMZero();
+    Motor_StopAll();
+    BoardTest_GrayscaleSample();
+}
+
+void BoardTest_Task100ms(void)
+{
+    s_grayscalePrintCount++;
+    if (s_grayscalePrintCount >= GRAYSCALE_TEST_PRINT_PERIOD_100MS)
+    {
+        s_grayscalePrintCount = 0U;
+        BoardTest_GrayscalePrintSample();
+    }
+}
+
+void BoardTest_Task200ms(void)
+{
+#if CAR_OLED_ENABLE
+    OLED_Clear();
+    OLED_ShowString(0, 0, "GRAY8 TEST", OLED_6X8);
+    OLED_ShowString(0, 16, "CH0-3:", OLED_6X8);
+    OLED_ShowNum(42, 16, (uint32_t)s_grayscaleRaw[0], 1, OLED_6X8);
+    OLED_ShowNum(54, 16, (uint32_t)s_grayscaleRaw[1], 1, OLED_6X8);
+    OLED_ShowNum(66, 16, (uint32_t)s_grayscaleRaw[2], 1, OLED_6X8);
+    OLED_ShowNum(78, 16, (uint32_t)s_grayscaleRaw[3], 1, OLED_6X8);
+    OLED_ShowString(0, 32, "CH4-7:", OLED_6X8);
+    OLED_ShowNum(42, 32, (uint32_t)s_grayscaleRaw[4], 1, OLED_6X8);
+    OLED_ShowNum(54, 32, (uint32_t)s_grayscaleRaw[5], 1, OLED_6X8);
+    OLED_ShowNum(66, 32, (uint32_t)s_grayscaleRaw[6], 1, OLED_6X8);
+    OLED_ShowNum(78, 32, (uint32_t)s_grayscaleRaw[7], 1, OLED_6X8);
+    OLED_ShowString(0, 48, "MASK:", OLED_6X8);
+    OLED_ShowNum(36, 48, (uint32_t)s_grayscaleMask, 3, OLED_6X8);
+    OLED_Update();
+#endif
+}
 
 #elif CAR_TEST_MOTOR_ENABLE
 
