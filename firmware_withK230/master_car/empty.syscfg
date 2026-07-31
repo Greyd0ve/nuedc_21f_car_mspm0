@@ -22,7 +22,6 @@ const I2C    = scripting.addModule("/ti/driverlib/I2C", {}, false);
 const I2C1   = I2C.addInstance();
 const PWM    = scripting.addModule("/ti/driverlib/PWM", {}, false);
 const PWM1   = PWM.addInstance();
-const PWM2   = PWM.addInstance();
 const PWM3   = PWM.addInstance();
 const TIMER  = scripting.addModule("/ti/driverlib/TIMER", {}, false);
 const TIMER1 = TIMER.addInstance();
@@ -104,40 +103,67 @@ GPIO2.associatedPins[3].internalResistor = "PULL_UP";
 GPIO2.associatedPins[3].inputFilter      = "8_CYCLES";
 
 /*
- * Formal H26 line sensor: CD4051-based 8-channel grayscale module.
- * PB23/PB11/PB13 drive AD2/AD1/AD0, and PB01 reads the multiplexed OUT.
- * GRAY_OUT must be level-shifted to <= 3.3V before it reaches PB01.
+ * Formal H26 line sensor: direct 8-channel infrared module.
+ * X1..X8 are all digital inputs.  Sensor outputs must be <= 3.3 V.
  */
-GPIO3.$name = "GPIO_GRAYSCALE";
-GPIO3.associatedPins.create(4);
-GPIO3.associatedPins[0].$name        = "AD2";
+GPIO3.$name = "GPIO_IR8";
+GPIO3.associatedPins.create(8);
+GPIO3.associatedPins[0].$name        = "X1";
 GPIO3.associatedPins[0].assignedPort = "PORTB";
 GPIO3.associatedPins[0].assignedPin  = "23";
 GPIO3.associatedPins[0].pin.$assign  = "PB23";
-GPIO3.associatedPins[0].direction    = "OUTPUT";
-GPIO3.associatedPins[0].initialValue = "CLEARED";
+GPIO3.associatedPins[0].direction    = "INPUT";
 GPIO3.associatedPins[0].internalResistor = "NONE";
-GPIO3.associatedPins[1].$name        = "AD1";
+GPIO3.associatedPins[0].inputFilter  = "8_CYCLES";
+GPIO3.associatedPins[1].$name        = "X2";
 GPIO3.associatedPins[1].assignedPort = "PORTB";
 GPIO3.associatedPins[1].assignedPin  = "11";
 GPIO3.associatedPins[1].pin.$assign  = "PB11";
-GPIO3.associatedPins[1].direction    = "OUTPUT";
-GPIO3.associatedPins[1].initialValue = "CLEARED";
+GPIO3.associatedPins[1].direction    = "INPUT";
 GPIO3.associatedPins[1].internalResistor = "NONE";
-GPIO3.associatedPins[2].$name        = "AD0";
+GPIO3.associatedPins[1].inputFilter  = "8_CYCLES";
+GPIO3.associatedPins[2].$name        = "X3";
 GPIO3.associatedPins[2].assignedPort = "PORTB";
 GPIO3.associatedPins[2].assignedPin  = "13";
 GPIO3.associatedPins[2].pin.$assign  = "PB13";
-GPIO3.associatedPins[2].direction    = "OUTPUT";
-GPIO3.associatedPins[2].initialValue = "CLEARED";
+GPIO3.associatedPins[2].direction    = "INPUT";
 GPIO3.associatedPins[2].internalResistor = "NONE";
-GPIO3.associatedPins[3].$name            = "OUT";
+GPIO3.associatedPins[2].inputFilter  = "8_CYCLES";
+GPIO3.associatedPins[3].$name            = "X4";
 GPIO3.associatedPins[3].assignedPort     = "PORTB";
 GPIO3.associatedPins[3].assignedPin      = "1";
 GPIO3.associatedPins[3].pin.$assign      = "PB1";
 GPIO3.associatedPins[3].direction        = "INPUT";
 GPIO3.associatedPins[3].internalResistor = "NONE";
 GPIO3.associatedPins[3].inputFilter      = "8_CYCLES";
+GPIO3.associatedPins[4].$name            = "X5";
+GPIO3.associatedPins[4].assignedPort     = "PORTB";
+GPIO3.associatedPins[4].assignedPin      = "14";
+GPIO3.associatedPins[4].pin.$assign      = "PB14";
+GPIO3.associatedPins[4].direction        = "INPUT";
+GPIO3.associatedPins[4].internalResistor = "NONE";
+GPIO3.associatedPins[4].inputFilter      = "8_CYCLES";
+GPIO3.associatedPins[5].$name            = "X6";
+GPIO3.associatedPins[5].assignedPort     = "PORTB";
+GPIO3.associatedPins[5].assignedPin      = "4";
+GPIO3.associatedPins[5].pin.$assign      = "PB4";
+GPIO3.associatedPins[5].direction        = "INPUT";
+GPIO3.associatedPins[5].internalResistor = "NONE";
+GPIO3.associatedPins[5].inputFilter      = "8_CYCLES";
+GPIO3.associatedPins[6].$name            = "X7";
+GPIO3.associatedPins[6].assignedPort     = "PORTA";
+GPIO3.associatedPins[6].assignedPin      = "22";
+GPIO3.associatedPins[6].pin.$assign      = "PA22";
+GPIO3.associatedPins[6].direction        = "INPUT";
+GPIO3.associatedPins[6].internalResistor = "NONE";
+GPIO3.associatedPins[6].inputFilter      = "8_CYCLES";
+GPIO3.associatedPins[7].$name            = "X8";
+GPIO3.associatedPins[7].assignedPort     = "PORTA";
+GPIO3.associatedPins[7].assignedPin      = "15";
+GPIO3.associatedPins[7].pin.$assign      = "PA15";
+GPIO3.associatedPins[7].direction        = "INPUT";
+GPIO3.associatedPins[7].internalResistor = "NONE";
+GPIO3.associatedPins[7].inputFilter      = "8_CYCLES";
 
 GPIO4.$name = "GPIO_KEYS";
 GPIO4.associatedPins.create(4);
@@ -167,17 +193,12 @@ GPIO4.associatedPins[3].direction        = "INPUT";
 GPIO4.associatedPins[3].internalResistor = "PULL_UP";
 
 GPIO5.$name = "GPIO_BOARD_IO";
-GPIO5.associatedPins.create(2);
-GPIO5.associatedPins[0].$name        = "LED_USER";
-GPIO5.associatedPins[0].assignedPort = "PORTB";
-GPIO5.associatedPins[0].assignedPin  = "4";
-GPIO5.associatedPins[0].pin.$assign  = "PB4";
+GPIO5.associatedPins.create(1);
+GPIO5.associatedPins[0].$name        = "BEEP";
+GPIO5.associatedPins[0].assignedPort = "PORTA";
+GPIO5.associatedPins[0].assignedPin  = "7";
+GPIO5.associatedPins[0].pin.$assign  = "PA7";
 GPIO5.associatedPins[0].initialValue = "CLEARED";
-GPIO5.associatedPins[1].$name        = "BEEP";
-GPIO5.associatedPins[1].assignedPort = "PORTA";
-GPIO5.associatedPins[1].assignedPin  = "7";
-GPIO5.associatedPins[1].pin.$assign  = "PA7";
-GPIO5.associatedPins[1].initialValue = "CLEARED";
 
 PWM1.$name                      = "PWM_MOTOR";
 PWM1.timerCount                 = 1600;
@@ -188,28 +209,6 @@ PWM1.PWM_CHANNEL_0.$name        = "MOTOR_C0";
 PWM1.PWM_CHANNEL_0.dutyCycle    = 0;
 PWM1.PWM_CHANNEL_1.$name        = "MOTOR_C1";
 PWM1.PWM_CHANNEL_1.dutyCycle    = 0;
-
-/*
- * Servo PWM: TIMA0-C0..C3, 50Hz.  Physical H7/H15/H8/H14 connector routing
- * must be confirmed on the actual board before enabling ECAR_TEST_SERVO_ENABLE.
- */
-PWM2.$name                      = "PWM_SERVO";
-PWM2.ccIndex                    = [0,1,2,3];
-PWM2.clockPrescale              = 32;
-PWM2.timerCount                 = 20000;
-PWM2.peripheral.$assign         = "TIMA0";
-PWM2.peripheral.ccp0Pin.$assign = "PA21";
-PWM2.peripheral.ccp1Pin.$assign = "PA22";
-PWM2.peripheral.ccp2Pin.$assign = "PA15";
-PWM2.peripheral.ccp3Pin.$assign = "PA17";
-PWM2.PWM_CHANNEL_0.$name        = "SERVO_C0";
-PWM2.PWM_CHANNEL_0.dutyCycle    = 0;
-PWM2.PWM_CHANNEL_1.$name        = "SERVO_C1";
-PWM2.PWM_CHANNEL_1.dutyCycle    = 0;
-PWM2.PWM_CHANNEL_2.$name        = "SERVO_C2";
-PWM2.PWM_CHANNEL_2.dutyCycle    = 0;
-PWM2.PWM_CHANNEL_3.$name        = "SERVO_C3";
-PWM2.PWM_CHANNEL_3.dutyCycle    = 0;
 
 /*
  * Rod ball stepper STEP output. TIMG7-C1 / PA02 is timer-driven only;

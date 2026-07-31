@@ -48,7 +48,7 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>.\Objects\</OutputDirectory>
+          <OutputDirectory>C:\KeilBuild\nuedc_master_car\Objects\</OutputDirectory>
           <OutputName>master_car_withK230</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
@@ -523,9 +523,9 @@
               <FilePath>..\Hardware\Encoder.c</FilePath>
             </File>
             <File>
-              <FileName>Grayscale.c</FileName>
+              <FileName>IR8.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Hardware\Grayscale.c</FilePath>
+              <FilePath>..\Hardware\IR8.c</FilePath>
             </File>
             <File>
               <FileName>Key.c</FileName>
@@ -551,11 +551,6 @@
               <FileName>BeepLed.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Hardware\BeepLed.c</FilePath>
-            </File>
-            <File>
-              <FileName>Servo.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Hardware\Servo.c</FilePath>
             </File>
             <File>
               <FileName>RodStepper.c</FileName>

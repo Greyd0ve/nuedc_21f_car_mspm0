@@ -8,7 +8,7 @@
 #include "RodEncoder.h"
 #include "RodStepper.h"
 #include "DebugSerial.h"
-#include "Grayscale.h"
+#include "IR8.h"
 #include "Key.h"
 #include "Motor.h"
 #include "OLED.h"
@@ -201,59 +201,58 @@ void BoardTest_Task10ms(void)
 void BoardTest_Task100ms(void) { }
 void BoardTest_Task200ms(void) { }
 
-#elif CAR_TEST_GRAYSCALE_ENABLE
+#elif CAR_TEST_IR8_ENABLE
 
-#define GRAYSCALE_TEST_PRINT_PERIOD_100MS  2U
+#define IR8_TEST_PRINT_PERIOD_100MS  2U
 
-static uint8_t s_grayscaleRaw[GRAYSCALE_CHANNELS];
-static uint8_t s_grayscaleMask = 0U;
-static uint8_t s_grayscalePrintCount = 0U;
+static uint8_t s_ir8Raw[IR8_CHANNELS];
+static uint8_t s_ir8Mask = 0U;
+static uint8_t s_ir8PrintCount = 0U;
 
-static void BoardTest_GrayscaleSample(void)
+static void BoardTest_IR8Sample(void)
 {
     uint8_t index;
     uint8_t mask = 0U;
 
-    Grayscale_ReadAll(s_grayscaleRaw);
-    for (index = 0U; index < GRAYSCALE_CHANNELS; index++)
+    IR8_ReadAll(s_ir8Raw);
+    for (index = 0U; index < IR8_CHANNELS; index++)
     {
-        if (s_grayscaleRaw[index] != 0U)
+        if (s_ir8Raw[index] != 0U)
         {
             mask |= (uint8_t)(1U << index);
         }
     }
-    s_grayscaleMask = mask;
+    s_ir8Mask = mask;
 }
 
-static void BoardTest_GrayscalePrintSample(void)
+static void BoardTest_IR8PrintSample(void)
 {
     DebugSerial_Printf(
-        "[grayscale-test,raw=%u%u%u%u%u%u%u%u,mask=0x%02X,out=%u]\r\n",
-        (unsigned int)s_grayscaleRaw[0],
-        (unsigned int)s_grayscaleRaw[1],
-        (unsigned int)s_grayscaleRaw[2],
-        (unsigned int)s_grayscaleRaw[3],
-        (unsigned int)s_grayscaleRaw[4],
-        (unsigned int)s_grayscaleRaw[5],
-        (unsigned int)s_grayscaleRaw[6],
-        (unsigned int)s_grayscaleRaw[7],
-        (unsigned int)s_grayscaleMask,
-        (unsigned int)Grayscale_RawOUT());
+        "[ir8-test,raw=%u%u%u%u%u%u%u%u,mask=0x%02X]\r\n",
+        (unsigned int)s_ir8Raw[0],
+        (unsigned int)s_ir8Raw[1],
+        (unsigned int)s_ir8Raw[2],
+        (unsigned int)s_ir8Raw[3],
+        (unsigned int)s_ir8Raw[4],
+        (unsigned int)s_ir8Raw[5],
+        (unsigned int)s_ir8Raw[6],
+        (unsigned int)s_ir8Raw[7],
+        (unsigned int)s_ir8Mask);
 }
 
 void BoardTest_Init(void)
 {
     App_Control_ForcePWMZero();
     Motor_StopAll();
-    Grayscale_Init();
-    s_grayscaleMask = 0U;
-    s_grayscalePrintCount = 0U;
-    BoardTest_GrayscaleSample();
+    IR8_Init();
+    s_ir8Mask = 0U;
+    s_ir8PrintCount = 0U;
+    BoardTest_IR8Sample();
 
     DebugSerial_SendString("[board-test,start]\r\n");
-    DebugSerial_SendString("[board-test,mode=grayscale-8ch]\r\n");
-    DebugSerial_SendString("[grayscale-test,raw=ch0..ch7,level=1_means_gpio_high]\r\n");
-    BoardTest_GrayscalePrintSample();
+    DebugSerial_SendString("[board-test,mode=ir8-direct]\r\n");
+    DebugSerial_SendString("[ir8-test,raw=x1..x8,level=1_means_gpio_high]\r\n");
+    BoardTest_IR8PrintSample();
 }
 
 void BoardTest_Task10ms(void)
@@ -261,16 +260,16 @@ void BoardTest_Task10ms(void)
     /* This is a sensing-only test mode: traction must remain disabled. */
     App_Control_ForcePWMZero();
     Motor_StopAll();
-    BoardTest_GrayscaleSample();
+    BoardTest_IR8Sample();
 }
 
 void BoardTest_Task100ms(void)
 {
-    s_grayscalePrintCount++;
-    if (s_grayscalePrintCount >= GRAYSCALE_TEST_PRINT_PERIOD_100MS)
+    s_ir8PrintCount++;
+    if (s_ir8PrintCount >= IR8_TEST_PRINT_PERIOD_100MS)
     {
-        s_grayscalePrintCount = 0U;
-        BoardTest_GrayscalePrintSample();
+        s_ir8PrintCount = 0U;
+        BoardTest_IR8PrintSample();
     }
 }
 
@@ -278,19 +277,19 @@ void BoardTest_Task200ms(void)
 {
 #if CAR_OLED_ENABLE
     OLED_Clear();
-    OLED_ShowString(0, 0, "GRAY8 TEST", OLED_6X8);
-    OLED_ShowString(0, 16, "CH0-3:", OLED_6X8);
-    OLED_ShowNum(42, 16, (uint32_t)s_grayscaleRaw[0], 1, OLED_6X8);
-    OLED_ShowNum(54, 16, (uint32_t)s_grayscaleRaw[1], 1, OLED_6X8);
-    OLED_ShowNum(66, 16, (uint32_t)s_grayscaleRaw[2], 1, OLED_6X8);
-    OLED_ShowNum(78, 16, (uint32_t)s_grayscaleRaw[3], 1, OLED_6X8);
-    OLED_ShowString(0, 32, "CH4-7:", OLED_6X8);
-    OLED_ShowNum(42, 32, (uint32_t)s_grayscaleRaw[4], 1, OLED_6X8);
-    OLED_ShowNum(54, 32, (uint32_t)s_grayscaleRaw[5], 1, OLED_6X8);
-    OLED_ShowNum(66, 32, (uint32_t)s_grayscaleRaw[6], 1, OLED_6X8);
-    OLED_ShowNum(78, 32, (uint32_t)s_grayscaleRaw[7], 1, OLED_6X8);
+    OLED_ShowString(0, 0, "IR8 TEST", OLED_6X8);
+    OLED_ShowString(0, 16, "X1-4:", OLED_6X8);
+    OLED_ShowNum(42, 16, (uint32_t)s_ir8Raw[0], 1, OLED_6X8);
+    OLED_ShowNum(54, 16, (uint32_t)s_ir8Raw[1], 1, OLED_6X8);
+    OLED_ShowNum(66, 16, (uint32_t)s_ir8Raw[2], 1, OLED_6X8);
+    OLED_ShowNum(78, 16, (uint32_t)s_ir8Raw[3], 1, OLED_6X8);
+    OLED_ShowString(0, 32, "X5-8:", OLED_6X8);
+    OLED_ShowNum(42, 32, (uint32_t)s_ir8Raw[4], 1, OLED_6X8);
+    OLED_ShowNum(54, 32, (uint32_t)s_ir8Raw[5], 1, OLED_6X8);
+    OLED_ShowNum(66, 32, (uint32_t)s_ir8Raw[6], 1, OLED_6X8);
+    OLED_ShowNum(78, 32, (uint32_t)s_ir8Raw[7], 1, OLED_6X8);
     OLED_ShowString(0, 48, "MASK:", OLED_6X8);
-    OLED_ShowNum(36, 48, (uint32_t)s_grayscaleMask, 3, OLED_6X8);
+    OLED_ShowNum(36, 48, (uint32_t)s_ir8Mask, 3, OLED_6X8);
     OLED_Update();
 #endif
 }
@@ -878,7 +877,6 @@ void BoardTest_Task200ms(void) { }
 #include "OLED.h"
 #include "JY61P.h"
 #include "JY61P_Serial.h"
-#include "Servo.h"
 #include "Timer.h"
 
 #define JY61P_PRINT_PERIOD_MS  1000U
@@ -997,7 +995,6 @@ void BoardTest_Init(void)
     uint32_t resetCause;
     App_Control_ForcePWMZero();
     Motor_StopAll();
-    Servo_DisableAll();
 
     s_jy61pLastPrintMs = Timer_GetMillis();
     s_jy61pLastRawPrintMs = s_jy61pLastPrintMs;
@@ -1031,7 +1028,6 @@ void BoardTest_Task10ms(void)
     uint8_t online;
     App_Control_ForcePWMZero();
     Motor_StopAll();
-    Servo_DisableAll();
     JY61P_Task10ms();
     JY61P_GetData(&jdata);
     online = JY61P_IsOnline();

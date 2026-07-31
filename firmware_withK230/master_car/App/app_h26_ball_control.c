@@ -21,15 +21,18 @@ static volatile uint16_t s_lastSequence = 0U;
 static volatile int32_t s_rodEncoderCount = 0;
 static volatile int32_t s_rodTargetCount = 0;
 static volatile float s_tiltCommandMm = 0.0f;
+static volatile float s_pidTiltCommandMm = 0.0f;
+static volatile float s_feedForwardTiltMm = 0.0f;
+static volatile float s_errorIntegralCmS = 0.0f;
 
+static float s_previousControlErrorCm = 0.0f;
 static uint16_t s_lastPacketSequence = 0U;
 static uint32_t s_lastMeasurementMs = 0U;
 static float s_lastPositionCm = 0.0f;
 static uint16_t s_newMeasurementDtMs = 0U;
 static uint8_t s_hasPacket = 0U;
 static uint8_t s_hasReliableMeasurement = 0U;
-static uint8_t s_traverseBreakawayUsed = 0U;
-static uint8_t s_traverseBreakawayFrames = 0U;
+static uint8_t s_hasPreviousControlError = 0U;
 
 static float H26_Ball_AbsFloat(float value)
 {
@@ -54,19 +57,11 @@ static float H26_Ball_ClampFloat(float value, float lower, float upper)
     return value;
 }
 
-static float H26_Ball_ApplySignedMinimumTilt(float tiltMm,
-                                              float errorCm,
-                                              float minimumTiltMm)
+static uint8_t H26_Ball_ErrorCrossedZero(float previousError,
+                                         float currentError)
 {
-    if (errorCm > 0.0f && tiltMm < minimumTiltMm)
-    {
-        return minimumTiltMm;
-    }
-    if (errorCm < 0.0f && tiltMm > -minimumTiltMm)
-    {
-        return -minimumTiltMm;
-    }
-    return tiltMm;
+    return ((previousError < 0.0f && currentError >= 0.0f) ||
+            (previousError > 0.0f && currentError <= 0.0f)) ? 1U : 0U;
 }
 
 static int32_t H26_Ball_RoundFloatToInt32(float value)
@@ -291,14 +286,17 @@ void H26_BallControl_Reset(void)
     s_rodEncoderCount = 0;
     s_rodTargetCount = 0;
     s_tiltCommandMm = 0.0f;
+    s_pidTiltCommandMm = 0.0f;
+    s_feedForwardTiltMm = 0.0f;
+    s_errorIntegralCmS = 0.0f;
+    s_previousControlErrorCm = 0.0f;
     s_lastPacketSequence = 0U;
     s_lastMeasurementMs = 0U;
     s_lastPositionCm = 0.0f;
     s_newMeasurementDtMs = 0U;
     s_hasPacket = 0U;
     s_hasReliableMeasurement = 0U;
-    s_traverseBreakawayUsed = 0U;
-    s_traverseBreakawayFrames = 0U;
+    s_hasPreviousControlError = 0U;
 }
 
 void H26_BallControl_Start(void)
@@ -309,119 +307,127 @@ void H26_BallControl_Start(void)
     RodEncoder_Reset();
 }
 
-H26_BallControlSample_t H26_BallControl_Task10ms(uint32_t nowMs,
-                                                   float targetCm)
+H26_BallControlSample_t H26_BallControl_Observe10ms(uint32_t nowMs)
+{
+    H26_Ball_UpdateRodEncoderTelemetry();
+    return H26_Ball_UpdateMeasurement(nowMs);
+}
+
+static H26_BallControlSample_t H26_BallControl_Task10msCore(
+    uint32_t nowMs,
+    float targetCm,
+    float positionKpMmPerCm,
+    float positionKiMmPerCmS,
+    float speedKdMmPerCmps,
+    float integralLimitCmS,
+    float tiltCommandLimitMm,
+    float feedForwardTiltMm)
 {
     H26_BallControlSample_t sample;
     float tiltMm;
-    float errorAbs;
-    float speedAbs;
-    uint8_t traverseBreakawayActive = 0U;
 
     H26_Ball_UpdateRodEncoderTelemetry();
     sample = H26_Ball_UpdateMeasurement(nowMs);
     if (sample == H26_BALL_SAMPLE_NEW)
     {
-        if (targetCm != s_targetCm)
-        {
-            /* A new +5/-5 leg is allowed one short static-friction kick. */
-            s_traverseBreakawayUsed = 0U;
-            s_traverseBreakawayFrames = 0U;
-        }
         s_targetCm = targetCm;
         s_errorCm = targetCm - s_positionCm;
-        /* Only task 3 requests a non-zero endpoint; tasks 4/5 hold O. */
-        if (H26_Ball_AbsFloat(s_targetCm) > H26_T3_TILT_DEADBAND_CM)
+        if (s_hasPreviousControlError != 0U &&
+            H26_Ball_ErrorCrossedZero(s_previousControlErrorCm,
+                                      s_errorCm) != 0U)
         {
-            errorAbs = H26_Ball_AbsFloat(s_errorCm);
-            speedAbs = H26_Ball_AbsFloat(s_ballSpeedCmps);
-            if (errorAbs > ((s_targetCm > 0.0f) ?
-                    H26_T3_CAPTURE_ZONE_POSITIVE_CM :
-                    H26_T3_CAPTURE_ZONE_NEGATIVE_CM))
-            {
-                tiltMm = H26_T3_TRAVERSE_POSITION_KP_MM_PER_CM * s_errorCm -
-                    ((s_targetCm > 0.0f) ?
-                        H26_T3_TRAVERSE_POSITIVE_SPEED_KD_MM_PER_CMPS :
-                        H26_T3_TRAVERSE_NEGATIVE_SPEED_KD_MM_PER_CMPS) *
-                    s_ballSpeedCmps;
-                if (s_traverseBreakawayFrames != 0U)
-                {
-                    s_traverseBreakawayFrames--;
-                    traverseBreakawayActive = 1U;
-                }
-                else if (s_traverseBreakawayUsed == 0U &&
-                    speedAbs <= ((s_errorCm > 0.0f) ?
-                        H26_T3_TRAVERSE_BREAKAWAY_POSITIVE_MAX_SPEED_CMPS :
-                        H26_T3_TRAVERSE_BREAKAWAY_NEGATIVE_MAX_SPEED_CMPS))
-                {
-                    s_traverseBreakawayUsed = 1U;
-                    s_traverseBreakawayFrames =
-                        H26_T3_TRAVERSE_BREAKAWAY_FRAME_COUNT - 1U;
-                    traverseBreakawayActive = 1U;
-                }
-
-                if (traverseBreakawayActive != 0U)
-                {
-                    tiltMm = H26_Ball_ApplySignedMinimumTilt(tiltMm,
-                        s_errorCm, (s_errorCm > 0.0f) ?
-                        H26_T3_TRAVERSE_BREAKAWAY_POSITIVE_MM :
-                        H26_T3_TRAVERSE_BREAKAWAY_NEGATIVE_MM);
-                }
-            }
-            else if (errorAbs > H26_T3_FINAL_CONTROL_ZONE_CM ||
-                     speedAbs > H26_T3_TILT_DEADBAND_SPEED_CMPS)
-            {
-                /* Capture zone: velocity feedback is deliberately dominant
-                 * so the ball is braked before it crosses the endpoint. */
-                tiltMm = H26_T3_CAPTURE_POSITION_KP_MM_PER_CM * s_errorCm -
-                    H26_T3_CAPTURE_SPEED_KD_MM_PER_CMPS * s_ballSpeedCmps;
-            }
-            else
-            {
-                /* Low-speed final trim: no discontinuous breakaway command. */
-                tiltMm = H26_T3_FINAL_POSITION_KP_MM_PER_CM * s_errorCm -
-                    H26_T3_FINAL_SPEED_KD_MM_PER_CMPS * s_ballSpeedCmps;
-            }
-
-            /* Retain the minimum slope while nearly stopped, or whenever
-             * the ball is rolling away from its target.  The latter avoids
-             * cancelling breakaway because of a single quantised K230 speed
-             * sample near an endpoint. */
-            if (errorAbs > H26_T3_FINAL_TILT_DEADBAND_CM &&
-                (speedAbs <= H26_T3_CAPTURE_BREAKAWAY_MAX_SPEED_CMPS ||
-                 (s_errorCm * s_ballSpeedCmps) < 0.0f))
-            {
-                tiltMm = H26_Ball_ApplySignedMinimumTilt(tiltMm,
-                    s_errorCm, H26_T3_CAPTURE_BREAKAWAY_MM);
-            }
-
-            if (traverseBreakawayActive == 0U)
-            {
-                tiltMm = H26_Ball_ClampFloat(tiltMm,
-                    -H26_T3_NORMAL_TILT_COMMAND_LIMIT_MM,
-                    H26_T3_NORMAL_TILT_COMMAND_LIMIT_MM);
-            }
+            /* Do not let the old side's integral push through the O point. */
+            s_errorIntegralCmS = 0.0f;
+        }
+        if (H26_Ball_AbsFloat(s_errorCm) <= H26_T3_TILT_DEADBAND_CM &&
+            H26_Ball_AbsFloat(s_ballSpeedCmps) <= H26_T3_TILT_DEADBAND_SPEED_CMPS)
+        {
+            s_errorIntegralCmS = 0.0f;
+            s_pidTiltCommandMm = 0.0f;
         }
         else
         {
-            tiltMm = H26_T3_BALL_POSITION_TO_TILT_MM_PER_CM * s_errorCm -
-                H26_T3_BALL_SPEED_TO_TILT_MM_PER_CMPS * s_ballSpeedCmps;
+            if (positionKiMmPerCmS != 0.0f && integralLimitCmS > 0.0f)
+            {
+                s_errorIntegralCmS = H26_Ball_ClampFloat(
+                    s_errorIntegralCmS + s_errorCm *
+                    ((float)H26_BallControl_GetStableSampleMs() / 1000.0f),
+                    -integralLimitCmS, integralLimitCmS);
+            }
+            else
+            {
+                s_errorIntegralCmS = 0.0f;
+            }
+
+            tiltMm = positionKpMmPerCm * s_errorCm +
+                positionKiMmPerCmS * s_errorIntegralCmS -
+                speedKdMmPerCmps * s_ballSpeedCmps;
+            s_pidTiltCommandMm = H26_Ball_ClampFloat(tiltMm,
+                -tiltCommandLimitMm, tiltCommandLimitMm);
         }
-        if (H26_Ball_AbsFloat(s_errorCm) <=
-                ((H26_Ball_AbsFloat(s_targetCm) > H26_T3_TILT_DEADBAND_CM) ?
-                    H26_T3_FINAL_TILT_DEADBAND_CM : H26_T3_TILT_DEADBAND_CM) &&
-            H26_Ball_AbsFloat(s_ballSpeedCmps) <= H26_T3_TILT_DEADBAND_SPEED_CMPS)
-        {
-            tiltMm = 0.0f;
-        }
-        s_tiltCommandMm = H26_Ball_ClampFloat(tiltMm,
-            -H26_T3_TILT_COMMAND_LIMIT_MM, H26_T3_TILT_COMMAND_LIMIT_MM);
-        s_rodTargetCount = H26_Ball_TiltMmToRodCount(s_tiltCommandMm);
+        s_previousControlErrorCm = s_errorCm;
+        s_hasPreviousControlError = 1U;
     }
+
+    /* Feed-forward refreshes at 10 ms even between two K230 vision frames. */
+    s_feedForwardTiltMm = H26_Ball_ClampFloat(feedForwardTiltMm,
+        -tiltCommandLimitMm, tiltCommandLimitMm);
+    s_tiltCommandMm = H26_Ball_ClampFloat(s_pidTiltCommandMm +
+        s_feedForwardTiltMm, -tiltCommandLimitMm, tiltCommandLimitMm);
+    s_rodTargetCount = H26_Ball_TiltMmToRodCount(s_tiltCommandMm);
 
     /* Do not manufacture a software stop on a dropped camera frame. */
     H26_Ball_ApplyRodPositionControl();
     return sample;
+}
+
+H26_BallControlSample_t H26_BallControl_Task10ms(uint32_t nowMs,
+                                                   float targetCm)
+{
+    return H26_BallControl_Task10msCore(nowMs, targetCm,
+        H26_T3_BALL_POSITION_TO_TILT_MM_PER_CM,
+        0.0f,
+        H26_T3_BALL_SPEED_TO_TILT_MM_PER_CMPS,
+        0.0f,
+        H26_T3_TILT_COMMAND_LIMIT_MM,
+        0.0f);
+}
+
+H26_BallControlSample_t H26_BallControl_Task10msWithPid(
+    uint32_t nowMs,
+    float targetCm,
+    float positionKpMmPerCm,
+    float positionKiMmPerCmS,
+    float speedKdMmPerCmps,
+    float integralLimitCmS,
+    float tiltCommandLimitMm)
+{
+    return H26_BallControl_Task10msCore(nowMs, targetCm,
+        positionKpMmPerCm,
+        positionKiMmPerCmS,
+        speedKdMmPerCmps,
+        integralLimitCmS,
+        tiltCommandLimitMm,
+        0.0f);
+}
+
+H26_BallControlSample_t H26_BallControl_Task10msWithPidFeedForward(
+    uint32_t nowMs,
+    float targetCm,
+    float positionKpMmPerCm,
+    float positionKiMmPerCmS,
+    float speedKdMmPerCmps,
+    float integralLimitCmS,
+    float tiltCommandLimitMm,
+    float feedForwardTiltMm)
+{
+    return H26_BallControl_Task10msCore(nowMs, targetCm,
+        positionKpMmPerCm,
+        positionKiMmPerCmS,
+        speedKdMmPerCmps,
+        integralLimitCmS,
+        tiltCommandLimitMm,
+        feedForwardTiltMm);
 }
 
 float H26_BallControl_GetPositionCm(void) { return s_positionCm; }
@@ -445,3 +451,5 @@ uint16_t H26_BallControl_GetStableSampleMs(void)
 int32_t H26_BallControl_GetRodEncoderCount(void) { return s_rodEncoderCount; }
 int32_t H26_BallControl_GetRodTargetCount(void) { return s_rodTargetCount; }
 float H26_BallControl_GetTiltCommandMm(void) { return s_tiltCommandMm; }
+float H26_BallControl_GetPidTiltCommandMm(void) { return s_pidTiltCommandMm; }
+float H26_BallControl_GetFeedForwardTiltMm(void) { return s_feedForwardTiltMm; }

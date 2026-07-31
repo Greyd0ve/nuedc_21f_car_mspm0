@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* Run the H26 task manager with the CD4051 eight-channel grayscale sensor. */
+/* Run the H26 task manager with the direct eight-channel infrared sensor. */
 #ifndef APP_MODE_H26
 #define APP_MODE_H26                         1U
 #endif
@@ -24,18 +24,22 @@
 #define ECAR_BOARD_TEST_MODE                    0U
 #endif
 
-/* Board test sub-mode enables (only effective when BOARD_TEST_MODE == 1). */
-#ifndef ECAR_TEST_GRAYSCALE_ENABLE
-#define ECAR_TEST_GRAYSCALE_ENABLE              0U
+/*
+ * Board test sub-mode enables.
+ *
+ * To run the eight-channel IR board test, set both values to 1:
+ *   ECAR_BOARD_TEST_MODE = 1U
+ *   ECAR_TEST_IR8_ENABLE = 1U
+ * Board-test mode has priority over APP_MODE_H26 and keeps both motors stopped.
+ */
+#ifndef ECAR_TEST_IR8_ENABLE
+#define ECAR_TEST_IR8_ENABLE                    0U
 #endif
 #ifndef ECAR_TEST_MOTOR_ENABLE
 #define ECAR_TEST_MOTOR_ENABLE                  0
 #endif
 #ifndef ECAR_TEST_SPEED_PID_ENABLE
 #define ECAR_TEST_SPEED_PID_ENABLE              0U
-#endif
-#ifndef ECAR_TEST_SERVO_ENABLE
-#define ECAR_TEST_SERVO_ENABLE                  0
 #endif
 #ifndef ECAR_TEST_BEEP_ENABLE
 #define ECAR_TEST_BEEP_ENABLE                   0
@@ -60,10 +64,9 @@
 #endif
 
 /* Mutual exclusion: only one board test sub-mode at a time. */
-#if ((ECAR_TEST_GRAYSCALE_ENABLE + \
+#if ((ECAR_TEST_IR8_ENABLE + \
       ECAR_TEST_MOTOR_ENABLE + \
       ECAR_TEST_SPEED_PID_ENABLE + \
-      ECAR_TEST_SERVO_ENABLE + \
       ECAR_TEST_BEEP_ENABLE + \
       ECAR_TEST_OLED_ENABLE + \
       ECAR_TEST_RADIO_ENABLE + \
@@ -95,10 +98,9 @@
  * ECAR_ macros are kept for backward compatibility with existing drivers. */
 #define CAR_OLED_ENABLE                 ECAR_OLED_ENABLE
 #define CAR_BOARD_TEST_MODE             ECAR_BOARD_TEST_MODE
-#define CAR_TEST_GRAYSCALE_ENABLE       ECAR_TEST_GRAYSCALE_ENABLE
+#define CAR_TEST_IR8_ENABLE             ECAR_TEST_IR8_ENABLE
 #define CAR_TEST_MOTOR_ENABLE           ECAR_TEST_MOTOR_ENABLE
 #define CAR_TEST_SPEED_PID_ENABLE       ECAR_TEST_SPEED_PID_ENABLE
-#define CAR_TEST_SERVO_ENABLE           ECAR_TEST_SERVO_ENABLE
 #define CAR_TEST_BEEP_ENABLE            ECAR_TEST_BEEP_ENABLE
 #define CAR_TEST_OLED_ENABLE            ECAR_TEST_OLED_ENABLE
 #define CAR_TEST_RADIO_ENABLE           ECAR_TEST_RADIO_ENABLE
@@ -219,11 +221,17 @@
 #define ECAR_VISION_TRACK_MODE                  0
 #endif
 
-/* Top-level execution mode mutual exclusion. */
-#if ((ECAR_ENCODER_MINIMAL_DEBUG + \
-      ECAR_BOARD_TEST_MODE + \
-      ECAR_VISION_TRACK_MODE + \
-      APP_MODE_H26) > 1)
+/*
+ * Top-level execution mode mutual exclusion.
+ * Board test deliberately overrides APP_MODE_H26, so the two may both be 1.
+ */
+#if ECAR_BOARD_TEST_MODE
+#if (ECAR_ENCODER_MINIMAL_DEBUG || ECAR_VISION_TRACK_MODE)
+#error "Board-test mode cannot be combined with encoder-debug or vision-track mode"
+#endif
+#elif ((ECAR_ENCODER_MINIMAL_DEBUG + \
+        ECAR_VISION_TRACK_MODE + \
+        APP_MODE_H26) > 1)
 #error "Only one top-level execution mode can be enabled"
 #endif
 

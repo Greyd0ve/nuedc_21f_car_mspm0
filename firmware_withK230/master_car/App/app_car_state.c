@@ -35,11 +35,12 @@ volatile int32_t g_rightEncoderTotal = 0;
 volatile int32_t g_forwardEncoderTotal = 0;
 volatile int32_t g_turnEncoderTotal = 0;
 
-/* The CD4051 eight-channel grayscale module uses the original 1-on-black level. */
-volatile float g_lineBlackLevelF = 1.0f;
+/* Direct IR8 test result: white = 1, black line = 0 (active-low output). */
+volatile float g_lineBlackLevelF = 0.0f;
 
 #if ECAR_LINE_SENSOR_FORWARD_MOUNT
-volatile float g_lineReverseOrderF = 0.0f;
+/* Physical X1..X8 order is opposite to the MCU read order. */
+volatile float g_lineReverseOrderF = 1.0f;
 volatile float g_lineTurnSign = 1.0f;
 #else
 volatile float g_lineReverseOrderF = 1.0f;

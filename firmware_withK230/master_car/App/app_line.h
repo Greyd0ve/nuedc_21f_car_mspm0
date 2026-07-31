@@ -13,7 +13,7 @@ extern volatile uint8_t g_lineBadMaskCount;
 extern volatile uint8_t g_lineZeroMaskCount;
 extern volatile uint16_t g_lineLostMs;
 
-/* 重新初始化灰度 GPIO 层，用于应用启动时强制刷新硬件状态。 */
+/* 重新初始化八路红外 GPIO 层，用于应用启动时强制刷新硬件状态。 */
 void App_Line_GPIOForceInit(void);
 
 /* 清空滤波器、计数器和最近一次有效黑线记忆。 */

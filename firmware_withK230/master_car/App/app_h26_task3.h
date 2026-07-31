@@ -3,30 +3,28 @@
 
 #include <stdint.h>
 
+/* Task 3 executes the fixed stroke sequence first, then uses K230 PID only
+ * to settle the ball at the final -5 cm endpoint. */
 typedef enum
 {
     H26_T3_IDLE = 0,
-    H26_T3_ACQUIRE_O,
-    H26_T3_MOVE_PLUS_5,
-    H26_T3_HOLD_PLUS_5,
-    H26_T3_MOVE_MINUS_5,
-    H26_T3_HOLD_MINUS_5,
-    H26_T3_DONE_HOLD,
+    H26_T3_READY,
+    H26_T3_EXTEND_9MM,
+    H26_T3_RETRACT_18MM,
+    H26_T3_HOLD_RETRACT_18MM,
+    H26_T3_EXTEND_16MM,
+    H26_T3_RETRACT_7MM,
+    H26_T3_FINAL_PID,
+    H26_T3_DONE,
     H26_T3_FAULT
 } H26_Task3State_t;
 
 typedef enum
 {
     H26_T3_FAULT_NONE = 0,
-    H26_T3_FAULT_CONFIGURATION,
-    H26_T3_FAULT_ACQUIRE_TIMEOUT,
-    H26_T3_FAULT_RUN_TIMEOUT,
-    H26_T3_FAULT_VISION_TIMEOUT,
-    H26_T3_FAULT_VISION_JUMP,
-    H26_T3_FAULT_RAW_END_GUARD,
-    H26_T3_FAULT_ROD_SOFT_LIMIT,
-    H26_T3_FAULT_ROD_STALL,
     H26_T3_FAULT_STEPPER_OUTPUT,
+    H26_T3_FAULT_MOVE_TIMEOUT,
+    H26_T3_FAULT_FINAL_PID_TIMEOUT,
     H26_T3_FAULT_ILLEGAL_STATE
 } H26_Task3Fault_t;
 
@@ -46,27 +44,6 @@ H26_Task3Result_t H26_Task3_Task10ms(uint32_t nowMs);
 H26_Task3State_t H26_Task3_GetState(void);
 uint32_t H26_Task3_GetElapsedMs(uint32_t nowMs);
 uint32_t H26_Task3_GetFinalElapsedMs(void);
-float H26_Task3_GetPositionCm(void);
-float H26_Task3_GetBallSpeedCmps(void);
-float H26_Task3_GetTargetCm(void);
-float H26_Task3_GetErrorCm(void);
-int32_t H26_Task3_GetCommandHz(void);
-uint8_t H26_Task3_IsVisionValid(void);
-uint8_t H26_Task3_GetConfidence(void);
-uint32_t H26_Task3_GetFrameAgeMs(void);
-uint16_t H26_Task3_GetRawPositionCentiCm(void);
-uint16_t H26_Task3_GetOriginCentiCm(void);
-uint8_t H26_Task3_IsOriginCalibrated(void);
-uint16_t H26_Task3_GetLastSequence(void);
-uint8_t H26_Task3_GetLastFlags(void);
-uint16_t H26_Task3_GetStableHoldMs(void);
-/* +5 is the immediate turnaround-entry error.  -5 is the largest absolute
- * error observed after the first entry into its +/-1 cm monitor band. */
-float H26_Task3_GetPlusHoldPeakErrorCm(void);
-float H26_Task3_GetMinusHoldPeakErrorCm(void);
-int32_t H26_Task3_GetRodEncoderCount(void);
-int32_t H26_Task3_GetRodTargetCount(void);
-float H26_Task3_GetTiltCommandMm(void);
 H26_Task3Fault_t H26_Task3_GetFault(void);
 
 #endif

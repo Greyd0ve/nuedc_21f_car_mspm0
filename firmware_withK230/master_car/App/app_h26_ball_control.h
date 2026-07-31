@@ -15,12 +15,39 @@ void H26_BallControl_Reset(void);
 void H26_BallControl_Start(void);
 void H26_BallControl_Stop(void);
 
+/* Consumes K230 position data without changing the rod command.  Task 3
+ * uses this during its open-loop motion so the final PID shares its O origin. */
+H26_BallControlSample_t H26_BallControl_Observe10ms(uint32_t nowMs);
+
 /*
  * Runs one K230/rod-control iteration.  targetCm is expressed relative to
  * the O point automatically latched from the first valid frame after Start.
  */
 H26_BallControlSample_t H26_BallControl_Task10ms(uint32_t nowMs,
-                                                   float targetCm);
+                                                    float targetCm);
+
+/*
+ * PID variant for the stationary task-4 K230 closed-loop test.
+ */
+H26_BallControlSample_t H26_BallControl_Task10msWithPid(
+    uint32_t nowMs,
+    float targetCm,
+    float positionKpMmPerCm,
+    float positionKiMmPerCmS,
+    float speedKdMmPerCmps,
+    float integralLimitCmS,
+    float tiltCommandLimitMm);
+
+/* Adds a rod-position feed-forward command to the K230 PID result. */
+H26_BallControlSample_t H26_BallControl_Task10msWithPidFeedForward(
+    uint32_t nowMs,
+    float targetCm,
+    float positionKpMmPerCm,
+    float positionKiMmPerCmS,
+    float speedKdMmPerCmps,
+    float integralLimitCmS,
+    float tiltCommandLimitMm,
+    float feedForwardTiltMm);
 
 float H26_BallControl_GetPositionCm(void);
 float H26_BallControl_GetBallSpeedCmps(void);
@@ -39,5 +66,7 @@ uint16_t H26_BallControl_GetStableSampleMs(void);
 int32_t H26_BallControl_GetRodEncoderCount(void);
 int32_t H26_BallControl_GetRodTargetCount(void);
 float H26_BallControl_GetTiltCommandMm(void);
+float H26_BallControl_GetPidTiltCommandMm(void);
+float H26_BallControl_GetFeedForwardTiltMm(void);
 
 #endif

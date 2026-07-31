@@ -1,16 +1,12 @@
 #include "app_line.h"
 #include "app_config.h"
 #include "app_car_state.h"
-#include "Grayscale.h"
+#include "IR8.h"
 #include <stdint.h>
 
-/* 8 路灰度循迹处理，硬件通过 CD4051 多路复用读取。
+/* 8 路红外循迹处理，传感器通过独立 GPIO 并行读取。
  * 若传感器物理方向装反，可通过 g_lineReverseOrderF 反转逻辑顺序，无需改线。
  */
-#ifndef GRAYSCALE_CHANNELS
-#define GRAYSCALE_CHANNELS 8U
-#endif
-
 static volatile float g_lineErrorFiltered = 0.0f;
 static volatile float g_lineLastCtrlError = 0.0f;
 static int16_t s_lastValidError = 0;
@@ -32,7 +28,7 @@ static void App_Line_HoldLastError(void)
 
 void App_Line_GPIOForceInit(void)
 {
-    Grayscale_Init();
+    IR8_Init();
 }
 
 void App_Line_ResetState(void)
@@ -56,8 +52,8 @@ void App_Line_ResetState(void)
 
 void App_Line_Update(void)
 {
-    uint8_t raw[GRAYSCALE_CHANNELS];
-    static const int16_t weight[GRAYSCALE_CHANNELS] = {-400, -280, -160, -60, 60, 160, 280, 400};
+    uint8_t raw[IR8_CHANNELS];
+    static const int16_t weight[IR8_CHANNELS] = {-400, -280, -160, -60, 60, 160, 280, 400};
     int32_t sum = 0;
     int16_t count = 0;
     uint8_t mask = 0;
@@ -68,20 +64,20 @@ void App_Line_Update(void)
     blackLevel = (g_lineBlackLevelF <= 0.5f) ? 0U : 1U;
     reverseOrder = (g_lineReverseOrderF <= 0.5f) ? 0U : 1U;
 
-    Grayscale_ReadAll(raw);
+    IR8_ReadAll(raw);
 
     g_lineRawMask = 0;
-    for (i = 0; i < GRAYSCALE_CHANNELS; i++)
+    for (i = 0; i < IR8_CHANNELS; i++)
     {
         if (raw[i] == blackLevel) g_lineRawMask |= (uint8_t)(1U << i);
     }
 
-    for (i = 0; i < GRAYSCALE_CHANNELS; i++)
+    for (i = 0; i < IR8_CHANNELS; i++)
     {
         uint8_t physicalIndex;
         uint8_t isBlack;
 
-        physicalIndex = reverseOrder ? (uint8_t)(GRAYSCALE_CHANNELS - 1U - i) : i;
+        physicalIndex = reverseOrder ? (uint8_t)(IR8_CHANNELS - 1U - i) : i;
         isBlack = (raw[physicalIndex] == blackLevel) ? 1U : 0U;
 
         if (isBlack)

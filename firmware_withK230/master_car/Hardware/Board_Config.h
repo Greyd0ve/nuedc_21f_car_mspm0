@@ -24,8 +24,8 @@
 #endif
 
 /*
- * The eight-channel grayscale module is mounted in front of the drive-wheel
- * axle.  This setting affects only grayscale channel order and line-control
+ * The eight-channel infrared module is mounted in front of the drive-wheel
+ * axle.  This setting affects only infrared channel order and line-control
  * sign; it deliberately does not alter the verified motor/encoder mapping
  * selected by ECAR_REAR_LINE_SENSOR_MODE above.
  */
@@ -41,11 +41,15 @@
 #define GPIO_I2C0_SDA_PIN               GPIO_I2C_SHARED_SDA_PIN
 #endif
 
-#if !defined(GPIO_GRAYSCALE_AD0_PORT) && defined(GPIO_GRAYSCALE_PORT)
-#define GPIO_GRAYSCALE_AD0_PORT         GPIO_GRAYSCALE_PORT
-#define GPIO_GRAYSCALE_AD1_PORT         GPIO_GRAYSCALE_PORT
-#define GPIO_GRAYSCALE_AD2_PORT         GPIO_GRAYSCALE_PORT
-#define GPIO_GRAYSCALE_OUT_PORT         GPIO_GRAYSCALE_PORT
+#if !defined(GPIO_IR8_X1_PORT) && defined(GPIO_IR8_PORT)
+#define GPIO_IR8_X1_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X2_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X3_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X4_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X5_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X6_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X7_PORT                GPIO_IR8_PORT
+#define GPIO_IR8_X8_PORT                GPIO_IR8_PORT
 #endif
 
 #if !defined(GPIO_KEYS_KEY1_PORT) && defined(GPIO_KEYS_PORT)
@@ -55,15 +59,19 @@
 #define GPIO_KEYS_KEY4_PORT             GPIO_KEYS_PORT
 #endif
 
-#if !defined(GPIO_LED_USER_PORT) && defined(GPIO_BOARD_IO_LED_USER_PORT)
-#define GPIO_LED_USER_PORT              GPIO_BOARD_IO_LED_USER_PORT
-#define GPIO_LED_USER_PIN               GPIO_BOARD_IO_LED_USER_PIN
-#define GPIO_LED_USER_IOMUX             GPIO_BOARD_IO_LED_USER_IOMUX
+#if !defined(GPIO_BEEP_PORT)
+#if defined(GPIO_BOARD_IO_BEEP_PORT)
+#define GPIO_BEEP_PORT                  GPIO_BOARD_IO_BEEP_PORT
+#elif defined(GPIO_BOARD_IO_PORT)
+#define GPIO_BEEP_PORT                  GPIO_BOARD_IO_PORT
+#endif
 #endif
 
-#if !defined(GPIO_BEEP_PORT) && defined(GPIO_BOARD_IO_BEEP_PORT)
-#define GPIO_BEEP_PORT                  GPIO_BOARD_IO_BEEP_PORT
+#if !defined(GPIO_BEEP_PIN) && defined(GPIO_BOARD_IO_BEEP_PIN)
 #define GPIO_BEEP_PIN                   GPIO_BOARD_IO_BEEP_PIN
+#endif
+
+#if !defined(GPIO_BEEP_IOMUX) && defined(GPIO_BOARD_IO_BEEP_IOMUX)
 #define GPIO_BEEP_IOMUX                 GPIO_BOARD_IO_BEEP_IOMUX
 #endif
 
@@ -235,31 +243,30 @@
 #define LEFT_ENCODER_SIGN               LEFT_ENCODER_DIR
 #define RIGHT_ENCODER_SIGN              RIGHT_ENCODER_DIR
 
-/* ---------------- 8-channel grayscale module ----------------
- * P3-1 VCC = 5V, P3-6 GND.  In normal 8-channel mode the four MCU signals
- * are GRAY_AD2 -> PB23, GRAY_AD1 -> PB11, GRAY_AD0 -> PB13, GRAY_OUT -> PB01.
+/* ---------------- 8-channel infrared line sensor ----------------
+ * Direct input wiring, from physical left X1 to physical right X8:
+ * X1 -> PB23, X2 -> PB11, X3 -> PB13, X4 -> PB01,
+ * X5 -> PB14, X6 -> PB04, X7 -> PA22, X8 -> PA15.
+ *
+ * PB04 is deliberately removed from the user-LED function.  PA22 and PA15
+ * are deliberately removed from servo PWM.  Every X output must be <= 3.3V.
  */
-#define GRAY_AD0_PORT                   GPIO_GRAYSCALE_AD0_PORT
-#define GRAY_AD0_PIN                    GPIO_GRAYSCALE_AD0_PIN
-#define GRAY_AD0                        GRAY_AD0_PIN
-#define GRAY_AD1_PORT                   GPIO_GRAYSCALE_AD1_PORT
-#define GRAY_AD1_PIN                    GPIO_GRAYSCALE_AD1_PIN
-#define GRAY_AD1                        GRAY_AD1_PIN
-#define GRAY_AD2_PORT                   GPIO_GRAYSCALE_AD2_PORT
-#define GRAY_AD2_PIN                    GPIO_GRAYSCALE_AD2_PIN
-#define GRAY_AD2                        GRAY_AD2_PIN
-#define GRAY_OUT_PORT                   GPIO_GRAYSCALE_OUT_PORT
-#define GRAY_OUT_PIN                    GPIO_GRAYSCALE_OUT_PIN
-#define GRAY_OUT                        GRAY_OUT_PIN
-
-#define GRAYSCALE_AD0_PORT              GRAY_AD0_PORT
-#define GRAYSCALE_AD0_PIN               GRAY_AD0_PIN
-#define GRAYSCALE_AD1_PORT              GRAY_AD1_PORT
-#define GRAYSCALE_AD1_PIN               GRAY_AD1_PIN
-#define GRAYSCALE_AD2_PORT              GRAY_AD2_PORT
-#define GRAYSCALE_AD2_PIN               GRAY_AD2_PIN
-#define GRAYSCALE_OUT_PORT              GRAY_OUT_PORT
-#define GRAYSCALE_OUT_PIN               GRAY_OUT_PIN
+#define IR8_X1_PORT                     GPIO_IR8_X1_PORT
+#define IR8_X1_PIN                      GPIO_IR8_X1_PIN
+#define IR8_X2_PORT                     GPIO_IR8_X2_PORT
+#define IR8_X2_PIN                      GPIO_IR8_X2_PIN
+#define IR8_X3_PORT                     GPIO_IR8_X3_PORT
+#define IR8_X3_PIN                      GPIO_IR8_X3_PIN
+#define IR8_X4_PORT                     GPIO_IR8_X4_PORT
+#define IR8_X4_PIN                      GPIO_IR8_X4_PIN
+#define IR8_X5_PORT                     GPIO_IR8_X5_PORT
+#define IR8_X5_PIN                      GPIO_IR8_X5_PIN
+#define IR8_X6_PORT                     GPIO_IR8_X6_PORT
+#define IR8_X6_PIN                      GPIO_IR8_X6_PIN
+#define IR8_X7_PORT                     GPIO_IR8_X7_PORT
+#define IR8_X7_PIN                      GPIO_IR8_X7_PIN
+#define IR8_X8_PORT                     GPIO_IR8_X8_PORT
+#define IR8_X8_PIN                      GPIO_IR8_X8_PIN
 
 /* ---------------- I2C0 shared bus ----------------
  * Use 3.3V power and pull SDA/SCL up to 3.3V.  Do not pull I2C to 5V.
@@ -291,9 +298,8 @@
  * Current display wiring is a 4-pin IIC OLED plugged into H8 first 4 pins:
  * GND, VCC, SCL/SKC, SDA -> PB9/PB8 through software I2C.
  *
- * H8 IIC mode only uses PB9/PB8. H8 SPI mode also takes PB10/PB11/PB14;
- * its DC pin on PB11 conflicts with grayscale AD1, so the two modes cannot
- * be enabled together unless the grayscale address line is rerouted.
+ * H8 IIC mode only uses PB9/PB8. H8 SPI mode also takes PB10/PB11/PB14,
+ * conflicting with IR8 X2/PB11 and X5/PB14.  SPI OLED must stay disabled.
  */
 #ifndef BOARD_OLED_USE_H8_I2C
 #define BOARD_OLED_USE_H8_I2C           1U
@@ -304,7 +310,7 @@
 #if BOARD_OLED_USE_H8_I2C && BOARD_OLED_USE_H8_SPI
 #error "Choose either H8 I2C OLED or H8 SPI OLED, not both."
 #endif
-#define BOARD_OLED_H8_SPI_OWNS_GRAY_AD1 BOARD_OLED_USE_H8_SPI
+#define BOARD_OLED_H8_SPI_CONFLICTS_IR8 BOARD_OLED_USE_H8_SPI
 #define BOARD_OLED_H8_SPI_OWNS_KEY12    BOARD_OLED_USE_H8_SPI
 
 #define OLED_H8_PORT                    GPIOB
@@ -322,15 +328,11 @@
                                          OLED_H8_RES_PIN | OLED_H8_DC_PIN | \
                                          OLED_H8_CS_PIN)
 
-/* ---------------- Beeper and user LED ---------------- */
+/* ---------------- Beeper and released user-LED pin ---------------- */
 #define BEEP_PORT                       GPIO_BEEP_PORT       /* A07 */
 #define BEEP_PIN                        GPIO_BEEP_PIN
 #define BEEP                            BEEP_PIN
-#define LED_USER_PORT                   GPIO_LED_USER_PORT   /* B04 */
-#define LED_USER_PIN                    GPIO_LED_USER_PIN
-#define LED_USER                        LED_USER_PIN
-
-/* If LED2 uses a 10k series resistor, visible brightness may be low. */
+#define BOARD_USER_LED_ENABLE           0U
 
 /* ---------------- Keys, active low with internal pull-up ---------------- */
 #define KEY1_PORT                       GPIO_KEYS_KEY1_PORT  /* PB22 / K1 */
@@ -354,28 +356,6 @@
 #define KEY_K3_PIN                      KEY3_PIN
 #define KEY_K4_PORT                     KEY4_PORT
 #define KEY_K4_PIN                      KEY4_PIN
-
-/* ---------------- Servo PWM ----------------
- * TIMA0 C0..C3, 50Hz, 20ms period, default output disabled unless test macro
- * enables a center pulse.
- * SERVO1_PWM -> PA21 / TIMA0-C0, SERVO2_PWM -> PA22 / TIMA0-C1,
- * SERVO3_PWM -> PA15 / TIMA0-C2, SERVO4_PWM -> PA17 / TIMA0-C3.
- * Use an independent high-current servo supply and common ground with the
- * MSPM0 board.
- */
-#define SERVO_PWM_TIMER_INST            PWM_SERVO_INST
-#define SERVO_PWM_PERIOD_US             20000U
-#define SERVO_MIN_PULSE_US              500U
-#define SERVO_MID_PULSE_US              1500U
-#define SERVO_MAX_PULSE_US              2500U
-#define SERVO1_PWM_CC_INDEX             DL_TIMER_CC_0_INDEX
-#define SERVO2_PWM_CC_INDEX             DL_TIMER_CC_1_INDEX
-#define SERVO3_PWM_CC_INDEX             DL_TIMER_CC_2_INDEX
-#define SERVO4_PWM_CC_INDEX             DL_TIMER_CC_3_INDEX
-#define SERVO1_PWM                      SERVO1_PWM_CC_INDEX
-#define SERVO2_PWM                      SERVO2_PWM_CC_INDEX
-#define SERVO3_PWM                      SERVO3_PWM_CC_INDEX
-#define SERVO4_PWM                      SERVO4_PWM_CC_INDEX
 
 /* ---------------- Rod ball stepper ----------------
  * STEP: PA02 / TIMG7-C1 hardware PWM.  PA02 is also the ROSC pin on this

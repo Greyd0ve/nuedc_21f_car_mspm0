@@ -9,7 +9,7 @@
 #include "app_line.h"
 #include "BeepLed.h"
 #include "Encoder.h"
-#include "Grayscale.h"
+#include "IR8.h"
 #include "Key.h"
 #include "Motor.h"
 #include "OLED.h"
@@ -17,7 +17,6 @@
 #include "RodStepper.h"
 #include "Serial.h"
 #include "DebugSerial.h"
-#include "Servo.h"
 #include "Timer.h"
 #include "cmsis_compiler.h"
 #include <stdint.h>
@@ -163,10 +162,71 @@ int main(void)
         }
     }
 
+#elif ECAR_BOARD_TEST_MODE
+
+    Key_Init();
+    IR8_Init();
+    Motor_Init();
+    Motor_StopAll();
+    Encoder_Init();
+    BeepLed_Init();
+    DebugSerial_Init();
+#if !CAR_TEST_MOTOR_ENABLE && !CAR_TEST_SPEED_PID_ENABLE
+    CarBase_Init();
+#endif
+
+#if ECAR_TEST_RADIO_ENABLE
+    App_Radio_Init();
+#endif
+
+#if CAR_OLED_ENABLE
+    OLED_Init();
+    OLED_Clear();
+#endif
+
+    BoardTest_Init();
+
+    Timer_Init();
+
+    while (1)
+    {
+        uint8_t taskCount;
+
+        (void)Main_TakeTaskCounterAll(&g_task_1ms_count);
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
+        if (taskCount > 0U)
+        {
+            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
+        }
+
+        taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
+        if (taskCount > 2U)
+        {
+            taskCount = 2U;
+        }
+        while (taskCount > 0U)
+        {
+            DebugSerial_Task10ms();
+            BoardTest_Task10ms();
+            taskCount--;
+        }
+
+        if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
+        {
+            BoardTest_Task100ms();
+        }
+
+        if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
+        {
+            BoardTest_Task200ms();
+        }
+    }
+
 #elif APP_MODE_H26
 
     Key_Init();
-    Grayscale_Init();
+    IR8_Init();
     Motor_Init();
     Motor_StopAll();
     Encoder_Init();
@@ -231,80 +291,15 @@ int main(void)
         }
     }
 
-#elif ECAR_BOARD_TEST_MODE
-
-    Key_Init();
-    Grayscale_Init();
-    Motor_Init();
-    Motor_StopAll();
-    Encoder_Init();
-    BeepLed_Init();
-    DebugSerial_Init();
-#if CAR_TEST_SERVO_ENABLE
-    Servo_Init();
-#endif
-#if !CAR_TEST_MOTOR_ENABLE && !CAR_TEST_SPEED_PID_ENABLE
-    CarBase_Init();
-#endif
-
-#if ECAR_TEST_RADIO_ENABLE
-    App_Radio_Init();
-#endif
-
-#if CAR_OLED_ENABLE
-    OLED_Init();
-    OLED_Clear();
-#endif
-
-    BoardTest_Init();
-
-    Timer_Init();
-
-    while (1)
-    {
-        uint8_t taskCount;
-
-        (void)Main_TakeTaskCounterAll(&g_task_1ms_count);
-
-        taskCount = Main_TakeTaskCounterAll(&g_task_5ms_count);
-        if (taskCount > 0U)
-        {
-            App_Control_UpdateEncoderSpeed((uint16_t)taskCount * CAR_ENCODER_SPEED_PERIOD_MS);
-        }
-
-        taskCount = Main_TakeTaskCounterAll(&g_task_10ms_count);
-        if (taskCount > 2U)
-        {
-            taskCount = 2U;
-        }
-        while (taskCount > 0U)
-        {
-            DebugSerial_Task10ms();
-            BoardTest_Task10ms();
-            taskCount--;
-        }
-
-        if (Main_TakeTaskCounterAll(&g_task_100ms_count) > 0U)
-        {
-            BoardTest_Task100ms();
-        }
-
-        if (Main_TakeTaskCounterAll(&g_task_200ms_count) > 0U)
-        {
-            BoardTest_Task200ms();
-        }
-    }
-
 #else
 
     Key_Init();
-    Grayscale_Init();
+    IR8_Init();
     Motor_Init();
     Motor_StopAll();
     Encoder_Init();
     BeepLed_Init();
     DebugSerial_Init();
-    Servo_Init();
     CarBase_Init();
 
 #if CAR_OLED_ENABLE

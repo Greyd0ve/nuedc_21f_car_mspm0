@@ -19,31 +19,29 @@
 
 /* Each straight/curve segment must cover this distance before its transition. */
 #define H26_T2_CURVE_ENTER_STRAIGHT_CM     100.0f
-#define H26_T2_CURVE_EXIT_LEFT_CM          100.0f
+#define H26_T2_CURVE_EXIT_LEFT_CM          160.0f
 #define H26_T2_CURVE_ENTER_STRAIGHT_PULSE \
     ((int32_t)((H26_T2_CURVE_ENTER_STRAIGHT_CM / ECAR_CM_PER_PULSE) + 0.5f))
 #define H26_T2_CURVE_EXIT_LEFT_PULSE \
     ((int32_t)((H26_T2_CURVE_EXIT_LEFT_CM / ECAR_CM_PER_PULSE) + 0.5f))
 
-/* A is reached after the second stable curve-to-straight transition. */
-#define H26_T2_A_DETECT_CURVE_EXIT_COUNT      2U
-
 /* Per-10-ms command ramp; avoids an abrupt speed step at zone boundaries. */
 #define H26_T2_SPEED_SLEW_CMPS_PER_TICK      0.8f
-/* After the second curve exit, hold the current drive command this long,
- * then force PWM to zero without a target-speed braking ramp. */
-#define H26_T2_FINISH_EXIT_STOP_DELAY_MS     100U
+/* After the A-point marker is confirmed, continue normal line following
+ * briefly, then force PWM to zero without an unverified reverse brake. */
+#define H26_T2_FINISH_EXIT_STOP_DELAY_MS     250U
 
 #define H26_T2_LEAVE_DISTANCE_CM            15.0f
 #define H26_T2_LEAVE_LINE_STABLE_MS         80U
+#define H26_T2_LEAVE_CLEAR_BLACK_CHANNELS     4U
 
-/* False-trigger guards only; the four-black-channel rule remains decisive. */
+/* A-point marker qualification: arm after one lap, then detect a wide line. */
 #define H26_T2_MIN_FINISH_DISTANCE_CM      500.0f
-#define H26_T2_MIN_FINISH_TIME_MS        10000U
+#define H26_T2_MIN_FINISH_TIME_MS        15000U
 #define H26_T2_MAX_RUN_TIME_MS           30000U
 
-#define H26_T2_FINISH_BLACK_CHANNELS        4U
-#define H26_T2_FINISH_HOLD_MS               30U
+#define H26_T2_FINISH_BLACK_CHANNELS        5U
+#define H26_T2_FINISH_HOLD_MS               10U
 
 #define H26_T2_STOP_SPEED_CMPS               1.0f
 #define H26_T2_STOP_HOLD_MS                 100U
@@ -82,33 +80,12 @@
 #define H26_T3_RAW_NEG5_CENTICM               750U
 #define H26_T3_TARGET_POSITIVE_CM              5.00f
 #define H26_T3_TARGET_NEGATIVE_CM             -5.00f
-#define H26_T3_START_O_TOLERANCE_CM            0.60f
-/*
- * Task 3 has deliberately different endpoint semantics:
- * - +5 cm is a turnaround trigger only.  Use a wider band and immediately
- *   command -5 cm after a valid frame enters it; do not spend time trimming
- *   the final millimetres at the positive end.
- * - -5 cm is the scored endpoint.  It uses the +/-0.75 cm band and must stay
- *   in that band continuously for H26_T3_MINUS_FINISH_HOLD_MS.  Position on
- *   its own is not enough: a ball crossing the point at high speed is not an
- *   arrival, so the confirmation also requires H26_T3_STABLE_SPEED_CMPS.
- */
-#define H26_T3_PLUS_TURN_TOLERANCE_CM          1.00f
-#define H26_T3_MINUS_FINISH_TOLERANCE_CM       0.75f
-#define H26_T3_ENDPOINT_MONITOR_TOLERANCE_CM    1.00f
 #define H26_T3_TILT_DEADBAND_CM              0.12f
-#define H26_T3_FINAL_TILT_DEADBAND_CM        0.05f
 #define H26_T3_TILT_DEADBAND_SPEED_CMPS      0.30f
-#define H26_T3_STABLE_SPEED_CMPS             0.25f
 
-#define H26_T3_ACQUIRE_HOLD_MS              100U
-#define H26_T3_MINUS_FINISH_HOLD_MS         150U
-
-/* K230 packets are emitted at 50 Hz. */
+/* K230 parameters are used by the O-point controllers in tasks 4 and 5. */
 #define H26_T3_MIN_CONFIDENCE                50U
 #define H26_T3_NOMINAL_FRAME_MS              20U
-/* K230 position is quantised to 0.01 cm at 50 Hz.  A moderate filter avoids
- * treating one-count endpoint jitter as a reversal of ball velocity. */
 #define H26_T3_SPEED_FILTER_ALPHA          0.35f
 
 /*
@@ -131,80 +108,90 @@
     (H26_T3_ROD_ENCODER_SIGN_FOR_STEPPER_POSITIVE * \
      H26_T3_STEPPER_SIGN_FOR_POSITIVE_BALL)
 
+/*
+ * Task 3: fixed open-loop chain sequence.
+ *
+ * One chain millimetre is 3200 / 31.25 = 102.4 STEP pulses.  The pulse
+ * counts are calculated from the desired absolute positions (+9, -9, +7,
+ * then 0 mm), so their signed sum is exactly zero and the guide returns to
+ * its initial horizontal position after the final -7 mm compensation.
+ *
+ * If the first movement physically retracts rather than extends the chain,
+ * change H26_T3_CHAIN_EXTEND_DIR_POSITIVE from 1U to 0U; no source change is
+ * required.
+ */
+#define H26_T3_CHAIN_EXTEND_DIR_POSITIVE        1U
+#define H26_T3_CHAIN_STEP_HZ                  2000U
+#define H26_T3_RETRACT_18MM_STEP_HZ           4000U
+#define H26_T3_RETRACT_7MM_STEP_HZ            2000U
+#define H26_T3_EXTEND_9MM_PULSES               922U
+#define H26_T3_RETRACT_18MM_PULSES            1844U
+#define H26_T3_EXTEND_16MM_PULSES             1639U
+#define H26_T3_RETRACT_7MM_PULSES              717U
+#define H26_T3_HOLD_RETRACT_18MM_MS            220U
+#define H26_T3_MOVE_TIMEOUT_MARGIN_MS         1000U
+
+/* After the fixed strokes, settle at the scored -5 cm endpoint.  The
+ * 5 mm position band must also be low-speed for 100 ms before stopping. */
+#define H26_T3_FINAL_PID_TARGET_CM             -5.00f
+#define H26_T3_FINAL_PID_TOLERANCE_CM           0.50f
+#define H26_T3_FINAL_PID_STABLE_SPEED_CMPS      0.30f
+#define H26_T3_FINAL_PID_STABLE_MS              100U
+#define H26_T3_FINAL_PID_TIMEOUT_MS            8000U
+#define H26_T3_FINAL_PID_KP_MM_PER_CM           0.50f
+#define H26_T3_FINAL_PID_KI_MM_PER_CM_S         0.00f
+#define H26_T3_FINAL_PID_KD_MM_PER_CMPS         0.10f
+#define H26_T3_FINAL_PID_INTEGRAL_LIMIT_CM_S   30.00f
+#define H26_T3_FINAL_PID_TILT_LIMIT_MM          9.00f
+
 /* Default O-point hold PD used by task 4/task 5. */
 #define H26_T3_BALL_POSITION_TO_TILT_MM_PER_CM    0.45f
 #define H26_T3_BALL_SPEED_TO_TILT_MM_PER_CMPS     0.10f
-/* The 9 mm electrical/mechanical range is reserved for a short breakaway
- * pulse.  Ordinary endpoint control remains within +/-7 mm. */
-#define H26_T3_NORMAL_TILT_COMMAND_LIMIT_MM       7.00f
 #define H26_T3_TILT_COMMAND_LIMIT_MM              9.00f
-
-/*
- * Task-3 uses three zones around each non-zero target:
- *
- *   positive trip, |error| > 1.5 cm: fast traverse; one short breakaway
- *                                    pulse may start the ball.
- *   negative trip, |error| > 0.8 cm: retain fast traverse to pass the
- *                                    higher-friction negative-side region.
- *   between final zone and each trip's capture limit: capture; remove the
- *                 full +/-9 mm breakaway slope, use
- *                 stronger speed feedback to brake, and retain only a small
- *                 low-speed tilt to overcome static friction.
- *   |error| < 0.5 cm: final trim; use a small, continuous PD command.
- *
- * A full breakaway pulse is allowed only once for each target leg.  This
- * prevents repeated +/-9 mm releases from driving the endpoint into a long
- * oscillation.
- * The two breakaway values are independent for later mechanical calibration;
- * they are intentionally not a safety limit.
- */
-#define H26_T3_CAPTURE_ZONE_POSITIVE_CM              1.50f
-#define H26_T3_CAPTURE_ZONE_NEGATIVE_CM              0.80f
-#define H26_T3_FINAL_CONTROL_ZONE_CM                 0.50f
-#define H26_T3_TRAVERSE_POSITION_KP_MM_PER_CM      0.60f
-/* Keep the positive trip responsive; brake the negative trip harder so the
- * ball reaches the final acceptance band without a large return oscillation. */
-#define H26_T3_TRAVERSE_POSITIVE_SPEED_KD_MM_PER_CMPS 0.30f
-#define H26_T3_TRAVERSE_NEGATIVE_SPEED_KD_MM_PER_CMPS 0.60f
-#define H26_T3_CAPTURE_POSITION_KP_MM_PER_CM       0.45f
-#define H26_T3_CAPTURE_SPEED_KD_MM_PER_CMPS        0.85f
-#define H26_T3_FINAL_POSITION_KP_MM_PER_CM         0.45f
-#define H26_T3_FINAL_SPEED_KD_MM_PER_CMPS           0.25f
-#define H26_T3_TRAVERSE_BREAKAWAY_POSITIVE_MM      9.00f
-#define H26_T3_TRAVERSE_BREAKAWAY_NEGATIVE_MM      9.00f
-/* K230 emits one new position about every 20 ms. */
-#define H26_T3_TRAVERSE_BREAKAWAY_FRAME_COUNT       5U
-/* Only use full breakaway outside the capture zone and when the ball is
- * essentially stationary.  This threshold is a control-law guard, not an
- * endpoint-acceptance tolerance. */
-/* The positive trip needs more help through guide friction.  Keep the
- * negative trip conservative because it already has greater overshoot. */
-#define H26_T3_TRAVERSE_BREAKAWAY_POSITIVE_MAX_SPEED_CMPS  0.50f
-#define H26_T3_TRAVERSE_BREAKAWAY_NEGATIVE_MAX_SPEED_CMPS  0.20f
-/* Near an endpoint, retain a moderate slope to overcome guide friction
- * without reintroducing the full +/-9 mm capture-zone kick. */
-#define H26_T3_CAPTURE_BREAKAWAY_MM                 3.50f
-#define H26_T3_CAPTURE_BREAKAWAY_MAX_SPEED_CMPS     0.30f
 
 /* Inner rod-position loop: encoder count error -> STEP frequency. */
 #define H26_T3_ROD_POSITION_DEADBAND_COUNT           3
-#define H26_T3_ROD_POSITION_KP_HZ_PER_COUNT        5.0f
+#define H26_T3_ROD_POSITION_KP_HZ_PER_COUNT       12.0f
 #define H26_T3_ROD_POSITION_MIN_HZ                  60U
-#define H26_T3_ROD_POSITION_MAX_HZ                 700U
+#define H26_T3_ROD_POSITION_MAX_HZ                5000U
 
 /*
- * H26 task-4: A -> B is the first 150 cm straight section.  The existing
- * ECAR_CM_PER_PULSE wheel conversion is deliberately reused for B detection;
- * do not create a second encoder scale here.  25 cm/s gives a nominal 6 s
- * AB traverse, leaving margin below the 8 s requirement while reducing the
- * acceleration disturbance presented to the ball controller.
+ * H26 task-4 supports two test entries after task 4 is selected:
+ * K2 runs the 130 cm straight-line test with ball PID and acceleration
+ * feed-forward; K3 leaves traction off for the hand-push feed-forward test.
+ * Units: Kp = mm/cm, Ki = mm/(cm*s), Kd = mm/(cm/s).
  */
-#define H26_T4_B_DISTANCE_CM                   150.0f
-#define H26_T4_FORWARD_SPEED_CMPS               25.0f
-#define H26_T4_SPEED_SLEW_CMPS_PER_TICK          0.5f
-#define H26_T4_TURN_LIMIT_CMPS                   5.0f
-#define H26_T4_O_TOLERANCE_CM                    0.60f
-#define H26_T4_O_ACQUIRE_HOLD_MS                100U
+#define H26_T4_O_TARGET_CM                        0.0f
+#define H26_T4_BALL_KP_MM_PER_CM                  0.50f
+#define H26_T4_BALL_KI_MM_PER_CM_S                0.00f
+#define H26_T4_BALL_KD_MM_PER_CMPS                0.10f
+#define H26_T4_BALL_INTEGRAL_LIMIT_CM_S          30.00f
+#define H26_T4_BALL_TILT_COMMAND_LIMIT_MM        20.00f
+
+/* K2 combined-test chassis command.  No line-loss stop fault is used. */
+#define H26_T4_DRIVE_STRAIGHT_SPEED_CMPS          35.00f
+#define H26_T4_STRAIGHT_TURN_LIMIT_CMPS            8.00f
+#define H26_T4_CURVE_TURN_LIMIT_CMPS              25.00f
+#define H26_T4_STRAIGHT_DISTANCE_CM              120.00f
+#define H26_T4_CURVE_ENTER_TURN_CMPS               2.50f
+#define H26_T4_CURVE_EXIT_TURN_CMPS                1.20f
+#define H26_T4_DRIVE_TIMEOUT_MS                  10000U
+/* Keep the vehicle still after the first valid K230 frame defines O. */
+#define H26_T4_O_LOCK_HOLD_MS                      100U
+
+/*
+ * Encoder acceleration feed-forward.  The + sign is verified from task 3:
+ * a positive rod command tilts the pipe toward the vehicle forward direction.
+ * The same estimator is used by both the K2 vehicle test and the K3
+ * hand-push test.
+ */
+#define H26_T4_ENCODER_FF_ENABLE                    1U
+#define H26_T4_FF_TILT_SIGN_FOR_FORWARD_ACCEL      1.0f
+#define H26_T4_FF_ACCEL_FILTER_ALPHA              0.25f
+#define H26_T4_FF_ACCEL_LIMIT_CMPS2               25.0f
+#define H26_T4_FF_K_MM_PER_CMPS2                   0.35f
+#define H26_T4_FF_TILT_LIMIT_MM                    7.00f
+#define H26_T4_FF_MAX_WHEEL_SPEED_DIFF_CMPS        8.00f
 
 /*
  * Task 5 holds the ball at O.  Its chassis state machine is shared with

@@ -9,50 +9,37 @@
 static volatile H26_Task4State_t s_state = H26_T4_IDLE;
 static volatile H26_Task4Fault_t s_fault = H26_T4_FAULT_NONE;
 static volatile uint32_t s_startMs = 0U;
-static volatile uint32_t s_finalElapsedMs = 0U;
-static volatile int32_t s_startPulse = 0;
-static volatile uint16_t s_oAcquireHoldMs = 0U;
-static volatile uint8_t s_bPassed = 0U;
-static volatile uint32_t s_bPassMs = 0U;
-static volatile float s_commandForwardSpeed = 0.0f;
-static volatile float s_ballPeakErrorCm = 0.0f;
+static volatile uint32_t s_oLockMs = 0U;
+static volatile int32_t s_driveStartPulse = 0;
+static volatile float s_commandForwardSpeedCmps = 0.0f;
+static volatile uint8_t s_curveObserved = 0U;
+static volatile float s_previousForwardSpeedCmps = 0.0f;
+static volatile float s_forwardAccelerationCmps2 = 0.0f;
+static volatile float s_feedForwardTiltMm = 0.0f;
+static volatile uint32_t s_lastFeedForwardMs = 0U;
+static volatile uint8_t s_feedForwardInitialized = 0U;
 
 static float H26_T4_AbsFloat(float value)
 {
     return (value < 0.0f) ? -value : value;
 }
 
-static uint16_t H26_T4_AddMs(uint16_t value, uint16_t deltaMs)
+static float H26_T4_ClampFloat(float value, float lower, float upper)
 {
-    if (value > (uint16_t)(0xFFFFU - deltaMs))
+    if (value < lower)
     {
-        return 0xFFFFU;
+        return lower;
     }
-    return (uint16_t)(value + deltaMs);
-}
-
-static float H26_T4_SlewFloat(float current, float target, float maxStep)
-{
-    if (maxStep <= 0.0f)
+    if (value > upper)
     {
-        return target;
+        return upper;
     }
-    if (current < target)
-    {
-        current += maxStep;
-        return (current > target) ? target : current;
-    }
-    if (current > target)
-    {
-        current -= maxStep;
-        return (current < target) ? target : current;
-    }
-    return current;
+    return value;
 }
 
 static float H26_T4_GetDistanceCmFromStart(void)
 {
-    int32_t pulse = g_forwardEncoderTotal - s_startPulse;
+    int32_t pulse = g_forwardEncoderTotal - s_driveStartPulse;
 
     if (pulse < 0)
     {
@@ -61,10 +48,114 @@ static float H26_T4_GetDistanceCmFromStart(void)
     return (float)pulse * ECAR_CM_PER_PULSE;
 }
 
+static void H26_T4_ResetFeedForward(uint32_t nowMs)
+{
+    s_previousForwardSpeedCmps = g_forwardSpeed;
+    s_forwardAccelerationCmps2 = 0.0f;
+    s_feedForwardTiltMm = 0.0f;
+    s_lastFeedForwardMs = nowMs;
+    s_feedForwardInitialized = 1U;
+}
+
+static float H26_T4_UpdateEncoderFeedForward(uint32_t nowMs)
+{
+    float currentForwardSpeedCmps = g_forwardSpeed;
+    float dtSeconds;
+    float rawAccelerationCmps2;
+
+#if !H26_T4_ENCODER_FF_ENABLE
+    H26_T4_ResetFeedForward(nowMs);
+    return 0.0f;
+#endif
+
+    /* Reject turn/slip data; manual straight-line pushing remains valid. */
+    if (H26_T4_AbsFloat(g_leftSpeed - g_rightSpeed) >
+            H26_T4_FF_MAX_WHEEL_SPEED_DIFF_CMPS)
+    {
+        H26_T4_ResetFeedForward(nowMs);
+        return 0.0f;
+    }
+
+    if (s_feedForwardInitialized == 0U)
+    {
+        H26_T4_ResetFeedForward(nowMs);
+        return 0.0f;
+    }
+
+    if (nowMs == s_lastFeedForwardMs)
+    {
+        return s_feedForwardTiltMm;
+    }
+
+    dtSeconds = (float)(nowMs - s_lastFeedForwardMs) / 1000.0f;
+    if (dtSeconds <= 0.0f || dtSeconds > 0.05f)
+    {
+        H26_T4_ResetFeedForward(nowMs);
+        return 0.0f;
+    }
+
+    rawAccelerationCmps2 = (currentForwardSpeedCmps -
+        s_previousForwardSpeedCmps) / dtSeconds;
+    rawAccelerationCmps2 = H26_T4_ClampFloat(rawAccelerationCmps2,
+        -H26_T4_FF_ACCEL_LIMIT_CMPS2, H26_T4_FF_ACCEL_LIMIT_CMPS2);
+    s_forwardAccelerationCmps2 += H26_T4_FF_ACCEL_FILTER_ALPHA *
+        (rawAccelerationCmps2 - s_forwardAccelerationCmps2);
+    /*
+     * This tuning stage compensates launch acceleration only.  Encoder-speed
+     * quantisation makes the signed deceleration estimate noisy at cruise;
+     * do not let that noise oppose the ball PID with a negative rod command.
+     */
+    if (s_forwardAccelerationCmps2 > 0.0f)
+    {
+        s_feedForwardTiltMm = H26_T4_ClampFloat(
+            H26_T4_FF_TILT_SIGN_FOR_FORWARD_ACCEL *
+            H26_T4_FF_K_MM_PER_CMPS2 * s_forwardAccelerationCmps2,
+            0.0f, H26_T4_FF_TILT_LIMIT_MM);
+    }
+    else
+    {
+        s_feedForwardTiltMm = 0.0f;
+    }
+    s_previousForwardSpeedCmps = currentForwardSpeedCmps;
+    s_lastFeedForwardMs = nowMs;
+    return s_feedForwardTiltMm;
+}
+
 static void H26_T4_StopCar(void)
 {
     App_Control_ForcePWMZero();
-    s_commandForwardSpeed = 0.0f;
+    s_commandForwardSpeedCmps = 0.0f;
+}
+
+/* Keep the last line error through a white gap; task 4 has no lost-line stop. */
+static float H26_T4_ApplyDriveLineControl(float turnLimitCmps)
+{
+    float turnCmd;
+
+    App_Line_Update();
+    turnCmd = App_Line_CalcTurnCmd();
+    turnCmd = H26_T4_ClampFloat(turnCmd,
+        -turnLimitCmps, turnLimitCmps);
+
+    /* Task 4 combined test uses a direct 35 cm/s chassis speed target. */
+    s_commandForwardSpeedCmps = H26_T4_DRIVE_STRAIGHT_SPEED_CMPS;
+    g_targetForwardSpeed = s_commandForwardSpeedCmps;
+    g_targetTurnSpeed = turnCmd;
+    g_carEnable = 1U;
+    App_Control_ApplyMotorOutput();
+    return turnCmd;
+}
+
+static void H26_T4_UpdateBallControl(uint32_t nowMs)
+{
+    (void)H26_BallControl_Task10msWithPidFeedForward(nowMs,
+        H26_T4_O_TARGET_CM,
+        H26_T4_BALL_KP_MM_PER_CM,
+        H26_T4_BALL_KI_MM_PER_CM_S,
+        H26_T4_BALL_KD_MM_PER_CMPS,
+        H26_T4_BALL_INTEGRAL_LIMIT_CM_S,
+        H26_T4_BALL_TILT_COMMAND_LIMIT_MM,
+        H26_T4_UpdateEncoderFeedForward(nowMs));
 }
 
 static void H26_T4_EnterFault(H26_Task4Fault_t fault)
@@ -73,45 +164,6 @@ static void H26_T4_EnterFault(H26_Task4Fault_t fault)
     H26_BallControl_Stop();
     s_fault = fault;
     s_state = H26_T4_FAULT;
-}
-
-static void H26_T4_UpdateBallPeak(H26_BallControlSample_t sample)
-{
-    float errorAbs;
-
-    if (sample != H26_BALL_SAMPLE_NEW)
-    {
-        return;
-    }
-
-    errorAbs = H26_T4_AbsFloat(H26_BallControl_GetPositionCm());
-    if (errorAbs > s_ballPeakErrorCm)
-    {
-        s_ballPeakErrorCm = errorAbs;
-    }
-}
-
-static void H26_T4_ApplyLineControl(void)
-{
-    float turnCmd;
-
-    App_Line_Update();
-    turnCmd = App_Line_CalcTurnCmd();
-    if (turnCmd > H26_T4_TURN_LIMIT_CMPS)
-    {
-        turnCmd = H26_T4_TURN_LIMIT_CMPS;
-    }
-    else if (turnCmd < -H26_T4_TURN_LIMIT_CMPS)
-    {
-        turnCmd = -H26_T4_TURN_LIMIT_CMPS;
-    }
-
-    s_commandForwardSpeed = H26_T4_SlewFloat(s_commandForwardSpeed,
-        H26_T4_FORWARD_SPEED_CMPS, H26_T4_SPEED_SLEW_CMPS_PER_TICK);
-    g_targetForwardSpeed = s_commandForwardSpeed;
-    g_targetTurnSpeed = turnCmd;
-    g_carEnable = 1U;
-    App_Control_ApplyMotorOutput();
 }
 
 void H26_Task4_Init(void)
@@ -123,24 +175,37 @@ void H26_Task4_Reset(void)
 {
     H26_T4_StopCar();
     H26_BallControl_Reset();
+    H26_T4_ResetFeedForward(0U);
     s_state = H26_T4_IDLE;
     s_fault = H26_T4_FAULT_NONE;
     s_startMs = 0U;
-    s_finalElapsedMs = 0U;
-    s_startPulse = 0;
-    s_oAcquireHoldMs = 0U;
-    s_bPassed = 0U;
-    s_bPassMs = 0U;
-    s_ballPeakErrorCm = 0.0f;
+    s_oLockMs = 0U;
+    s_driveStartPulse = 0;
+    s_commandForwardSpeedCmps = 0.0f;
+    s_curveObserved = 0U;
 }
 
 void H26_Task4_Start(uint32_t startMs)
 {
     H26_Task4_Reset();
+
+    /* The first valid K230 frame after this call defines the O-point origin. */
     H26_BallControl_Start();
+    H26_T4_ResetFeedForward(startMs);
     s_startMs = startMs;
-    s_startPulse = g_forwardEncoderTotal;
-    s_state = H26_T4_ACQUIRE_O;
+    s_state = H26_T4_MANUAL_MOVE_HOLD_O;
+}
+
+void H26_Task4_StartDrive(uint32_t startMs)
+{
+    H26_Task4_Reset();
+
+    /* First valid K230 frame defines O; then hold still before the route run. */
+    H26_BallControl_Start();
+    H26_T4_ResetFeedForward(startMs);
+    s_startMs = startMs;
+    s_driveStartPulse = g_forwardEncoderTotal;
+    s_state = H26_T4_DRIVE_ACQUIRE_O;
 }
 
 void H26_Task4_ForceFault(void)
@@ -151,45 +216,92 @@ void H26_Task4_ForceFault(void)
 
 H26_Task4Result_t H26_Task4_Task10ms(uint32_t nowMs)
 {
-    H26_BallControlSample_t sample;
-
     switch (s_state)
     {
-    case H26_T4_ACQUIRE_O:
+    case H26_T4_MANUAL_MOVE_HOLD_O:
+        /* Motor outputs coast; manual vehicle motion drives encoder feed-forward. */
         H26_T4_StopCar();
-        sample = H26_BallControl_Task10ms(nowMs, 0.0f);
-        H26_T4_UpdateBallPeak(sample);
-        if (sample == H26_BALL_SAMPLE_NEW &&
-            H26_T4_AbsFloat(H26_BallControl_GetPositionCm()) <=
-                H26_T4_O_TOLERANCE_CM)
+        H26_T4_UpdateBallControl(nowMs);
+        return H26_T4_RESULT_RUNNING;
+
+    case H26_T4_DRIVE_ACQUIRE_O:
+        /* Do not let the car move until this run has captured its O origin. */
+        H26_T4_StopCar();
+        H26_T4_UpdateBallControl(nowMs);
+        if ((nowMs - s_startMs) >= H26_T4_DRIVE_TIMEOUT_MS)
         {
-            s_oAcquireHoldMs = H26_T4_AddMs(s_oAcquireHoldMs,
-                H26_BallControl_GetStableSampleMs());
-            if (s_oAcquireHoldMs >= H26_T4_O_ACQUIRE_HOLD_MS)
+            H26_T4_EnterFault(H26_T4_FAULT_TIMEOUT);
+            return H26_T4_RESULT_FAULT;
+        }
+        if (H26_BallControl_IsOriginCalibrated() != 0U)
+        {
+            H26_T4_ResetFeedForward(nowMs);
+            s_oLockMs = nowMs;
+            s_state = H26_T4_DRIVE_HOLD_O;
+        }
+        return H26_T4_RESULT_RUNNING;
+
+    case H26_T4_DRIVE_HOLD_O:
+        /* Let the first-frame O reference settle for 100 ms before takeoff. */
+        H26_T4_StopCar();
+        H26_T4_UpdateBallControl(nowMs);
+        if ((nowMs - s_startMs) >= H26_T4_DRIVE_TIMEOUT_MS)
+        {
+            H26_T4_EnterFault(H26_T4_FAULT_TIMEOUT);
+            return H26_T4_RESULT_FAULT;
+        }
+        if ((nowMs - s_oLockMs) >= H26_T4_O_LOCK_HOLD_MS)
+        {
+            s_driveStartPulse = g_forwardEncoderTotal;
+            H26_T4_ResetFeedForward(nowMs);
+            s_state = H26_T4_DRIVE_STRAIGHT;
+        }
+        return H26_T4_RESULT_RUNNING;
+
+    case H26_T4_DRIVE_STRAIGHT:
+        (void)H26_T4_ApplyDriveLineControl(H26_T4_STRAIGHT_TURN_LIMIT_CMPS);
+        H26_T4_UpdateBallControl(nowMs);
+        if ((nowMs - s_startMs) >= H26_T4_DRIVE_TIMEOUT_MS)
+        {
+            H26_T4_EnterFault(H26_T4_FAULT_TIMEOUT);
+            return H26_T4_RESULT_FAULT;
+        }
+        if (H26_T4_GetDistanceCmFromStart() >= H26_T4_STRAIGHT_DISTANCE_CM)
+        {
+            s_curveObserved = 0U;
+            s_state = H26_T4_DRIVE_CURVE;
+        }
+        return H26_T4_RESULT_RUNNING;
+
+    case H26_T4_DRIVE_CURVE:
+    {
+        float turnCmd = H26_T4_ApplyDriveLineControl(
+            H26_T4_CURVE_TURN_LIMIT_CMPS);
+        float turnAbs = H26_T4_AbsFloat(turnCmd);
+
+        H26_T4_UpdateBallControl(nowMs);
+        if ((nowMs - s_startMs) >= H26_T4_DRIVE_TIMEOUT_MS)
+        {
+            H26_T4_EnterFault(H26_T4_FAULT_TIMEOUT);
+            return H26_T4_RESULT_FAULT;
+        }
+
+        /* See the curve first, then use the low-turn line command as its exit. */
+        if (s_curveObserved == 0U)
+        {
+            if (turnAbs >= H26_T4_CURVE_ENTER_TURN_CMPS)
             {
-                s_state = H26_T4_RUN_TO_B;
+                s_curveObserved = 1U;
             }
         }
-        else
+        else if (turnAbs <= H26_T4_CURVE_EXIT_TURN_CMPS)
         {
-            s_oAcquireHoldMs = 0U;
-        }
-        break;
-
-    case H26_T4_RUN_TO_B:
-        sample = H26_BallControl_Task10ms(nowMs, 0.0f);
-        H26_T4_UpdateBallPeak(sample);
-        H26_T4_ApplyLineControl();
-        if (H26_T4_GetDistanceCmFromStart() >= H26_T4_B_DISTANCE_CM)
-        {
-            s_bPassed = 1U;
-            s_finalElapsedMs = nowMs - s_startMs;
-            s_bPassMs = s_finalElapsedMs;
             H26_T4_StopCar();
             s_state = H26_T4_DONE;
             return H26_T4_RESULT_FINISHED;
         }
-        break;
+        return H26_T4_RESULT_RUNNING;
+    }
 
     case H26_T4_DONE:
         H26_T4_StopCar();
@@ -205,14 +317,18 @@ H26_Task4Result_t H26_Task4_Task10ms(uint32_t nowMs)
         H26_T4_EnterFault(H26_T4_FAULT_ILLEGAL_STATE);
         return H26_T4_RESULT_FAULT;
     }
-
-    return H26_T4_RESULT_RUNNING;
 }
 
 void H26_Task4_HoldBall10ms(uint32_t nowMs)
 {
-    H26_BallControlSample_t sample = H26_BallControl_Task10ms(nowMs, 0.0f);
-    H26_T4_UpdateBallPeak(sample);
+    if (s_state != H26_T4_DONE)
+    {
+        return;
+    }
+
+    /* B has been reached: traction remains off, while rod PID handles coast. */
+    H26_T4_StopCar();
+    H26_T4_UpdateBallControl(nowMs);
 }
 
 H26_Task4State_t H26_Task4_GetState(void) { return s_state; }
@@ -224,34 +340,80 @@ uint32_t H26_Task4_GetElapsedMs(uint32_t nowMs)
     {
         return 0U;
     }
-    if (s_state == H26_T4_DONE)
-    {
-        return s_finalElapsedMs;
-    }
     return nowMs - s_startMs;
 }
 
-uint32_t H26_Task4_GetFinalElapsedMs(void) { return s_finalElapsedMs; }
-float H26_Task4_GetDistanceCm(void) { return H26_T4_GetDistanceCmFromStart(); }
-uint8_t H26_Task4_IsBPassed(void) { return s_bPassed; }
-uint32_t H26_Task4_GetBPassMs(void) { return s_bPassMs; }
-uint16_t H26_Task4_GetOAcquireHoldMs(void) { return s_oAcquireHoldMs; }
-float H26_Task4_GetCommandForwardSpeed(void) { return s_commandForwardSpeed; }
-float H26_Task4_GetBallPeakErrorCm(void) { return s_ballPeakErrorCm; }
-float H26_Task4_GetBallPositionCm(void) { return H26_BallControl_GetPositionCm(); }
+float H26_Task4_GetBallPositionCm(void)
+{
+    return H26_BallControl_GetPositionCm();
+}
+
+float H26_Task4_GetBallErrorCm(void)
+{
+    return H26_BallControl_GetErrorCm();
+}
+
 float H26_Task4_GetBallSpeedCmps(void)
 {
     return H26_BallControl_GetBallSpeedCmps();
 }
+
+float H26_Task4_GetTiltCommandMm(void)
+{
+    return H26_BallControl_GetTiltCommandMm();
+}
+
+float H26_Task4_GetPidTiltCommandMm(void)
+{
+    return H26_BallControl_GetPidTiltCommandMm();
+}
+
+float H26_Task4_GetFeedForwardTiltMm(void)
+{
+    return H26_BallControl_GetFeedForwardTiltMm();
+}
+
+float H26_Task4_GetForwardSpeedCmps(void)
+{
+    return g_forwardSpeed;
+}
+
+float H26_Task4_GetForwardAccelerationCmps2(void)
+{
+    return s_forwardAccelerationCmps2;
+}
+
+float H26_Task4_GetDistanceCm(void)
+{
+    return H26_T4_GetDistanceCmFromStart();
+}
+
+float H26_Task4_GetCommandForwardSpeedCmps(void)
+{
+    return s_commandForwardSpeedCmps;
+}
+
 int32_t H26_Task4_GetRodEncoderCount(void)
 {
     return H26_BallControl_GetRodEncoderCount();
 }
+
 int32_t H26_Task4_GetRodTargetCount(void)
 {
     return H26_BallControl_GetRodTargetCount();
 }
-float H26_Task4_GetTiltCommandMm(void)
+
+uint8_t H26_Task4_IsVisionValid(void)
 {
-    return H26_BallControl_GetTiltCommandMm();
+    return H26_BallControl_IsVisionValid();
+}
+
+uint8_t H26_Task4_IsOriginCalibrated(void)
+{
+    return H26_BallControl_IsOriginCalibrated();
+}
+
+uint8_t H26_Task4_GetVisionConfidence(void)
+{
+    return H26_BallControl_GetConfidence();
 }

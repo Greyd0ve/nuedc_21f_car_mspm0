@@ -66,17 +66,23 @@ void BeepLed_Tick1ms(void)
 
 void LED_User_On(void)
 {
+#if BOARD_USER_LED_ENABLE
     DL_GPIO_setPins(LED_USER_PORT, LED_USER_PIN);
+#endif
 }
 
 void LED_User_Off(void)
 {
+#if BOARD_USER_LED_ENABLE
     DL_GPIO_clearPins(LED_USER_PORT, LED_USER_PIN);
+#endif
 }
 
 void LED_User_Toggle(void)
 {
+#if BOARD_USER_LED_ENABLE
     DL_GPIO_togglePins(LED_USER_PORT, LED_USER_PIN);
+#endif
 }
 
 void LED_User_BlinkTimes(uint8_t times, uint16_t intervalMs)
