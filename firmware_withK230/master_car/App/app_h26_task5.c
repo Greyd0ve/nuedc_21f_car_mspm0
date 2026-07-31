@@ -39,6 +39,9 @@ static H26_BallControlSample_t H26_T5_UpdateBallControl(uint32_t nowMs,
     float feedForwardTiltMm = 0.0f;
     float plannedFeedForwardTiltMm;
     float targetCm = H26_T5_O_TARGET_CM;
+    float ballKp = H26_T5_BALL_STRAIGHT_KP_MM_PER_CM;
+    float ballKi = H26_T5_BALL_STRAIGHT_KI_MM_PER_CM_S;
+    float ballKd = H26_T5_BALL_STRAIGHT_KD_MM_PER_CMPS;
     uint32_t elapsedMs;
 
     plannedFeedForwardTiltMm = H26_T4_FF_TILT_SIGN_FOR_FORWARD_ACCEL *
@@ -74,11 +77,18 @@ static H26_BallControlSample_t H26_T5_UpdateBallControl(uint32_t nowMs,
         H26_BallControl_SetIntegralFrozen(0U);
     }
 
+    if (mode == 2U && H26_Task2_IsCurveMode() != 0U)
+    {
+        ballKp = H26_T5_BALL_CURVE_KP_MM_PER_CM;
+        ballKi = H26_T5_BALL_CURVE_KI_MM_PER_CM_S;
+        ballKd = H26_T5_BALL_CURVE_KD_MM_PER_CMPS;
+    }
+
     return H26_BallControl_Task10msWithPidFeedForward(nowMs,
         targetCm,
-        H26_T5_BALL_KP_MM_PER_CM,
-        H26_T5_BALL_KI_MM_PER_CM_S,
-        H26_T5_BALL_KD_MM_PER_CMPS,
+        ballKp,
+        ballKi,
+        ballKd,
         H26_T5_BALL_INTEGRAL_LIMIT_CM_S,
         H26_T5_BALL_TILT_COMMAND_LIMIT_MM,
         feedForwardTiltMm);

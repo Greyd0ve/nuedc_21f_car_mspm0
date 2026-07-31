@@ -213,9 +213,17 @@
  * of 13 cm, set this to +1.0f (after O-coordinate calibration).
  */
 #define H26_T5_DRIVE_TARGET_COMPENSATION_CM    0.45f
-#define H26_T5_BALL_KP_MM_PER_CM               1.00f
-#define H26_T5_BALL_KI_MM_PER_CM_S             0.09f
-#define H26_T5_BALL_KD_MM_PER_CMPS             0.95f
+/*
+ * Task 5 uses separate ball-position PID gains for straight and curve
+ * tracking.  Keep the initial values identical to preserve the validated
+ * all-course behaviour; tune each group independently on the real track.
+ */
+#define H26_T5_BALL_STRAIGHT_KP_MM_PER_CM      1.00f
+#define H26_T5_BALL_STRAIGHT_KI_MM_PER_CM_S    0.09f
+#define H26_T5_BALL_STRAIGHT_KD_MM_PER_CMPS    0.95f
+#define H26_T5_BALL_CURVE_KP_MM_PER_CM         1.00f
+#define H26_T5_BALL_CURVE_KI_MM_PER_CM_S       0.09f
+#define H26_T5_BALL_CURVE_KD_MM_PER_CMPS       1.05f
 #define H26_T5_BALL_INTEGRAL_LIMIT_CM_S       35.00f
 #define H26_T5_BALL_TILT_COMMAND_LIMIT_MM H26_T4_BALL_TILT_COMMAND_LIMIT_MM
 
