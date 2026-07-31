@@ -15,6 +15,13 @@ void H26_BallControl_Reset(void);
 void H26_BallControl_Start(void);
 void H26_BallControl_Stop(void);
 
+void H26_BallControl_ResetEncoderFeedForward(uint32_t nowMs);
+float H26_BallControl_UpdateEncoderFeedForward(uint32_t nowMs);
+float H26_BallControl_GetForwardAccelerationCmps2(void);
+
+/* Holds the existing I term but prevents new position-error accumulation. */
+void H26_BallControl_SetIntegralFrozen(uint8_t frozen);
+
 /* Consumes K230 position data without changing the rod command.  Task 3
  * uses this during its open-loop motion so the final PID shares its O origin. */
 H26_BallControlSample_t H26_BallControl_Observe10ms(uint32_t nowMs);

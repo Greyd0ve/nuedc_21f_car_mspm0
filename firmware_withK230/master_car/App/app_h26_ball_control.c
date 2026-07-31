@@ -1,6 +1,7 @@
 #include "app_h26_ball_control.h"
 #include "app_ball_link.h"
 #include "app_h26_config.h"
+#include "app_car_state.h"
 #include "RodEncoder.h"
 #include "RodStepper.h"
 #include <stdint.h>
@@ -24,6 +25,7 @@ static volatile float s_tiltCommandMm = 0.0f;
 static volatile float s_pidTiltCommandMm = 0.0f;
 static volatile float s_feedForwardTiltMm = 0.0f;
 static volatile float s_errorIntegralCmS = 0.0f;
+static volatile uint8_t s_integralFrozen = 0U;
 
 static float s_previousControlErrorCm = 0.0f;
 static uint16_t s_lastPacketSequence = 0U;
@@ -33,6 +35,11 @@ static uint16_t s_newMeasurementDtMs = 0U;
 static uint8_t s_hasPacket = 0U;
 static uint8_t s_hasReliableMeasurement = 0U;
 static uint8_t s_hasPreviousControlError = 0U;
+static float s_previousForwardSpeedCmps = 0.0f;
+static float s_forwardAccelerationCmps2 = 0.0f;
+static float s_encoderFeedForwardTiltMm = 0.0f;
+static uint32_t s_lastFeedForwardMs = 0U;
+static uint8_t s_feedForwardInitialized = 0U;
 
 static float H26_Ball_AbsFloat(float value)
 {
@@ -218,6 +225,73 @@ static int32_t H26_Ball_TiltMmToRodCount(float tiltMm)
         (float)H26_T3_ROD_ENCODER_SIGN_FOR_POSITIVE_BALL);
 }
 
+void H26_BallControl_ResetEncoderFeedForward(uint32_t nowMs)
+{
+    s_previousForwardSpeedCmps = g_forwardSpeed;
+    s_forwardAccelerationCmps2 = 0.0f;
+    s_encoderFeedForwardTiltMm = 0.0f;
+    s_lastFeedForwardMs = nowMs;
+    s_feedForwardInitialized = 1U;
+}
+
+float H26_BallControl_UpdateEncoderFeedForward(uint32_t nowMs)
+{
+    float currentForwardSpeedCmps = g_forwardSpeed;
+    float dtSeconds;
+    float rawAccelerationCmps2;
+
+#if !H26_T4_ENCODER_FF_ENABLE
+    H26_BallControl_ResetEncoderFeedForward(nowMs);
+    return 0.0f;
+#else
+    if (H26_Ball_AbsFloat(g_leftSpeed - g_rightSpeed) >
+            H26_T4_FF_MAX_WHEEL_SPEED_DIFF_CMPS)
+    {
+        H26_BallControl_ResetEncoderFeedForward(nowMs);
+        return 0.0f;
+    }
+    if (s_feedForwardInitialized == 0U)
+    {
+        H26_BallControl_ResetEncoderFeedForward(nowMs);
+        return 0.0f;
+    }
+    if (nowMs == s_lastFeedForwardMs)
+    {
+        return s_encoderFeedForwardTiltMm;
+    }
+
+    dtSeconds = (float)(nowMs - s_lastFeedForwardMs) / 1000.0f;
+    if (dtSeconds <= 0.0f || dtSeconds > 0.05f)
+    {
+        H26_BallControl_ResetEncoderFeedForward(nowMs);
+        return 0.0f;
+    }
+
+    rawAccelerationCmps2 = H26_Ball_ClampFloat(
+        (currentForwardSpeedCmps - s_previousForwardSpeedCmps) / dtSeconds,
+        -H26_T4_FF_ACCEL_LIMIT_CMPS2, H26_T4_FF_ACCEL_LIMIT_CMPS2);
+    s_forwardAccelerationCmps2 += H26_T4_FF_ACCEL_FILTER_ALPHA *
+        (rawAccelerationCmps2 - s_forwardAccelerationCmps2);
+    s_encoderFeedForwardTiltMm = (s_forwardAccelerationCmps2 > 0.0f) ?
+        H26_Ball_ClampFloat(H26_T4_FF_TILT_SIGN_FOR_FORWARD_ACCEL *
+            H26_T4_FF_K_MM_PER_CMPS2 * s_forwardAccelerationCmps2,
+            -H26_T4_FF_TILT_LIMIT_MM, H26_T4_FF_TILT_LIMIT_MM) : 0.0f;
+    s_previousForwardSpeedCmps = currentForwardSpeedCmps;
+    s_lastFeedForwardMs = nowMs;
+    return s_encoderFeedForwardTiltMm;
+#endif
+}
+
+float H26_BallControl_GetForwardAccelerationCmps2(void)
+{
+    return s_forwardAccelerationCmps2;
+}
+
+void H26_BallControl_SetIntegralFrozen(uint8_t frozen)
+{
+    s_integralFrozen = (frozen != 0U) ? 1U : 0U;
+}
+
 static void H26_Ball_ApplyRodPositionControl(void)
 {
     int32_t encoderError = s_rodTargetCount - s_rodEncoderCount;
@@ -289,6 +363,7 @@ void H26_BallControl_Reset(void)
     s_pidTiltCommandMm = 0.0f;
     s_feedForwardTiltMm = 0.0f;
     s_errorIntegralCmS = 0.0f;
+    s_integralFrozen = 0U;
     s_previousControlErrorCm = 0.0f;
     s_lastPacketSequence = 0U;
     s_lastMeasurementMs = 0U;
@@ -297,6 +372,7 @@ void H26_BallControl_Reset(void)
     s_hasPacket = 0U;
     s_hasReliableMeasurement = 0U;
     s_hasPreviousControlError = 0U;
+    H26_BallControl_ResetEncoderFeedForward(0U);
 }
 
 void H26_BallControl_Start(void)
@@ -347,14 +423,15 @@ static H26_BallControlSample_t H26_BallControl_Task10msCore(
         }
         else
         {
-            if (positionKiMmPerCmS != 0.0f && integralLimitCmS > 0.0f)
+            if (s_integralFrozen == 0U && positionKiMmPerCmS != 0.0f &&
+                integralLimitCmS > 0.0f)
             {
                 s_errorIntegralCmS = H26_Ball_ClampFloat(
                     s_errorIntegralCmS + s_errorCm *
                     ((float)H26_BallControl_GetStableSampleMs() / 1000.0f),
                     -integralLimitCmS, integralLimitCmS);
             }
-            else
+            else if (positionKiMmPerCmS == 0.0f || integralLimitCmS <= 0.0f)
             {
                 s_errorIntegralCmS = 0.0f;
             }

@@ -290,7 +290,7 @@ void H26_Task10ms(void)
     case H26_SYS_FINISHED:
         if (s_selectedTask == H26_TASK_3)
         {
-            /* Task 3 has completed its final -5 cm PID settle. */
+            /* Task 3 has completed its final +5 cm PID settle. */
             H26_SafeCarStop();
             task3Result = H26_Task3_Task10ms(nowMs);
             if (task3Result == H26_T3_RESULT_FAULT)
@@ -448,24 +448,11 @@ void H26_Task100ms(void)
     if (s_selectedTask == H26_TASK_4)
     {
         DebugSerial_Printf(
-            "[h26,sys=%u,task=4,t4=%u,dist_c=%ld,cmd_v_c=%ld,pos_c=%ld,err_c=%ld,vel_c=%ld,car_v_c=%ld,car_a_c=%ld,pid_um=%ld,ff_um=%ld,tilt_um=%ld,rod=%ld,rod_t=%ld,vis=%u,org=%u,conf=%u,elapsed=%lu,fault=%u]\r\n",
-            (unsigned int)s_systemState,
+            "[h26,t4=%u,p=%ld,e=%ld,ff=%ld,t=%lu,f=%u]\r\n",
             (unsigned int)H26_Task4_GetState(),
-            (long)(H26_Task4_GetDistanceCm() * 100.0f),
-            (long)(H26_Task4_GetCommandForwardSpeedCmps() * 100.0f),
             (long)(H26_Task4_GetBallPositionCm() * 100.0f),
             (long)(H26_Task4_GetBallErrorCm() * 100.0f),
-            (long)(H26_Task4_GetBallSpeedCmps() * 100.0f),
-            (long)(H26_Task4_GetForwardSpeedCmps() * 100.0f),
-            (long)(H26_Task4_GetForwardAccelerationCmps2() * 100.0f),
-            (long)(H26_Task4_GetPidTiltCommandMm() * 1000.0f),
             (long)(H26_Task4_GetFeedForwardTiltMm() * 1000.0f),
-            (long)(H26_Task4_GetTiltCommandMm() * 1000.0f),
-            (long)H26_Task4_GetRodEncoderCount(),
-            (long)H26_Task4_GetRodTargetCount(),
-            (unsigned int)H26_Task4_IsVisionValid(),
-            (unsigned int)H26_Task4_IsOriginCalibrated(),
-            (unsigned int)H26_Task4_GetVisionConfidence(),
             (unsigned long)H26_Task4_GetElapsedMs(Timer_GetMillis()),
             (unsigned int)H26_Task4_GetFault());
         return;
@@ -637,7 +624,7 @@ void H26_Task200ms(void)
     OLED_ShowString(72, 32, "s", OLED_6X8);
     if (s_selectedTask == H26_TASK_3)
     {
-        OLED_ShowString(0, 48, "FINAL PID -5", OLED_6X8);
+        OLED_ShowString(0, 48, "FINAL PID +5", OLED_6X8);
     }
     else if (s_selectedTask == H26_TASK_4)
     {

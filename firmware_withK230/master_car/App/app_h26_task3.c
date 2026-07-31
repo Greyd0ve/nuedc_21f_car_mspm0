@@ -109,6 +109,18 @@ H26_Task3Result_t H26_Task3_Task10ms(uint32_t nowMs)
 {
     H26_BallControlSample_t sample;
 
+    /* The task time budget takes priority over final-position convergence.
+     * Stop the PID/rod output and report a normal completion at 4.5 s. */
+    if (s_state != H26_T3_IDLE && s_state != H26_T3_DONE &&
+        s_state != H26_T3_FAULT &&
+        (nowMs - s_startMs) >= H26_T3_FORCE_COMPLETE_MS)
+    {
+        s_finalElapsedMs = nowMs - s_startMs;
+        H26_BallControl_Stop();
+        s_state = H26_T3_DONE;
+        return H26_T3_RESULT_FINISHED;
+    }
+
     if (s_state != H26_T3_FINAL_PID)
     {
         (void)H26_BallControl_Observe10ms(nowMs);
@@ -118,20 +130,30 @@ H26_Task3Result_t H26_Task3_Task10ms(uint32_t nowMs)
     {
     case H26_T3_READY:
         (void)H26_T3_StartMove(nowMs, H26_T3_GetExtendDirection(),
-            H26_T3_EXTEND_9MM_PULSES, H26_T3_CHAIN_STEP_HZ,
+            H26_T3_EXTEND_9MM_PULSES, H26_T3_EXTEND_9MM_STEP_HZ,
             H26_T3_EXTEND_9MM);
         break;
 
     case H26_T3_EXTEND_9MM:
         if (RodStepper_TakeCompletionEvent() != 0U)
         {
-            (void)H26_T3_StartMove(nowMs, H26_T3_GetRetractDirection(),
-                H26_T3_RETRACT_18MM_PULSES, H26_T3_RETRACT_18MM_STEP_HZ,
-                H26_T3_RETRACT_18MM);
+            RodStepper_Stop();
+            s_phaseStartMs = nowMs;
+            s_moveTimeoutMs = 0U;
+            s_state = H26_T3_HOLD_FIRST_9MM;
         }
         else if (H26_T3_IsMoveTimedOut(nowMs) != 0U)
         {
             H26_T3_EnterFault(H26_T3_FAULT_MOVE_TIMEOUT);
+        }
+        break;
+
+    case H26_T3_HOLD_FIRST_9MM:
+        if ((nowMs - s_phaseStartMs) >= H26_T3_HOLD_FIRST_9MM_MS)
+        {
+            (void)H26_T3_StartMove(nowMs, H26_T3_GetRetractDirection(),
+                H26_T3_RETRACT_18MM_PULSES, H26_T3_RETRACT_18MM_STEP_HZ,
+                H26_T3_RETRACT_18MM);
         }
         break;
 
@@ -153,7 +175,7 @@ H26_Task3Result_t H26_Task3_Task10ms(uint32_t nowMs)
         if ((nowMs - s_phaseStartMs) >= H26_T3_HOLD_RETRACT_18MM_MS)
         {
             (void)H26_T3_StartMove(nowMs, H26_T3_GetExtendDirection(),
-                H26_T3_EXTEND_16MM_PULSES, H26_T3_CHAIN_STEP_HZ,
+                H26_T3_EXTEND_16MM_PULSES, H26_T3_EXTEND_16MM_STEP_HZ,
                 H26_T3_EXTEND_16MM);
         }
         break;

@@ -15,7 +15,6 @@ static volatile uint16_t s_leaveStableMs = 0U;
 static volatile uint16_t s_blackHoldMs = 0U;
 static volatile uint16_t s_stopHoldMs = 0U;
 static volatile uint8_t s_finishEnable = 0U;
-static volatile uint8_t s_finishMarkerArmed = 0U;
 static volatile uint8_t s_finishLatched = 0U;
 static volatile uint32_t s_finishDetectMs = 0U;
 static volatile int32_t s_finishDetectPulse = 0;
@@ -82,34 +81,39 @@ static void H26_T2_StopCommand(void)
 
 /*
  * Task 2 uses the physical wide black A-point marker, not curve counting.
- * The marker must begin only after both lap guards have elapsed.  Seeing a
- * normal line after arming creates the required ordinary-line -> wide-line
- * edge; a marker already present when arming cannot finish the task.
+ * Once both lap guards have elapsed, the marker is confirmed directly from
+ * the required number of black sensor channels.
  */
 static uint8_t H26_T2_DetectFinishMarker(uint32_t nowMs, uint32_t elapsedMs)
 {
-    if (H26_T2_GetDistanceCmFromStart() < H26_T2_MIN_FINISH_DISTANCE_CM ||
-        elapsedMs < H26_T2_MIN_FINISH_TIME_MS)
+    if (s_task5Profile != 0U)
+    {
+        if (elapsedMs < H26_T5_A_DETECT_ENABLE_MS)
+        {
+            s_blackHoldMs = 0U;
+            return 0U;
+        }
+    }
+    else if (H26_T2_GetDistanceCmFromStart() < H26_T2_MIN_FINISH_DISTANCE_CM ||
+             elapsedMs < H26_T2_MIN_FINISH_TIME_MS)
     {
         s_blackHoldMs = 0U;
         return 0U;
     }
 
-    if (g_lineBlackCount < H26_T2_FINISH_BLACK_CHANNELS)
-    {
-        s_finishMarkerArmed = 1U;
-        s_blackHoldMs = 0U;
-        return 0U;
-    }
+    s_finishEnable = 1U;
 
-    if (s_finishMarkerArmed == 0U)
+    if (g_lineBlackCount < H26_T2_PROFILE_VALUE(
+            H26_T2_FINISH_BLACK_CHANNELS, H26_T5_A_DETECT_BLACK_CHANNELS))
     {
+        s_blackHoldMs = 0U;
         return 0U;
     }
 
     s_blackHoldMs = H26_T2_SaturatingAddMs(
         s_blackHoldMs, CAR_CONTROL_PERIOD_MS);
-    if (s_blackHoldMs < H26_T2_FINISH_HOLD_MS)
+    if (s_blackHoldMs < H26_T2_PROFILE_VALUE(H26_T2_FINISH_HOLD_MS,
+                                              H26_T5_A_DETECT_HOLD_MS))
     {
         return 0U;
     }
@@ -272,7 +276,6 @@ void H26_Task2_Reset(void)
     s_blackHoldMs = 0U;
     s_stopHoldMs = 0U;
     s_finishEnable = 0U;
-    s_finishMarkerArmed = 0U;
     s_finishLatched = 0U;
     s_finishDetectMs = 0U;
     s_finishDetectPulse = 0;
@@ -296,7 +299,6 @@ void H26_Task2_Start(uint32_t startMs)
     s_blackHoldMs = 0U;
     s_stopHoldMs = 0U;
     s_finishEnable = 0U;
-    s_finishMarkerArmed = 0U;
     s_finishLatched = 0U;
     s_finishDetectMs = 0U;
     s_finishDetectPulse = 0;
@@ -378,7 +380,7 @@ uint16_t H26_Task2_GetStopHoldMs(void)
 
 uint8_t H26_Task2_IsFinishEnabled(void)
 {
-    return (s_task5Profile != 0U) ? s_finishEnable : s_finishMarkerArmed;
+    return s_finishEnable;
 }
 
 uint8_t H26_Task2_IsFinishLatched(void)
@@ -452,32 +454,10 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
 
     case H26_T2_LAP_RUNNING:
     {
-        if (s_task5Profile == 0U)
+        (void)H26_T2_ApplyLineControl();
+        if (H26_T2_DetectFinishMarker(nowMs, elapsedMs) != 0U)
         {
-            (void)H26_T2_ApplyLineControl();
-            if (H26_T2_DetectFinishMarker(nowMs, elapsedMs) != 0U)
-            {
-                s_state = H26_T2_BRAKING;
-            }
-        }
-        else
-        {
-            uint8_t curveExitEvent = H26_T2_ApplyLineControl();
-
-            /* Task 5 keeps its existing curve-count finish criterion. */
-            if (curveExitEvent != 0U &&
-                s_finishEnable < H26_T5_A_DETECT_CURVE_EXIT_COUNT)
-            {
-                s_finishEnable++;
-            }
-
-            if (s_finishEnable >= H26_T5_A_DETECT_CURVE_EXIT_COUNT)
-            {
-                s_finishLatched = 1U;
-                s_finishDetectMs = nowMs;
-                s_finishDetectPulse = g_forwardEncoderTotal;
-                s_state = H26_T2_BRAKING;
-            }
+            s_state = H26_T2_BRAKING;
         }
         break;
     }
@@ -487,19 +467,8 @@ H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs)
                 H26_T2_FINISH_EXIT_STOP_DELAY_MS,
                 H26_T5_FINISH_EXIT_STOP_DELAY_MS))
         {
-            if (s_task5Profile == 0U)
-            {
-                /* Task 2: continue ordinary line following for 100 ms. */
-                (void)H26_T2_ApplyLineControl();
-            }
-            else
-            {
-                /* Task 5 keeps its original straight overrun behaviour. */
-                g_targetForwardSpeed = s_commandForwardSpeed;
-                g_targetTurnSpeed = 0.0f;
-                g_carEnable = 1U;
-                App_Control_ApplyMotorOutput();
-            }
+            /* Continue ordinary line following before the final PWM stop. */
+            (void)H26_T2_ApplyLineControl();
         }
         else
         {

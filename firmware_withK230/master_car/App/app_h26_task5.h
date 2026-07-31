@@ -10,7 +10,9 @@ typedef enum
     H26_T5_LEAVE_A,
     H26_T5_LAP_RUNNING,
     H26_T5_DONE,
-    H26_T5_FAULT
+    H26_T5_FAULT,
+    /* Appended so the established DONE/FAULT telemetry values stay stable. */
+    H26_T5_PRETILT
 } H26_Task5State_t;
 
 typedef enum

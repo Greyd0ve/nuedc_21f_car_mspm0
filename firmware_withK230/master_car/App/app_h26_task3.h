@@ -4,12 +4,13 @@
 #include <stdint.h>
 
 /* Task 3 executes the fixed stroke sequence first, then uses K230 PID only
- * to settle the ball at the final -5 cm endpoint. */
+ * to settle the ball at the final +5 cm endpoint. */
 typedef enum
 {
     H26_T3_IDLE = 0,
     H26_T3_READY,
     H26_T3_EXTEND_9MM,
+    H26_T3_HOLD_FIRST_9MM,
     H26_T3_RETRACT_18MM,
     H26_T3_HOLD_RETRACT_18MM,
     H26_T3_EXTEND_16MM,

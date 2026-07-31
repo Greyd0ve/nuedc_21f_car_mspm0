@@ -32,6 +32,58 @@ static void H26_T5_StopCar(void)
     App_Control_ForcePWMZero();
 }
 
+/* Reuse task 4 PID; add encoder acceleration feed-forward only while driving. */
+static H26_BallControlSample_t H26_T5_UpdateBallControl(uint32_t nowMs,
+                                                          uint8_t mode)
+{
+    float feedForwardTiltMm = 0.0f;
+    float plannedFeedForwardTiltMm;
+    float targetCm = H26_T5_O_TARGET_CM;
+    uint32_t elapsedMs;
+
+    plannedFeedForwardTiltMm = H26_T4_FF_TILT_SIGN_FOR_FORWARD_ACCEL *
+        H26_T4_FF_K_MM_PER_CMPS2 * H26_T5_LAUNCH_ACCEL_CMPS2;
+    if (plannedFeedForwardTiltMm > H26_T4_FF_TILT_LIMIT_MM)
+    {
+        plannedFeedForwardTiltMm = H26_T4_FF_TILT_LIMIT_MM;
+    }
+
+    if (mode == 2U)
+    {
+        /* Keep a calibrated lead position while the chassis is in motion. */
+        targetCm += H26_T5_DRIVE_TARGET_COMPENSATION_CM;
+        H26_BallControl_SetIntegralFrozen(
+            ((nowMs - s_chassisStartMs) < H26_T5_INTEGRAL_FREEZE_MS) ?
+            1U : 0U);
+        feedForwardTiltMm = H26_BallControl_UpdateEncoderFeedForward(nowMs);
+        elapsedMs = nowMs - s_chassisStartMs;
+        if (elapsedMs < H26_T5_FF_HANDOFF_MS)
+        {
+            feedForwardTiltMm = plannedFeedForwardTiltMm +
+                (feedForwardTiltMm - plannedFeedForwardTiltMm) *
+                (float)elapsedMs / (float)H26_T5_FF_HANDOFF_MS;
+        }
+    }
+    else if (mode == 1U)
+    {
+        H26_BallControl_SetIntegralFrozen(1U);
+        feedForwardTiltMm = plannedFeedForwardTiltMm;
+    }
+    else
+    {
+        H26_BallControl_SetIntegralFrozen(0U);
+    }
+
+    return H26_BallControl_Task10msWithPidFeedForward(nowMs,
+        targetCm,
+        H26_T5_BALL_KP_MM_PER_CM,
+        H26_T5_BALL_KI_MM_PER_CM_S,
+        H26_T5_BALL_KD_MM_PER_CMPS,
+        H26_T5_BALL_INTEGRAL_LIMIT_CM_S,
+        H26_T5_BALL_TILT_COMMAND_LIMIT_MM,
+        feedForwardTiltMm);
+}
+
 static float H26_T5_GetChassisSpeedLimit(uint32_t nowMs)
 {
     uint32_t elapsedMs;
@@ -86,6 +138,7 @@ void H26_Task5_Reset(void)
     H26_T5_StopCar();
     H26_Task2_Reset();
     H26_BallControl_Reset();
+    H26_BallControl_ResetEncoderFeedForward(0U);
     s_state = H26_T5_IDLE;
     s_fault = H26_T5_FAULT_NONE;
     s_startMs = 0U;
@@ -99,6 +152,7 @@ void H26_Task5_Start(uint32_t startMs)
 {
     H26_Task5_Reset();
     H26_BallControl_Start();
+    H26_BallControl_ResetEncoderFeedForward(startMs);
     s_startMs = startMs;
     s_state = H26_T5_ACQUIRE_O;
 }
@@ -118,7 +172,7 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
     {
     case H26_T5_ACQUIRE_O:
         H26_T5_StopCar();
-        sample = H26_BallControl_Task10ms(nowMs, 0.0f);
+        sample = H26_T5_UpdateBallControl(nowMs, 0U);
         H26_T5_UpdateBallPeak(sample);
         if (sample == H26_BALL_SAMPLE_NEW &&
             H26_T5_AbsFloat(H26_BallControl_GetPositionCm()) <=
@@ -128,10 +182,9 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
                 H26_BallControl_GetStableSampleMs());
             if (s_oAcquireHoldMs >= H26_T5_O_ACQUIRE_HOLD_MS)
             {
-                /* Shared chassis machine, with task-5-only line parameters. */
-                H26_Task2_StartForTask5(s_startMs);
+                /* Prime the rod before the first non-zero traction command. */
                 s_chassisStartMs = nowMs;
-                s_state = H26_T5_LEAVE_A;
+                s_state = H26_T5_PRETILT;
             }
         }
         else
@@ -140,9 +193,23 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
         }
         break;
 
+    case H26_T5_PRETILT:
+        H26_T5_StopCar();
+        sample = H26_T5_UpdateBallControl(nowMs, 1U);
+        H26_T5_UpdateBallPeak(sample);
+        if ((nowMs - s_chassisStartMs) >= H26_T5_PRETILT_MS)
+        {
+            /* Shared chassis machine with task-2 line-following parameters. */
+            s_chassisStartMs = nowMs;
+            H26_Task2_StartForTask5(s_chassisStartMs);
+            H26_BallControl_ResetEncoderFeedForward(nowMs);
+            s_state = H26_T5_LEAVE_A;
+        }
+        break;
+
     case H26_T5_LEAVE_A:
     case H26_T5_LAP_RUNNING:
-        sample = H26_BallControl_Task10ms(nowMs, 0.0f);
+        sample = H26_T5_UpdateBallControl(nowMs, 2U);
         H26_T5_UpdateBallPeak(sample);
         H26_Task2_SetForwardSpeedLimit(H26_T5_GetChassisSpeedLimit(nowMs));
         chassisResult = H26_Task2_Task10ms(nowMs);
@@ -153,7 +220,10 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
         }
         if (chassisResult == H26_T2_RESULT_FINISHED)
         {
-            s_finalElapsedMs = H26_Task2_GetFinalElapsedMs();
+            if (s_finalElapsedMs == 0U)
+            {
+                s_finalElapsedMs = H26_Task2_GetFinalElapsedMs();
+            }
             s_state = H26_T5_DONE;
             return H26_T5_RESULT_FINISHED;
         }
@@ -161,6 +231,12 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
         {
             H26_T5_EnterFault(H26_T5_FAULT_ILLEGAL_STATE);
             return H26_T5_RESULT_FAULT;
+        }
+        if (s_finalElapsedMs == 0U &&
+            H26_Task2_GetState() == H26_T2_BRAKING)
+        {
+            /* A is confirmed: freeze task-5 time while task-2 tracks out. */
+            s_finalElapsedMs = nowMs - s_startMs;
         }
         break;
 
@@ -184,7 +260,7 @@ H26_Task5Result_t H26_Task5_Task10ms(uint32_t nowMs)
 
 void H26_Task5_HoldBall10ms(uint32_t nowMs)
 {
-    H26_BallControlSample_t sample = H26_BallControl_Task10ms(nowMs, 0.0f);
+    H26_BallControlSample_t sample = H26_T5_UpdateBallControl(nowMs, 0U);
     H26_T5_UpdateBallPeak(sample);
 }
 
@@ -197,7 +273,7 @@ uint32_t H26_Task5_GetElapsedMs(uint32_t nowMs)
     {
         return 0U;
     }
-    if (s_state == H26_T5_DONE)
+    if (s_finalElapsedMs != 0U || s_state == H26_T5_DONE)
     {
         return s_finalElapsedMs;
     }
