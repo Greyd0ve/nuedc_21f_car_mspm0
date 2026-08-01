@@ -204,6 +204,12 @@ static float H26_T2_SelectForwardSpeed(void)
         targetSpeed = s_forwardSpeedLimitCmps;
     }
 
+    if (s_task5Profile == 0U && s_finishEnable != 0U &&
+        targetSpeed > H26_T2_FINISH_SPEED_CMPS)
+    {
+        targetSpeed = H26_T2_FINISH_SPEED_CMPS;
+    }
+
     s_commandForwardSpeed = H26_T2_SlewFloat(s_commandForwardSpeed,
         targetSpeed, H26_T2_PROFILE_VALUE(H26_T2_SPEED_SLEW_CMPS_PER_TICK,
                                            H26_T5_SPEED_SLEW_CMPS_PER_TICK));
@@ -232,6 +238,14 @@ static uint8_t H26_T2_ApplyLineControl(void)
     }
 
     turnCmd = App_Line_CalcTurnCmd();
+
+    if (g_lineValid == 0U && g_lineLostMs >= H26_T2_PROFILE_VALUE(
+            H26_T2_LINE_LOST_TURN_MS, H26_T5_LINE_LOST_TURN_MS))
+    {
+        turnCmd = H26_T2_PROFILE_VALUE(H26_T2_LINE_LOST_TURN_CMPS,
+                                        H26_T5_LINE_LOST_TURN_CMPS);
+    }
+
     if (s_curveMode != 0U)
     {
         turnLimit = H26_T2_PROFILE_VALUE(H26_T2_CURVE_TURN_LIMIT_CMPS,

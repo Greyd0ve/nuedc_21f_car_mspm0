@@ -4,12 +4,12 @@
 #include "app_config.h"
 
 /* H26 task-2 control and confirmation parameters.  Calibrate on the real track. */
-#define H26_T2_STRAIGHT_SPEED_CMPS          48.0f
+#define H26_T2_STRAIGHT_SPEED_CMPS          45.0f
 /* Reduced speed gives the front-mounted grayscale sensor more correction time. */
-#define H26_T2_CURVE_SPEED_CMPS             35.0f
-#define H26_T2_FINISH_SPEED_CMPS            15.0f
-#define H26_T2_STRAIGHT_TURN_LIMIT_CMPS      8.0f
-#define H26_T2_CURVE_TURN_LIMIT_CMPS        25.0f
+#define H26_T2_CURVE_SPEED_CMPS             40.0f
+#define H26_T2_FINISH_SPEED_CMPS            25.0f
+#define H26_T2_STRAIGHT_TURN_LIMIT_CMPS     15.0f
+#define H26_T2_CURVE_TURN_LIMIT_CMPS        35.0f
 
 /* Turn-command hysteresis for straight/curve speed-zone selection. */
 #define H26_T2_CURVE_ENTER_TURN_CMPS         2.5f
@@ -29,7 +29,7 @@
 #define H26_T2_SPEED_SLEW_CMPS_PER_TICK      0.0f
 /* After the A-point marker is confirmed, continue normal line following
  * briefly, then force PWM to zero without an unverified reverse brake. */
-#define H26_T2_FINISH_EXIT_STOP_DELAY_MS     200U
+#define H26_T2_FINISH_EXIT_STOP_DELAY_MS     500U
 
 #define H26_T2_LEAVE_DISTANCE_CM            15.0f
 #define H26_T2_LEAVE_LINE_STABLE_MS         80U
@@ -37,15 +37,17 @@
 
 /* A-point marker qualification: detect a wide black line after one lap. */
 #define H26_T2_MIN_FINISH_DISTANCE_CM      450.0f
-#define H26_T2_MIN_FINISH_TIME_MS        12000U
+#define H26_T2_MIN_FINISH_TIME_MS        13000U
 #define H26_T2_MAX_RUN_TIME_MS           30000U
 
-#define H26_T2_FINISH_BLACK_CHANNELS        5U
+#define H26_T2_FINISH_BLACK_CHANNELS        6U
 #define H26_T2_FINISH_HOLD_MS               10U
 
 #define H26_T2_STOP_SPEED_CMPS               1.0f
 #define H26_T2_STOP_HOLD_MS                 100U
 /* A short all-white sample keeps following the last valid line error. */
+#define H26_T2_LINE_LOST_TURN_MS             20U
+#define H26_T2_LINE_LOST_TURN_CMPS           -30.0f
 #define H26_T2_LINE_LOST_STOP_MS             300U
 
 /*
@@ -80,13 +82,14 @@
 #define H26_T3_RAW_NEG5_CENTICM               750U
 #define H26_T3_TARGET_POSITIVE_CM              5.00f
 #define H26_T3_TARGET_NEGATIVE_CM             -5.00f
-#define H26_T3_TILT_DEADBAND_CM              0.25f
+#define H26_T3_TILT_DEADBAND_CM              0.15f
 #define H26_T3_TILT_DEADBAND_SPEED_CMPS      0.30f
 
 /* K230 parameters are used by the O-point controllers in tasks 4 and 5. */
 #define H26_T3_MIN_CONFIDENCE                50U
 #define H26_T3_NOMINAL_FRAME_MS              20U
 #define H26_T3_SPEED_FILTER_ALPHA          0.35f
+#define H26_T4_BALL_POSITION_DEADBAND_CM    0.25f
 
 /*
  * Chain/guide calibration measured on the vehicle:
@@ -113,8 +116,8 @@
  *
  * One chain millimetre is 3200 / 31.25 = 102.4 STEP pulses.  The pulse
  * With the current verified mechanical direction mapping, the physical
- * sequence is retract 9 mm, extend 18 mm, retract 16 mm, then extend 7 mm.
- * Its absolute positions are -9, +9, -7, then 0 mm, so the guide returns to
+ * sequence is extend 10 mm, retract 19 mm, extend 16 mm, then retract 7 mm.
+ * Its absolute positions are +10, -9, +7, then 0 mm, so the guide returns to
  * its initial horizontal position after the final +7 mm compensation.
  *
  * If the first movement physically retracts rather than extends the chain,
@@ -122,33 +125,29 @@
  * required.
  */
 #define H26_T3_CHAIN_EXTEND_DIR_POSITIVE        1U
-#define H26_T3_EXTEND_9MM_STEP_HZ             1600U
-#define H26_T3_EXTEND_16MM_STEP_HZ            2000U
-#define H26_T3_RETRACT_18MM_STEP_HZ           4000U
-#define H26_T3_RETRACT_7MM_STEP_HZ            2000U
-#define H26_T3_EXTEND_9MM_PULSES               922U
-#define H26_T3_RETRACT_18MM_PULSES            1844U
-#define H26_T3_EXTEND_16MM_PULSES             1639U
-#define H26_T3_RETRACT_7MM_PULSES              717U
-/* Briefly settle after the initial physical 9 mm retraction. */
-#define H26_T3_HOLD_FIRST_9MM_MS                 10U
-#define H26_T3_HOLD_RETRACT_18MM_MS            270U
-#define H26_T3_MOVE_TIMEOUT_MARGIN_MS         1000U
+#define H26_T3_EXTEND_10MM_STEP_HZ            2000U
+#define H26_T3_EXTEND_10MM_PULSES             1024U
+#define H26_T3_RETRACT_10MM_STEP_HZ           2000U
+#define H26_T3_RETRACT_10MM_PULSES             512U
+#define H26_T3_HOLD_TO_STAGE1_MS                 0U
+#define H26_T3_HOLD_TO_RETRACT_MS                0U
+#define H26_T3_HOLD_TO_STAGE2_MS                 0U
 
-/* After the fixed strokes, settle at the scored +5 cm endpoint.  The
- * 10 mm position band must also be low-speed for 100 ms before stopping. */
-#define H26_T3_FINAL_PID_TARGET_CM              5.00f
-#define H26_T3_FINAL_PID_TOLERANCE_CM           1.00f
-#define H26_T3_FINAL_PID_STABLE_SPEED_CMPS      0.30f
-#define H26_T3_FINAL_PID_STABLE_MS              100U
-#define H26_T3_FINAL_PID_TIMEOUT_MS            8000U
-/* Whole-task deadline: stop the rod controller and accept completion. */
-#define H26_T3_FORCE_COMPLETE_MS                4500U
-#define H26_T3_FINAL_PID_KP_MM_PER_CM           0.90f
+/* Stage 1: PID to O-point -5 mm, 5 mm deadband, hold 50 ms. */
+#define H26_T3_PID_STAGE1_TARGET_CM           -5.00f
+#define H26_T3_PID_STAGE1_TOLERANCE_CM         0.80f
+#define H26_T3_PID_STAGE1_STABLE_MS              50U
+
+/* Stage 2: PID to +5 cm, 4 mm deadband, hold 200 ms then done. */
+#define H26_T3_PID_STAGE2_TARGET_CM            5.00f
+#define H26_T3_PID_STAGE2_TOLERANCE_CM         0.60f
+#define H26_T3_PID_STAGE2_STABLE_MS             300U
+
+#define H26_T3_FINAL_PID_KP_MM_PER_CM           1.30f
 #define H26_T3_FINAL_PID_KI_MM_PER_CM_S         0.10f
-#define H26_T3_FINAL_PID_KD_MM_PER_CMPS         0.80f
+#define H26_T3_FINAL_PID_KD_MM_PER_CMPS         0.75f
 #define H26_T3_FINAL_PID_INTEGRAL_LIMIT_CM_S   30.00f
-#define H26_T3_FINAL_PID_TILT_LIMIT_MM          9.00f
+#define H26_T3_FINAL_PID_TILT_LIMIT_MM         10.00f
 
 /* Default O-point hold PD used by task 4/task 5. */
 #define H26_T3_BALL_POSITION_TO_TILT_MM_PER_CM    0.45f
@@ -212,7 +211,7 @@
  * Example: with the camera's physical O at 12 cm and a desired PID centre
  * of 13 cm, set this to +1.0f (after O-coordinate calibration).
  */
-#define H26_T5_DRIVE_TARGET_COMPENSATION_CM    0.45f
+#define H26_T5_DRIVE_TARGET_COMPENSATION_CM    0.0f
 /*
  * Task 5 uses separate ball-position PID gains for straight and curve
  * tracking.  Keep the initial values identical to preserve the validated
@@ -224,6 +223,7 @@
 #define H26_T5_BALL_CURVE_KP_MM_PER_CM         1.00f
 #define H26_T5_BALL_CURVE_KI_MM_PER_CM_S       0.09f
 #define H26_T5_BALL_CURVE_KD_MM_PER_CMPS       1.05f
+#define H26_T5_BALL_POSITION_DEADBAND_CM       0.15f
 #define H26_T5_BALL_INTEGRAL_LIMIT_CM_S       35.00f
 #define H26_T5_BALL_TILT_COMMAND_LIMIT_MM H26_T4_BALL_TILT_COMMAND_LIMIT_MM
 
@@ -249,6 +249,8 @@
 #define H26_T5_LEAVE_CLEAR_BLACK_CHANNELS H26_T2_LEAVE_CLEAR_BLACK_CHANNELS
 #define H26_T5_MAX_RUN_TIME_MS                 35000U
 #define H26_T5_LINE_LOST_STOP_MS        H26_T2_LINE_LOST_STOP_MS
+#define H26_T5_LINE_LOST_TURN_MS        H26_T2_LINE_LOST_TURN_MS
+#define H26_T5_LINE_LOST_TURN_CMPS      H26_T2_LINE_LOST_TURN_CMPS
 #define H26_T5_FINISH_EXIT_STOP_DELAY_MS       2000U
 #define H26_T5_STOP_SPEED_CMPS          H26_T2_STOP_SPEED_CMPS
 #define H26_T5_STOP_HOLD_MS             H26_T2_STOP_HOLD_MS

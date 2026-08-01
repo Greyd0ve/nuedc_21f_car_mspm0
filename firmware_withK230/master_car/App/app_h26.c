@@ -362,12 +362,12 @@ void H26_Task10ms(void)
                 H26_SafeCarStop();
                 s_systemState = H26_SYS_FINISHED;
                 H26_LedSetMode(H26_LED_FINISHED);
-                DebugSerial_Printf("[h26,finish,task=3,ms=%lu]\r\n",
+                DebugSerial_Printf("[t3f,%lu]\r\n",
                     (unsigned long)H26_Task3_GetFinalElapsedMs());
             }
             else if (task3Result == H26_T3_RESULT_FAULT)
             {
-                DebugSerial_Printf("[h26,task3-fault,code=%u]\r\n",
+                DebugSerial_Printf("[t3e,%u]\r\n",
                     (unsigned int)H26_Task3_GetFault());
                 H26_EnterFault("task3");
             }
@@ -436,7 +436,7 @@ void H26_Task100ms(void)
     if (s_selectedTask == H26_TASK_3)
     {
         DebugSerial_Printf(
-            "[h26,sys=%u,task=3,t3=%u,elapsed=%lu,final=%lu,fault=%u]\r\n",
+            "[t3,%u,%u,%lu,%lu,%u]\r\n",
             (unsigned int)s_systemState,
             (unsigned int)H26_Task3_GetState(),
             (unsigned long)H26_Task3_GetElapsedMs(Timer_GetMillis()),
@@ -502,7 +502,7 @@ void H26_Task100ms(void)
     if (s_selectedTask == H26_TASK_3)
     {
         DebugSerial_Printf(
-            "[h26,sys=%u,task=3,t3=%u,elapsed=%lu,final=%lu,fault=%u]\r\n",
+            "[t3,%u,%u,%lu,%lu,%u]\r\n",
             (unsigned int)s_systemState,
             (unsigned int)H26_Task3_GetState(),
             (unsigned long)H26_Task3_GetElapsedMs(Timer_GetMillis()),

@@ -54,7 +54,8 @@ H26_BallControlSample_t H26_BallControl_Task10msWithPidFeedForward(
     float speedKdMmPerCmps,
     float integralLimitCmS,
     float tiltCommandLimitMm,
-    float feedForwardTiltMm);
+    float feedForwardTiltMm,
+    float positionDeadbandCm);
 
 float H26_BallControl_GetPositionCm(void);
 float H26_BallControl_GetBallSpeedCmps(void);

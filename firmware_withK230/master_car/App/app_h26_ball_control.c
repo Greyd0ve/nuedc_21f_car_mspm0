@@ -397,7 +397,8 @@ static H26_BallControlSample_t H26_BallControl_Task10msCore(
     float speedKdMmPerCmps,
     float integralLimitCmS,
     float tiltCommandLimitMm,
-    float feedForwardTiltMm)
+    float feedForwardTiltMm,
+    float positionDeadbandCm)
 {
     H26_BallControlSample_t sample;
     float tiltMm;
@@ -415,7 +416,7 @@ static H26_BallControlSample_t H26_BallControl_Task10msCore(
             /* Do not let the old side's integral push through the O point. */
             s_errorIntegralCmS = 0.0f;
         }
-        if (H26_Ball_AbsFloat(s_errorCm) <= H26_T3_TILT_DEADBAND_CM &&
+        if (H26_Ball_AbsFloat(s_errorCm) <= positionDeadbandCm &&
             H26_Ball_AbsFloat(s_ballSpeedCmps) <= H26_T3_TILT_DEADBAND_SPEED_CMPS)
         {
             s_errorIntegralCmS = 0.0f;
@@ -467,7 +468,8 @@ H26_BallControlSample_t H26_BallControl_Task10ms(uint32_t nowMs,
         H26_T3_BALL_SPEED_TO_TILT_MM_PER_CMPS,
         0.0f,
         H26_T3_TILT_COMMAND_LIMIT_MM,
-        0.0f);
+        0.0f,
+        H26_T4_BALL_POSITION_DEADBAND_CM);
 }
 
 H26_BallControlSample_t H26_BallControl_Task10msWithPid(
@@ -485,7 +487,8 @@ H26_BallControlSample_t H26_BallControl_Task10msWithPid(
         speedKdMmPerCmps,
         integralLimitCmS,
         tiltCommandLimitMm,
-        0.0f);
+        0.0f,
+        H26_T4_BALL_POSITION_DEADBAND_CM);
 }
 
 H26_BallControlSample_t H26_BallControl_Task10msWithPidFeedForward(
@@ -496,7 +499,8 @@ H26_BallControlSample_t H26_BallControl_Task10msWithPidFeedForward(
     float speedKdMmPerCmps,
     float integralLimitCmS,
     float tiltCommandLimitMm,
-    float feedForwardTiltMm)
+    float feedForwardTiltMm,
+    float positionDeadbandCm)
 {
     return H26_BallControl_Task10msCore(nowMs, targetCm,
         positionKpMmPerCm,
@@ -504,7 +508,8 @@ H26_BallControlSample_t H26_BallControl_Task10msWithPidFeedForward(
         speedKdMmPerCmps,
         integralLimitCmS,
         tiltCommandLimitMm,
-        feedForwardTiltMm);
+        feedForwardTiltMm,
+        positionDeadbandCm);
 }
 
 float H26_BallControl_GetPositionCm(void) { return s_positionCm; }

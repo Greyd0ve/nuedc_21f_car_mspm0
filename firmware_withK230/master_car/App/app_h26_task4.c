@@ -77,7 +77,8 @@ static void H26_T4_UpdateBallControl(uint32_t nowMs)
         H26_T4_BALL_KD_MM_PER_CMPS,
         H26_T4_BALL_INTEGRAL_LIMIT_CM_S,
         H26_T4_BALL_TILT_COMMAND_LIMIT_MM,
-        H26_BallControl_UpdateEncoderFeedForward(nowMs));
+        H26_BallControl_UpdateEncoderFeedForward(nowMs),
+        H26_T4_BALL_POSITION_DEADBAND_CM);
 }
 
 static void H26_T4_EnterFault(H26_Task4Fault_t fault)

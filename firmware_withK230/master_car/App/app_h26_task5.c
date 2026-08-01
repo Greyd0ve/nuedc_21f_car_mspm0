@@ -91,7 +91,8 @@ static H26_BallControlSample_t H26_T5_UpdateBallControl(uint32_t nowMs,
         ballKd,
         H26_T5_BALL_INTEGRAL_LIMIT_CM_S,
         H26_T5_BALL_TILT_COMMAND_LIMIT_MM,
-        feedForwardTiltMm);
+        feedForwardTiltMm,
+        H26_T5_BALL_POSITION_DEADBAND_CM);
 }
 
 static float H26_T5_GetChassisSpeedLimit(uint32_t nowMs)
