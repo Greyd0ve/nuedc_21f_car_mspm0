@@ -36,6 +36,8 @@ void H26_Task2_Reset(void);
 void H26_Task2_ForceFault(void);
 /* Optional upper limit used by task 5's non-abrupt chassis launch. */
 void H26_Task2_SetForwardSpeedLimit(float limitCmps);
+/* Bypasses the profile clamp, allowing Task 4 to use its own speed. */
+void H26_Task2_SetForwardSpeedLimitRaw(float limitCmps);
 H26_Task2Result_t H26_Task2_Task10ms(uint32_t nowMs);
 
 H26_Task2State_t H26_Task2_GetState(void);

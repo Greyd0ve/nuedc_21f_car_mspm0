@@ -82,7 +82,7 @@
 #define H26_T3_RAW_NEG5_CENTICM               750U
 #define H26_T3_TARGET_POSITIVE_CM              5.00f
 #define H26_T3_TARGET_NEGATIVE_CM             -5.00f
-#define H26_T3_TILT_DEADBAND_CM              0.15f
+#define H26_T3_TILT_DEADBAND_CM              0.10f
 #define H26_T3_TILT_DEADBAND_SPEED_CMPS      0.30f
 
 /* K230 parameters are used by the O-point controllers in tasks 4 and 5. */
@@ -140,12 +140,12 @@
 
 /* Stage 2: PID to +5 cm, 4 mm deadband, hold 200 ms then done. */
 #define H26_T3_PID_STAGE2_TARGET_CM            5.00f
-#define H26_T3_PID_STAGE2_TOLERANCE_CM         0.60f
+#define H26_T3_PID_STAGE2_TOLERANCE_CM         1.00f
 #define H26_T3_PID_STAGE2_STABLE_MS             300U
 
 #define H26_T3_FINAL_PID_KP_MM_PER_CM           1.30f
 #define H26_T3_FINAL_PID_KI_MM_PER_CM_S         0.10f
-#define H26_T3_FINAL_PID_KD_MM_PER_CMPS         0.75f
+#define H26_T3_FINAL_PID_KD_MM_PER_CMPS         0.70f
 #define H26_T3_FINAL_PID_INTEGRAL_LIMIT_CM_S   30.00f
 #define H26_T3_FINAL_PID_TILT_LIMIT_MM         10.00f
 
@@ -161,11 +161,13 @@
 #define H26_T3_ROD_POSITION_MAX_HZ                5000U
 
 /*
- * H26 task-4 supports two test entries after task 4 is selected:
- * K2 runs the 130 cm straight-line test with ball PID and acceleration
- * feed-forward; K3 leaves traction off for the hand-push feed-forward test.
- * Units: Kp = mm/cm, Ki = mm/(cm*s), Kd = mm/(cm/s).
+ * H26 task-4: 120 cm straight + one curve, ball held at O.
+ *
+ * Task 4 now shares Task 6's distance-scheduled PID / compensation / Kff
+ * via H26_T6_GetScheduledControl().  Chassis uses H26_Task2_StartForTask5
+ * (same line profile as T5/T6) with faster straight speed.
  */
+#define H26_T4_STRAIGHT_SPEED_CMPS               35.0f
 #define H26_T4_O_TARGET_CM                        0.0f
 #define H26_T4_BALL_KP_MM_PER_CM                  0.60f
 #define H26_T4_BALL_KI_MM_PER_CM_S                0.10f
@@ -264,6 +266,55 @@
 #define H26_T5_LAUNCH_ACCEL_CMPS2                 9.67f
 /* Hold the existing I term during the commanded acceleration interval. */
 #define H26_T5_INTEGRAL_FREEZE_MS H26_T5_STRAIGHT_ACCEL_RAMP_MS
+
+/*
+ * H26 task-6 multi-position dynamic hold parameters.
+ *
+ * Task 6 reuses task 5's chassis line-following profile (via
+ * H26_Task2_StartForTask5) and task 5's curve/straight transition
+ * thresholds.  Its ball PID, feed-forward and position compensation
+ * are distance-scheduled through H26_T6_GetScheduledControl().
+ */
+
+/* Minimum and maximum absolute distance on the pipe (cm). */
+#define H26_T6_MIN_DISTANCE_CM                  3.10f
+#define H26_T6_MAX_DISTANCE_CM                 21.00f
+
+/* Blend coefficient: 1.0 = full scheduled parameters. */
+#define H26_T6_SCHEDULE_BLEND                   1.00f
+/* Maximum target-position change per 10 ms control tick (cm). */
+#define H26_T6_TARGET_SLEW_CM_PER_TICK       0.05f
+/* First-order smoothing for scheduled PID / Kff parameters. */
+#define H26_T6_SCHEDULE_FILTER_ALPHA          0.10f
+
+/* Fixed acceleration feed-forward coefficient. */
+#define H26_T6_FF_K_MM_PER_CMPS2              0.60f
+/* Feed-forward tilt output limit (mm). */
+#define H26_T6_FF_TILT_LIMIT_MM               7.00f
+
+/* End-of-lap dynamic compensation timing (ms from task start). */
+#define H26_T6_END_COMP_START_MS              19500U
+#define H26_T6_END_COMP_FULL_MS               23000U
+/* End-of-lap compensation output limits (cm). */
+#define H26_T6_END_COMP_MIN_CM                 0.20f
+#define H26_T6_END_COMP_MAX_CM                 1.25f
+/* Final combined compensation range (cruise + end, cm). */
+#define H26_T6_FINAL_COMP_MIN_CM              -0.60f
+#define H26_T6_FINAL_COMP_MAX_CM               1.10f
+
+#define H26_T6_O_TARGET_CM                     0.0f
+#define H26_T6_BALL_POSITION_DEADBAND_CM       0.15f
+#define H26_T6_BALL_INTEGRAL_LIMIT_CM_S       35.00f
+#define H26_T6_BALL_TILT_COMMAND_LIMIT_MM     20.00f
+
+#define H26_T6_STRAIGHT_SPEED_CMPS             29.0f
+#define H26_T6_STRAIGHT_ACCEL_RAMP_MS          3000U
+#define H26_T6_LAUNCH_ACCEL_CMPS2               9.67f
+
+#define H26_T6_PRETILT_MS                      130U
+#define H26_T6_FF_HANDOFF_MS                   140U
+
+#define H26_T6_INTEGRAL_FREEZE_MS H26_T6_STRAIGHT_ACCEL_RAMP_MS
 
 #define H26_LED_SHOW_ON_MS                 200U
 #define H26_LED_SHOW_OFF_MS                200U

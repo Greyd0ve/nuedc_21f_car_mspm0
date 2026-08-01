@@ -354,6 +354,15 @@ void H26_Task2_SetForwardSpeedLimit(float limitCmps)
     s_forwardSpeedLimitCmps = limitCmps;
 }
 
+void H26_Task2_SetForwardSpeedLimitRaw(float limitCmps)
+{
+    if (limitCmps < 0.0f)
+    {
+        limitCmps = 0.0f;
+    }
+    s_forwardSpeedLimitCmps = limitCmps;
+}
+
 H26_Task2State_t H26_Task2_GetState(void)
 {
     return s_state;

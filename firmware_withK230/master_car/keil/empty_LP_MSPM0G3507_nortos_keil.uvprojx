@@ -337,7 +337,8 @@
             <v6WtE>0</v6WtE>
             <v6Rtti>0</v6Rtti>
             <VariousControls>
-              <MiscControls></MiscControls>              <Define>__MSPM0G3507__</Define>
+              <MiscControls>-Os</MiscControls>
+              <Define>__MSPM0G3507__</Define>
               <Undefine>
               </Undefine><IncludePath>..,..\App,..\Control,..\Hardware,..\System,..\User,D:\ti2\mspm0_sdk_2_02_00_05\source\third_party\CMSIS\Core\Include,D:\ti2\mspm0_sdk_2_02_00_05\source</IncludePath>
             </VariousControls>
@@ -354,7 +355,8 @@
             <useXO>0</useXO>
             <ClangAsOpt>1</ClangAsOpt>
             <VariousControls>
-              <MiscControls></MiscControls>              <Define>
+              <MiscControls>-Os</MiscControls>
+              <Define>
               </Define><Undefine>
               </Undefine><IncludePath>
 </IncludePath>            </VariousControls>
@@ -471,6 +473,11 @@
               <FileName>app_h26_task5.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\app_h26_task5.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_h26_task6.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\app_h26_task6.c</FilePath>
             </File>
             <File>
               <FileName>app_board_test.c</FileName>
